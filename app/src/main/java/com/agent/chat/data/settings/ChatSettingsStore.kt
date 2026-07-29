@@ -1,6 +1,7 @@
 package com.agent.chat.data.settings
 
 import android.content.Context
+import com.agent.chat.domain.model.LingBanChatMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,6 +33,24 @@ class ChatSettingsStore @Inject constructor(
         _snapshot.value = read()
     }
 
+    fun setRolePlayEnabled(enabled: Boolean) {
+        // 兼容旧开关：映射到聊天模式
+        setChatMode(if (enabled) LingBanChatMode.ROLEPLAY else LingBanChatMode.COMPANION)
+    }
+
+    fun setChatMode(mode: LingBanChatMode) {
+        prefs.edit()
+            .putString(KEY_CHAT_MODE, mode.storageKey)
+            .putBoolean(KEY_ROLE_PLAY, mode == LingBanChatMode.ROLEPLAY)
+            .apply()
+        _snapshot.value = read()
+    }
+
+    fun setResponseControllerEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_RESPONSE_CONTROLLER, enabled).apply()
+        _snapshot.value = read()
+    }
+
     fun setSplitBubbleByNewline(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_SPLIT_BY_NEWLINE, enabled).apply()
         _snapshot.value = read()
@@ -39,6 +58,11 @@ class ChatSettingsStore @Inject constructor(
 
     fun setUserNickname(nickname: String) {
         prefs.edit().putString(KEY_NICKNAME, nickname.trim()).apply()
+        _snapshot.value = read()
+    }
+
+    fun setUserAvatarPath(path: String?) {
+        prefs.edit().putString(KEY_AVATAR_PATH, path?.trim().orEmpty()).apply()
         _snapshot.value = read()
     }
 
@@ -94,29 +118,44 @@ class ChatSettingsStore @Inject constructor(
         _snapshot.value = read()
     }
 
-    private fun read(): ChatSettings = ChatSettings(
-        naturalChatPaceEnabled = prefs.getBoolean(KEY_NATURAL_CHAT_PACE, true),
-        companionStyleEnabled = prefs.getBoolean(KEY_COMPANION_STYLE, true),
-        splitBubbleByNewline = prefs.getBoolean(KEY_SPLIT_BY_NEWLINE, true),
-        userNickname = prefs.getString(KEY_NICKNAME, "")?.orEmpty().orEmpty(),
-        userInterest = prefs.getString(KEY_INTEREST, "")?.orEmpty().orEmpty(),
-        userOccupation = prefs.getString(KEY_OCCUPATION, "")?.orEmpty().orEmpty(),
-        userGoal = prefs.getString(KEY_GOAL, "")?.orEmpty().orEmpty(),
-        themeMode = prefs.getString(KEY_THEME_MODE, "light")?.takeIf { it.isNotBlank() } ?: "light",
-        hasExplored = prefs.getBoolean(KEY_HAS_EXPLORED, false),
-        proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE, false),
-        proactiveIdleHours = prefs.getInt(KEY_PROACTIVE_IDLE_HOURS, 6).coerceIn(1, 72),
-        lastUserActivityAt = prefs.getLong(KEY_LAST_ACTIVITY, 0L),
-        lastProactiveNudgeAt = prefs.getLong(KEY_LAST_NUDGE_AT, 0L),
-        lastProactiveNudgeKind = prefs.getString(KEY_LAST_NUDGE_KIND, "").orEmpty(),
-    )
+    private fun read(): ChatSettings {
+        val storedMode = prefs.getString(KEY_CHAT_MODE, null)
+        val chatMode = when {
+            !storedMode.isNullOrBlank() -> LingBanChatMode.fromStorage(storedMode)
+            prefs.getBoolean(KEY_ROLE_PLAY, false) -> LingBanChatMode.ROLEPLAY
+            else -> LingBanChatMode.COMPANION
+        }
+        return ChatSettings(
+            naturalChatPaceEnabled = prefs.getBoolean(KEY_NATURAL_CHAT_PACE, true),
+            companionStyleEnabled = prefs.getBoolean(KEY_COMPANION_STYLE, true),
+            chatMode = chatMode,
+            responseControllerEnabled = prefs.getBoolean(KEY_RESPONSE_CONTROLLER, true),
+            splitBubbleByNewline = prefs.getBoolean(KEY_SPLIT_BY_NEWLINE, true),
+            userNickname = prefs.getString(KEY_NICKNAME, "")?.orEmpty().orEmpty(),
+            userAvatarPath = prefs.getString(KEY_AVATAR_PATH, "")?.orEmpty().orEmpty(),
+            userInterest = prefs.getString(KEY_INTEREST, "")?.orEmpty().orEmpty(),
+            userOccupation = prefs.getString(KEY_OCCUPATION, "")?.orEmpty().orEmpty(),
+            userGoal = prefs.getString(KEY_GOAL, "")?.orEmpty().orEmpty(),
+            themeMode = prefs.getString(KEY_THEME_MODE, "light")?.takeIf { it.isNotBlank() } ?: "light",
+            hasExplored = prefs.getBoolean(KEY_HAS_EXPLORED, false),
+            proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE, false),
+            proactiveIdleHours = prefs.getInt(KEY_PROACTIVE_IDLE_HOURS, 6).coerceIn(1, 72),
+            lastUserActivityAt = prefs.getLong(KEY_LAST_ACTIVITY, 0L),
+            lastProactiveNudgeAt = prefs.getLong(KEY_LAST_NUDGE_AT, 0L),
+            lastProactiveNudgeKind = prefs.getString(KEY_LAST_NUDGE_KIND, "").orEmpty(),
+        )
+    }
 
     companion object {
         private const val PREFS_NAME = "chat_settings"
         private const val KEY_NATURAL_CHAT_PACE = "natural_chat_pace"
         private const val KEY_COMPANION_STYLE = "companion_style"
+        private const val KEY_CHAT_MODE = "chat_mode"
+        private const val KEY_ROLE_PLAY = "role_play_enabled"
+        private const val KEY_RESPONSE_CONTROLLER = "response_controller_enabled"
         private const val KEY_SPLIT_BY_NEWLINE = "split_by_newline"
         private const val KEY_NICKNAME = "user_nickname"
+        private const val KEY_AVATAR_PATH = "user_avatar_path"
         private const val KEY_INTEREST = "user_interest"
         private const val KEY_OCCUPATION = "user_occupation"
         private const val KEY_GOAL = "user_goal"
@@ -133,11 +172,17 @@ class ChatSettingsStore @Inject constructor(
 data class ChatSettings(
     /** 流式完整后拆分并模拟输入节奏；关闭则一次性展示 */
     val naturalChatPaceEnabled: Boolean = true,
-    /** 注入口语化伴侣风格层 */
+    /** 注入真人对话规则层（助手/伴侣/RP 文案由 [chatMode] 决定） */
     val companionStyleEnabled: Boolean = true,
+    /** 灵伴聊天模式 */
+    val chatMode: LingBanChatMode = LingBanChatMode.COMPANION,
+    /** Response Controller：评估回复，不达标则重生成 */
+    val responseControllerEnabled: Boolean = true,
     /** 优先按模型换行拆气泡 */
     val splitBubbleByNewline: Boolean = true,
     val userNickname: String = "",
+    /** 本地头像绝对路径；空表示使用默认首字头像 */
+    val userAvatarPath: String = "",
     val userInterest: String = "",
     val userOccupation: String = "",
     val userGoal: String = "",
@@ -152,4 +197,7 @@ data class ChatSettings(
     val lastProactiveNudgeKind: String = "",
 ) {
     val isDarkTheme: Boolean get() = themeMode.equals("dark", ignoreCase = true)
+
+    /** 兼容旧字段：是否 RolePlay */
+    val rolePlayEnabled: Boolean get() = chatMode == LingBanChatMode.ROLEPLAY
 }

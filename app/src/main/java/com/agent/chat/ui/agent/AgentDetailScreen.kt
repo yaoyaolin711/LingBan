@@ -49,14 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agent.chat.ui.components.PersonaAvatar
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.AppBg
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.ErrorSoftText
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalLayoutApi::class)
@@ -68,6 +62,8 @@ fun SharedTransitionScope.AgentDetailScreen(
     onManageClick: () -> Unit,
     viewModel: AgentDetailViewModel = hiltViewModel(),
 ) {
+    val colors = AgentThemeColors
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val persona = uiState.persona
@@ -85,7 +81,7 @@ fun SharedTransitionScope.AgentDetailScreen(
     }
 
     Scaffold(
-        containerColor = AppBg,
+        containerColor = colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Row(
@@ -99,13 +95,13 @@ fun SharedTransitionScope.AgentDetailScreen(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
-                        tint = TextPrimary,
+                        tint = colors.textPrimary,
                     )
                 }
                 Text(
                     text = "伙伴详情",
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -118,7 +114,7 @@ fun SharedTransitionScope.AgentDetailScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("这位伙伴不在了", color = TextSecondary)
+                Text("这位伙伴不在了", color = colors.textSecondary)
             }
             return@Scaffold
         }
@@ -143,8 +139,8 @@ fun SharedTransitionScope.AgentDetailScreen(
                         resizeMode = SharedTransitionScope.ResizeMode.ScaleToBounds(),
                     )
                     .clip(RoundedCornerShape(28.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, OutlineSubtle, RoundedCornerShape(28.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.outline, RoundedCornerShape(28.dp))
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -163,7 +159,7 @@ fun SharedTransitionScope.AgentDetailScreen(
                 Text(
                     text = persona.name,
                     style = MaterialTheme.typography.headlineMedium,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -172,14 +168,14 @@ fun SharedTransitionScope.AgentDetailScreen(
                         persona.openingLine.ifBlank { "一位愿意慢慢了解你的 AI 伙伴" }
                     },
                     style = MaterialTheme.typography.bodyLarge,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
             DetailSection(title = "能力") {
                 if (uiState.capabilities.isEmpty()) {
-                    Text("自由对话", color = TextSecondary)
+                    Text("自由对话", color = colors.textSecondary)
                 } else {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -195,20 +191,20 @@ fun SharedTransitionScope.AgentDetailScreen(
                 Text(
                     text = persona.systemPrompt.ifBlank { "尚未写下详细人格" },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                 )
                 if (persona.openingLine.isNotBlank()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "开场白",
                         style = MaterialTheme.typography.labelLarge,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = persona.openingLine,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                     )
                 }
             }
@@ -218,13 +214,13 @@ fun SharedTransitionScope.AgentDetailScreen(
                 Text(
                     text = uiState.memoryScope,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "与这位伙伴相关的记忆会跨会话保留，并在对话中温柔地被想起。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
             }
 
@@ -237,7 +233,7 @@ fun SharedTransitionScope.AgentDetailScreen(
                         "还没有共同的故事，可以从一次聊天开始"
                     },
                     style = MaterialTheme.typography.bodyLarge,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                 )
             }
 
@@ -249,7 +245,7 @@ fun SharedTransitionScope.AgentDetailScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Accent,
+                    containerColor = colors.accent,
                     contentColor = Color.White,
                 ),
             ) {
@@ -266,7 +262,7 @@ fun SharedTransitionScope.AgentDetailScreen(
                     .height(48.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {
-                Text("高级设定与导入", color = TextPrimary)
+                Text("高级设定与导入", color = colors.textPrimary)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -291,17 +287,19 @@ private fun DetailSection(
     title: String,
     content: @Composable () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(SurfaceMuted.copy(alpha = 0.65f))
+            .background(colors.surfaceMuted.copy(alpha = 0.65f))
             .padding(16.dp),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary,
+            color = colors.textPrimary,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(modifier = Modifier.height(10.dp))

@@ -1,6 +1,5 @@
 package com.agent.chat.data.ai
 
-import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.Message
 import com.agent.chat.domain.model.MessageRole
 import com.agent.chat.domain.model.Persona
@@ -11,18 +10,10 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-object CompanionStylePrompt {
-    val DEFAULT = """
-【对话风格】
-- 你是在和用户实时聊天的人，不是客服、不是说明书。
-- 多用短句、口语，少用列表和「首先/其次/综上所述」。
-- 可以有轻微情绪和语气词，但不要夸张表演。
-- 回复尽量一句一行，像即时通讯连发；需要分段时用换行，不要写成一大段论文。
-- 不要自称 AI / 语言模型，除非用户追问。
-- 调用工具后，用自然语气消化结果，不要复述 JSON 或说「根据工具返回」。
-""".trimIndent()
-}
-
+/**
+ * Prompt 占位符、世界书、预设对话、时间提醒等工具。
+ * System Prompt 正文组装请使用 [com.agent.chat.data.ai.prompt.PromptComposer]。
+ */
 object PromptContextInjector {
 
     /** 扫描近期消息时最多取多少条 */
@@ -46,72 +37,6 @@ object PromptContextInjector {
             .replace("{nickname}", user, ignoreCase = true)
             .replace("{{char}}", charName, ignoreCase = true)
             .replace("{char}", charName, ignoreCase = true)
-    }
-
-    fun buildSystemPrompt(
-        persona: Persona?,
-        memories: List<Memory>,
-        companionStyleEnabled: Boolean,
-        userNickname: String,
-        recentMessages: List<Message> = emptyList(),
-        careContext: String = "",
-        userInterest: String = "",
-        userOccupation: String = "",
-        userGoal: String = "",
-    ): String {
-        val parts = mutableListOf<String>()
-        val base = persona?.systemPrompt.orEmpty().trim()
-        if (base.isNotEmpty()) {
-            parts.add(applyPlaceholders(base, persona, userNickname))
-        }
-        if (companionStyleEnabled) {
-            parts.add(CompanionStylePrompt.DEFAULT)
-        }
-        if (careContext.isNotBlank()) {
-            parts.add(careContext.trim())
-        } else {
-            val now = SimpleDateFormat("yyyy-MM-dd HH:mm E", Locale.getDefault()).format(Date())
-            parts.add("【当前时间】$now")
-        }
-
-        val portraitLines = buildList {
-            if (userNickname.isNotBlank()) add("姓名：$userNickname")
-            if (userInterest.isNotBlank()) add("兴趣：$userInterest")
-            if (userOccupation.isNotBlank()) add("职业：$userOccupation")
-            if (userGoal.isNotBlank()) add("目标：$userGoal")
-        }
-        if (portraitLines.isNotEmpty()) {
-            parts.add(
-                buildString {
-                    append("【用户画像】请自然地了解对方，勿生硬宣读：")
-                    portraitLines.forEach { append("\n- ").append(it) }
-                },
-            )
-        }
-
-        val lore = matchLorebook(persona, recentMessages, userNickname)
-        if (lore.isNotEmpty()) {
-            parts.add(
-                buildString {
-                    append("【相关设定】（由对话关键词触发，请自然融入，勿生硬宣读）")
-                    lore.forEach { entry ->
-                        append("\n- ")
-                        append(entry)
-                    }
-                },
-            )
-        }
-
-        if (memories.isNotEmpty()) {
-            val block = buildString {
-                append("【长期记忆】以下是你记住的关于用户的重要信息（可引用但勿整段朗读）：")
-                memories.forEach { m ->
-                    append("\n- [id=${m.id}] ${m.content.trim()}")
-                }
-            }
-            parts.add(block)
-        }
-        return parts.joinToString("\n\n").trim()
     }
 
     /**

@@ -7,6 +7,11 @@ import com.agent.chat.data.ai.tool.impl.CalendarTool
 import com.agent.chat.data.ai.tool.impl.DeviceInfoTool
 import com.agent.chat.data.ai.tool.impl.LocationTool
 import com.agent.chat.data.ai.tool.impl.MemoryTool
+import com.agent.chat.data.ai.tool.impl.MusicTool
+import com.agent.chat.data.ai.tool.impl.NotificationTool
+import com.agent.chat.data.ai.tool.impl.ScreenContentTool
+import com.agent.chat.data.ai.tool.impl.ScreenStateTool
+import com.agent.chat.data.ai.tool.impl.SmsTool
 import com.agent.chat.data.ai.tool.impl.TimeTool
 import com.agent.chat.data.provider.ChatToolDefinition
 import com.agent.chat.data.settings.ToolSettings
@@ -25,6 +30,11 @@ class LocalToolRegistry @Inject constructor(
     private val alarmTool: AlarmTool,
     private val locationTool: LocationTool,
     private val appUsageTool: AppUsageTool,
+    private val notificationTool: NotificationTool,
+    private val musicTool: MusicTool,
+    private val smsTool: SmsTool,
+    private val screenStateTool: ScreenStateTool,
+    private val screenContentTool: ScreenContentTool,
 ) {
 
     fun enabledTools(settings: ToolSettings = toolSettingsStore.get()): List<AgentTool> {
@@ -37,6 +47,11 @@ class LocalToolRegistry @Inject constructor(
             if (settings.alarmEnabled) add(alarmTool)
             if (settings.locationEnabled) add(locationTool)
             if (settings.appUsageEnabled) add(appUsageTool)
+            if (settings.notificationEnabled) add(notificationTool)
+            if (settings.musicEnabled) add(musicTool)
+            if (settings.smsEnabled) add(smsTool)
+            if (settings.screenStateEnabled) add(screenStateTool)
+            if (settings.screenContentEnabled) add(screenContentTool)
         }
         return all
     }

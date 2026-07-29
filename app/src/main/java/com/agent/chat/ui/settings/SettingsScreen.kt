@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,9 +58,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agent.chat.data.memory.MemorySettingsStore
+import com.agent.chat.domain.model.InteractionPreference
+import com.agent.chat.domain.model.LingBanChatMode
 import com.agent.chat.domain.model.ProviderConfig
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.ErrorSoftText
-import com.agent.chat.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +70,8 @@ fun SettingsScreen(
     onBackClick: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val colors = AgentThemeColors
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showSummaryProviderPicker by remember { mutableStateOf(false) }
@@ -75,6 +80,28 @@ fun SettingsScreen(
         val message = uiState.statusMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         viewModel.consumeStatusMessage()
+    }
+
+    if (uiState.isEditorOpen) {
+        ProviderEditorScreen(
+            isEditing = uiState.editingId != null,
+            name = uiState.editorName,
+            baseUrl = uiState.editorBaseUrl,
+            apiKey = uiState.editorApiKey,
+            modelName = uiState.editorModelName,
+            isTesting = uiState.isTesting,
+            inlineError = uiState.inlineError,
+            inlineDebugDetail = uiState.inlineDebugDetail,
+            onNameChange = viewModel::onEditorNameChange,
+            onBaseUrlChange = viewModel::onEditorBaseUrlChange,
+            onApiKeyChange = viewModel::onEditorApiKeyChange,
+            onModelNameChange = viewModel::onEditorModelNameChange,
+            onTest = viewModel::testEditorConfig,
+            onBack = viewModel::closeEditor,
+            onConfirm = viewModel::saveEditor,
+            snackbarHostState = snackbarHostState,
+        )
+        return
     }
 
     Scaffold(
@@ -124,16 +151,40 @@ fun SettingsScreen(
                 ChatDisplaySettingsSection(
                     naturalChatPaceEnabled = uiState.naturalChatPaceEnabled,
                     companionStyleEnabled = uiState.companionStyleEnabled,
+                    chatMode = uiState.chatMode,
+                    responseControllerEnabled = uiState.responseControllerEnabled,
                     splitBubbleByNewline = uiState.splitBubbleByNewline,
                     userNickname = uiState.userNickname,
                     proactiveEnabled = uiState.proactiveEnabled,
                     proactiveIdleHours = uiState.proactiveIdleHours,
                     onNaturalChatPaceChange = viewModel::setNaturalChatPaceEnabled,
                     onCompanionStyleChange = viewModel::setCompanionStyleEnabled,
+                    onChatModeChange = viewModel::setChatMode,
+                    onResponseControllerChange = viewModel::setResponseControllerEnabled,
                     onSplitByNewlineChange = viewModel::setSplitBubbleByNewline,
                     onNicknameChange = viewModel::setUserNickname,
                     onProactiveChange = viewModel::setProactiveEnabled,
                     onProactiveIdleHoursChange = viewModel::setProactiveIdleHours,
+                )
+            }
+
+            item {
+                HomeLocationSection(
+                    hasHomeLocation = uiState.hasHomeLocation,
+                    homeRadiusMeters = uiState.homeRadiusMeters,
+                    onSetHomeToCurrentLocation = viewModel::setHomeToCurrentLocation,
+                    onClearHomeLocation = viewModel::clearHomeLocation,
+                    onRadiusChange = viewModel::setHomeRadius,
+                )
+            }
+
+            item {
+                InteractionPreferenceSection(
+                    preference = uiState.interactionPreference,
+                    onRomanticChange = viewModel::setRomanticConversation,
+                    onFlirtingChange = viewModel::setFlirting,
+                    onIntimateChange = viewModel::setIntimateConversation,
+                    onRoleplayChange = viewModel::setInteractionRoleplay,
                 )
             }
 
@@ -174,9 +225,17 @@ fun SettingsScreen(
                     Text(
                         text = "开发者选项已开启 · 行内将显示技术错误细节",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = viewModel::openPromptLog) {
+                        Text(
+                            text = uiState.lastPromptLog?.let {
+                                "查看最近 System Prompt（${it.charCount} 字 · ${it.timeLabel}）"
+                            } ?: "查看最近 System Prompt（尚无记录，先发一条消息）",
+                        )
+                    }
                 }
             }
 
@@ -212,26 +271,6 @@ fun SettingsScreen(
         }
     }
 
-    if (uiState.isEditorOpen) {
-        ProviderEditorDialog(
-            isEditing = uiState.editingId != null,
-            name = uiState.editorName,
-            baseUrl = uiState.editorBaseUrl,
-            apiKey = uiState.editorApiKey,
-            modelName = uiState.editorModelName,
-            isTesting = uiState.isTesting,
-            inlineError = uiState.inlineError,
-            inlineDebugDetail = uiState.inlineDebugDetail,
-            onNameChange = viewModel::onEditorNameChange,
-            onBaseUrlChange = viewModel::onEditorBaseUrlChange,
-            onApiKeyChange = viewModel::onEditorApiKeyChange,
-            onModelNameChange = viewModel::onEditorModelNameChange,
-            onTest = viewModel::testEditorConfig,
-            onDismiss = viewModel::closeEditor,
-            onConfirm = viewModel::saveEditor,
-        )
-    }
-
     if (showSummaryProviderPicker) {
         SummaryProviderPickerDialog(
             providers = uiState.providers,
@@ -247,18 +286,53 @@ fun SettingsScreen(
             onDismiss = { showSummaryProviderPicker = false },
         )
     }
+
+    if (uiState.showPromptLogDialog) {
+        val entry = uiState.lastPromptLog
+        AlertDialog(
+            onDismissRequest = viewModel::dismissPromptLog,
+            title = { Text("最近 System Prompt") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (entry == null) {
+                        Text("暂无记录。发送一条聊天后会在此显示最终拼装结果。")
+                    } else {
+                        Text(
+                            text = "agent=${entry.agentId} · model=${entry.modelName ?: "-"} · " +
+                                "sections=${entry.sectionIds.joinToString(",")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = entry.systemPrompt,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissPromptLog) { Text("关闭") }
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatDisplaySettingsSection(
     naturalChatPaceEnabled: Boolean,
     companionStyleEnabled: Boolean,
+    chatMode: LingBanChatMode,
+    responseControllerEnabled: Boolean,
     splitBubbleByNewline: Boolean,
     userNickname: String,
     proactiveEnabled: Boolean,
     proactiveIdleHours: Int,
     onNaturalChatPaceChange: (Boolean) -> Unit,
     onCompanionStyleChange: (Boolean) -> Unit,
+    onChatModeChange: (LingBanChatMode) -> Unit,
+    onResponseControllerChange: (Boolean) -> Unit,
     onSplitByNewlineChange: (Boolean) -> Unit,
     onNicknameChange: (String) -> Unit,
     onProactiveChange: (Boolean) -> Unit,
@@ -281,11 +355,43 @@ private fun ChatDisplaySettingsSection(
             label = { Text("你的昵称（用于 {{nickname}}）") },
         )
         Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "LingBan 聊天模式",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = chatMode.shortDescription,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            LingBanChatMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = chatMode == mode,
+                    onClick = { onChatModeChange(mode) },
+                    label = { Text(mode.displayName) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         SettingsSwitchRow(
-            title = "口语伴侣风格",
-            subtitle = "自动注入短句、口语、少列表等风格层，让回复更像真人聊天。",
+            title = "真人聊天基础约束",
+            subtitle = "注入基础口语约束；具体松紧由上方聊天模式决定。",
             checked = companionStyleEnabled,
             onCheckedChange = onCompanionStyleChange,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        SettingsSwitchRow(
+            title = "Response Controller",
+            subtitle = "按当前模式评估回复；不达标时自动重生成。Debug 包会显示评分。",
+            checked = responseControllerEnabled,
+            onCheckedChange = onResponseControllerChange,
         )
         Spacer(modifier = Modifier.height(10.dp))
         SettingsSwitchRow(
@@ -321,6 +427,66 @@ private fun ChatDisplaySettingsSection(
                 valueRange = 1f..24f,
                 steps = 22,
             )
+        }
+    }
+}
+
+@Composable
+private fun HomeLocationSection(
+    hasHomeLocation: Boolean,
+    homeRadiusMeters: Int,
+    onSetHomeToCurrentLocation: (Int?) -> Unit,
+    onClearHomeLocation: () -> Unit,
+    onRadiusChange: (Int) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+    ) {
+        Text(text = "家位置", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "设置家位置后，到家触发欢迎问候（需要开启「贴心主动关心」并授予定位权限）。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (!hasHomeLocation) {
+            Text(
+                text = "尚未设置。点击下方按钮用当前位置设置「家」。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = { onSetHomeToCurrentLocation(null) }) {
+                Text("用当前位置设置为家")
+            }
+            return
+        }
+
+        Text(text = "触发半径：${homeRadiusMeters} 米", style = MaterialTheme.typography.bodySmall)
+        Spacer(modifier = Modifier.height(6.dp))
+        Slider(
+            value = homeRadiusMeters.toFloat(),
+            onValueChange = { onRadiusChange(it.toInt()) },
+            valueRange = 100f..1500f,
+            steps = 28,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row {
+            TextButton(onClick = { onSetHomeToCurrentLocation(homeRadiusMeters) }) {
+                Text("更新为当前位置")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = onClearHomeLocation) {
+                Text("清除家位置")
+            }
         }
     }
 }
@@ -395,6 +561,44 @@ private fun ToolSettingsSection(
                 )
             }
         }
+        ToolSwitch("通知感知", "需要开启通知访问；默认不返回通知正文（更敏感）", settings.notificationEnabled) {
+            onUpdate { it.copy(notificationEnabled = it.notificationEnabled.not()) }
+            if (!settings.notificationEnabled) {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }
+        ToolSwitch("音乐控制", "查看/控制当前播放，需通知访问权限", settings.musicEnabled) {
+            onUpdate { it.copy(musicEnabled = it.musicEnabled.not()) }
+            if (!settings.musicEnabled) {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }
+        ToolSwitch("短信读取", "读取最近短信摘要，需短信权限", settings.smsEnabled) {
+            onUpdate { it.copy(smsEnabled = it.smsEnabled.not()) }
+            if (!settings.smsEnabled) {
+                permissionLauncher.launch(
+                    arrayOf(android.Manifest.permission.READ_SMS),
+                )
+            }
+        }
+        ToolSwitch("屏幕状态", "亮屏/息屏/锁屏状态", settings.screenStateEnabled) {
+            onUpdate { it.copy(screenStateEnabled = it.screenStateEnabled.not()) }
+        }
+        ToolSwitch("屏幕内容感知", "读取屏幕文字，需开启无障碍服务", settings.screenContentEnabled) {
+            onUpdate { it.copy(screenContentEnabled = it.screenContentEnabled.not()) }
+            if (!settings.screenContentEnabled) {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }
         TextButton(
             onClick = {
                 context.startActivity(
@@ -407,6 +611,59 @@ private fun ToolSettingsSection(
         ) {
             Text("打开系统应用权限页")
         }
+    }
+}
+
+@Composable
+private fun InteractionPreferenceSection(
+    preference: InteractionPreference,
+    onRomanticChange: (Boolean) -> Unit,
+    onFlirtingChange: (Boolean) -> Unit,
+    onIntimateChange: (Boolean) -> Unit,
+    onRoleplayChange: (Boolean) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+    ) {
+        Text(text = "互动边界", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "用户全局偏好，不属于角色人设。开关=允许上限，非每句必用；结合话题/情绪/关系由 Runtime 决定是否激活。开启后无内容限制。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        SettingsSwitchRow(
+            title = "浪漫对话",
+            subtitle = "用户主动聊感情/喜欢/在一起时，可自然回应",
+            checked = preference.romanticConversation,
+            onCheckedChange = onRomanticChange,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SettingsSwitchRow(
+            title = "暧昧互动",
+            subtitle = "用户主动暧昧/撩/昵称时，可适度接梗",
+            checked = preference.flirting,
+            onCheckedChange = onFlirtingChange,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SettingsSwitchRow(
+            title = "亲密对话",
+            subtitle = "用户主动亲密话题时，可在用户尺度内回应",
+            checked = preference.intimateConversation,
+            onCheckedChange = onIntimateChange,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SettingsSwitchRow(
+            title = "角色扮演",
+            subtitle = "用户主动要故事/剧情/RP 时可进入",
+            checked = preference.roleplay,
+            onCheckedChange = onRoleplayChange,
+        )
     }
 }
 
@@ -547,8 +804,8 @@ private fun MemorySettingsSection(
         Text(
             text = "· 每次摘要请求约 $extractTokenEstimate Token" +
                 "（上次摘要≤${MemorySettingsStore.SUMMARY_MAX_CHARS}字 + 新增约 $extractThreshold 条消息）\n" +
-                "· 注入对话的记忆上限 ${MemorySettingsStore.PROMPT_MEMORY_MAX_CHARS} 字" +
-                "（约 $promptMemoryTokenEstimate Token），超出部分留在库中不拼接\n" +
+                "· 相关记忆按当前问题检索注入，上限约 ${MemorySettingsStore.PROMPT_MEMORY_MAX_TOKENS} tokens" +
+                "（约 $promptMemoryTokenEstimate Token 量级），低相关条目不拼接\n" +
                 "· 建议为摘要选用更便宜的模型（如 DeepSeek Flash / mini）",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -690,106 +947,4 @@ private fun ProviderConfigItem(
             }
         }
     }
-}
-
-@Composable
-private fun ProviderEditorDialog(
-    isEditing: Boolean,
-    name: String,
-    baseUrl: String,
-    apiKey: String,
-    modelName: String,
-    isTesting: Boolean,
-    inlineError: String?,
-    inlineDebugDetail: String?,
-    onNameChange: (String) -> Unit,
-    onBaseUrlChange: (String) -> Unit,
-    onApiKeyChange: (String) -> Unit,
-    onModelNameChange: (String) -> Unit,
-    onTest: () -> Unit,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "编辑 Provider" else "新增 Provider") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = "类型：OpenAI Compatible",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = onNameChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("名称") },
-                )
-                OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = onBaseUrlChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Base URL") },
-                    isError = inlineError != null,
-                )
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = onApiKeyChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("API Key") },
-                    isError = inlineError != null,
-                )
-                OutlinedTextField(
-                    value = modelName,
-                    onValueChange = onModelNameChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Model Name") },
-                )
-                if (!inlineError.isNullOrBlank()) {
-                    Text(
-                        text = inlineError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ErrorSoftText,
-                    )
-                    if (!inlineDebugDetail.isNullOrBlank()) {
-                        Text(
-                            text = inlineDebugDetail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                        )
-                    }
-                }
-                TextButton(
-                    onClick = onTest,
-                    enabled = !isTesting,
-                    modifier = Modifier.align(Alignment.End),
-                ) {
-                    if (isTesting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(modifier = Modifier.size(8.dp))
-                    }
-                    Text("测试连接")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text("保存") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
 }

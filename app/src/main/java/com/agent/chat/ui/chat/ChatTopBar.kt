@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
@@ -41,8 +43,6 @@ import com.agent.chat.ui.motion.SharedKeys
 import com.agent.chat.ui.motion.scaleClickable
 import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.OnlineGreen
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -55,9 +55,12 @@ fun SharedTransitionScope.ChatTopBar(
     onClearContext: () -> Unit,
     onSwitchPersona: () -> Unit,
     onManageMemory: () -> Unit,
+    onManageRelationship: () -> Unit,
+    onManageExpression: () -> Unit,
     onExport: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val colors = AgentThemeColors
     val orbState = when (presence) {
         ChatPresenceStatus.Idle -> AiOrbState.Idle
         ChatPresenceStatus.Thinking -> AiOrbState.Thinking
@@ -65,9 +68,8 @@ fun SharedTransitionScope.ChatTopBar(
     }
     val statusColor = when (presence) {
         ChatPresenceStatus.Idle -> OnlineGreen
-        else -> TextSecondary
+        else -> colors.textSecondary
     }
-    val colors = AgentThemeColors
 
     Row(
         modifier = Modifier
@@ -80,7 +82,7 @@ fun SharedTransitionScope.ChatTopBar(
         Icon(
             Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "返回",
-            tint = TextPrimary,
+            tint = colors.textPrimary,
             modifier = Modifier
                 .padding(10.dp)
                 .scaleClickable(onClick = onBackClick),
@@ -101,7 +103,7 @@ fun SharedTransitionScope.ChatTopBar(
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary,
+                color = colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -114,7 +116,7 @@ fun SharedTransitionScope.ChatTopBar(
 
         Box {
             IconButton(onClick = { menuExpanded = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = TextSecondary)
+                Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = colors.textSecondary)
             }
             DropdownMenu(
                 expanded = menuExpanded,
@@ -135,6 +137,22 @@ fun SharedTransitionScope.ChatTopBar(
                         onSwitchPersona()
                     },
                     leadingIcon = { Icon(Icons.Default.Person, null) },
+                )
+                DropdownMenuItem(
+                    text = { Text("表达风格") },
+                    onClick = {
+                        menuExpanded = false
+                        onManageExpression()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Tune, null) },
+                )
+                DropdownMenuItem(
+                    text = { Text("关系设定") },
+                    onClick = {
+                        menuExpanded = false
+                        onManageRelationship()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Favorite, null) },
                 )
                 DropdownMenuItem(
                     text = { Text("记忆管理") },

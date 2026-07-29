@@ -2,6 +2,7 @@ package com.agent.chat.data.persona
 
 import com.agent.chat.domain.model.LorebookEntry
 import com.agent.chat.domain.model.OutputRegex
+import com.agent.chat.domain.model.PersonaProfile
 import com.agent.chat.domain.model.PresetMessage
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
@@ -11,6 +12,7 @@ import javax.inject.Singleton
 @Singleton
 class PersonaExtrasCodec @Inject constructor(
     moshi: Moshi,
+    private val profileCodec: PersonaProfileCodec,
 ) {
     private val presetType = Types.newParameterizedType(List::class.java, PresetMessage::class.java)
     private val loreType = Types.newParameterizedType(List::class.java, LorebookEntry::class.java)
@@ -43,4 +45,10 @@ class PersonaExtrasCodec @Inject constructor(
         runCatching { regexAdapter.fromJson(json.orEmpty().ifBlank { "[]" }) }
             .getOrNull()
             .orEmpty()
+
+    fun encodeProfile(profile: PersonaProfile?): String =
+        profileCodec.encode(profile)
+
+    fun decodeProfile(json: String?): PersonaProfile? =
+        profileCodec.decode(json)
 }

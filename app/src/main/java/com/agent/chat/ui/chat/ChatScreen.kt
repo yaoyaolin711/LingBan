@@ -67,13 +67,8 @@ import com.agent.chat.ui.home.AiOrb
 import com.agent.chat.ui.home.AiOrbState
 import com.agent.chat.ui.memory.MemoryManageDialog
 import com.agent.chat.ui.motion.SwipeBackContainer
-import com.agent.chat.ui.theme.Accent
 import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.CardElevation
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -125,6 +120,13 @@ fun SharedTransitionScope.ChatScreen(
             onSwitchPersona = viewModel::switchPersona,
             onOpenMemoryManager = viewModel::openMemoryManager,
             onDismissMemoryManager = viewModel::dismissMemoryManager,
+            onOpenRelationshipManager = viewModel::openRelationshipManager,
+            onDismissRelationshipManager = viewModel::dismissRelationshipManager,
+            onSaveRelationship = viewModel::saveRelationshipProfile,
+            onOpenExpressionManager = viewModel::openExpressionManager,
+            onDismissExpressionManager = viewModel::dismissExpressionManager,
+            onSaveExpression = viewModel::saveExpressionProfile,
+            onApplyRecommendedExpression = viewModel::applyRecommendedExpression,
             onDeleteMemory = viewModel::deleteMemory,
             onSuggest = viewModel::sendSuggested,
             onRetryFailed = viewModel::retryFailedMessage,
@@ -171,6 +173,13 @@ fun SharedTransitionScope.ChatScreenContent(
     onSwitchPersona: (String?) -> Unit = {},
     onOpenMemoryManager: () -> Unit = {},
     onDismissMemoryManager: () -> Unit = {},
+    onOpenRelationshipManager: () -> Unit = {},
+    onDismissRelationshipManager: () -> Unit = {},
+    onSaveRelationship: (com.agent.chat.domain.model.RelationshipProfile) -> Unit = {},
+    onOpenExpressionManager: () -> Unit = {},
+    onDismissExpressionManager: () -> Unit = {},
+    onSaveExpression: (com.agent.chat.domain.model.ExpressionProfile) -> Unit = {},
+    onApplyRecommendedExpression: () -> Unit = {},
     onDeleteMemory: (String) -> Unit = {},
     onSuggest: (String) -> Unit = {},
     onRetryFailed: () -> Unit = {},
@@ -183,6 +192,7 @@ fun SharedTransitionScope.ChatScreenContent(
     onAttachClick: () -> Unit = {},
     onVoiceClick: () -> Unit = {},
 ) {
+    val colors = AgentThemeColors
     val listState = rememberLazyListState()
     val messages = uiState.displayedMessages
     val lastId = messages.lastOrNull()?.id
@@ -265,6 +275,8 @@ fun SharedTransitionScope.ChatScreenContent(
                     onClearContext = onClearContext,
                     onSwitchPersona = onOpenPersonaSwitcher,
                     onManageMemory = onOpenMemoryManager,
+                    onManageRelationship = onOpenRelationshipManager,
+                    onManageExpression = onOpenExpressionManager,
                     onExport = { showExportDialog = true },
                 )
             },
@@ -301,11 +313,11 @@ fun SharedTransitionScope.ChatScreenContent(
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         singleLine = true,
-                        placeholder = { Text("搜索本会话…", color = TextSecondary) },
+                        placeholder = { Text("搜索本会话…", color = colors.textSecondary) },
                         trailingIcon = {
                             if (uiState.searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { onSearchQueryChange("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "清除", tint = TextSecondary)
+                                    Icon(Icons.Default.Close, contentDescription = "清除", tint = colors.textSecondary)
                                 }
                             }
                         },
@@ -408,6 +420,21 @@ fun SharedTransitionScope.ChatScreenContent(
                                     ThinkingStreamRow()
                                 }
                             }
+
+                            val scores = uiState.lastResponseScores
+                            if (uiState.showResponseScores && scores != null && !uiState.isBusy) {
+                                item(key = "response_scores") {
+                                    Text(
+                                        text = "Response · ${uiState.lastResponseEvalNote.orEmpty()}\n" +
+                                            scores.summaryLine(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.textSecondary,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -418,19 +445,19 @@ fun SharedTransitionScope.ChatScreenContent(
     if (uiState.showPersonaSwitcher) {
         AlertDialog(
             onDismissRequest = onDismissPersonaSwitcher,
-            containerColor = SurfaceCard,
+            containerColor = colors.surface,
             title = {
                 Text(
                     text = "切换对话对象",
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                 )
             },
             text = {
                 Column {
                     Text(
                         text = "选择后将继续在本会话中对话",
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -445,12 +472,12 @@ fun SharedTransitionScope.ChatScreenContent(
             },
             confirmButton = {
                 TextButton(onClick = { onSwitchPersona(pendingSwitchPersonaId) }) {
-                    Text("确认", color = Accent)
+                    Text("确认", color = colors.accent)
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismissPersonaSwitcher) {
-                    Text("取消", color = TextSecondary)
+                    Text("取消", color = colors.textSecondary)
                 }
             },
         )
@@ -466,24 +493,51 @@ fun SharedTransitionScope.ChatScreenContent(
         )
     }
 
+    if (uiState.showRelationshipManager) {
+        RelationshipManageDialog(
+            profile = uiState.relationshipProfile,
+            onDismiss = onDismissRelationshipManager,
+            onSave = { profile ->
+                onSaveRelationship(profile)
+                onDismissRelationshipManager()
+            },
+        )
+    }
+
+    if (uiState.showExpressionManager) {
+        ExpressionManageDialog(
+            profile = uiState.expressionProfile,
+            customized = uiState.expressionCustomized,
+            onDismiss = onDismissExpressionManager,
+            onSave = { profile ->
+                onSaveExpression(profile)
+                onDismissExpressionManager()
+            },
+            onApplyRecommended = {
+                onApplyRecommendedExpression()
+                onDismissExpressionManager()
+            },
+        )
+    }
+
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            containerColor = SurfaceCard,
+            containerColor = colors.surface,
             title = {
-                Text("导出会话", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+                Text("导出会话", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
             },
             confirmButton = {
                 TextButton(onClick = {
                     showExportDialog = false
                     onExportText()
-                }) { Text("导出文本", color = Accent) }
+                }) { Text("导出文本", color = colors.accent) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showExportDialog = false
                     onExportImage()
-                }) { Text("导出图片", color = Accent) }
+                }) { Text("导出图片", color = colors.accent) }
             },
         )
     }
@@ -520,6 +574,8 @@ private fun EmptyChatState(
     onSuggest: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     val greeting = remember(persona) {
         when {
             persona == null -> "准备好了就开口吧，我在听。"
@@ -539,13 +595,13 @@ private fun EmptyChatState(
         Text(
             text = persona?.name ?: "灵伴",
             style = MaterialTheme.typography.headlineMedium,
-            color = TextPrimary,
+            color = colors.textPrimary,
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = greeting,
             style = MaterialTheme.typography.bodyLarge,
-            color = TextSecondary,
+            color = colors.textSecondary,
         )
         Spacer(modifier = Modifier.height(28.dp))
         FlowRow(
@@ -564,30 +620,35 @@ private fun SuggestionChip(
     text: String,
     onClick: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = CardElevation),
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextPrimary,
+            color = colors.textPrimary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }
 }
 
 @Composable
-private fun chatFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = OutlineSubtle,
-    unfocusedBorderColor = OutlineSubtle,
-    focusedContainerColor = SurfaceCard,
-    unfocusedContainerColor = SurfaceCard,
-    disabledContainerColor = SurfaceCard,
-    cursorColor = Accent,
-    focusedTextColor = TextPrimary,
-    unfocusedTextColor = TextPrimary,
-    disabledTextColor = TextSecondary,
-)
+private fun chatFieldColors(): androidx.compose.material3.TextFieldColors {
+    val colors = AgentThemeColors
+    return OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = colors.outline,
+        unfocusedBorderColor = colors.outline,
+        focusedContainerColor = colors.surface,
+        unfocusedContainerColor = colors.surface,
+        disabledContainerColor = colors.surface,
+        cursorColor = colors.accent,
+        focusedTextColor = colors.textPrimary,
+        unfocusedTextColor = colors.textPrimary,
+        disabledTextColor = colors.textSecondary,
+    )
+}

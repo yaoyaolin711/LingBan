@@ -24,7 +24,7 @@ import com.agent.chat.domain.model.Conversation
 import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.Persona
 import com.agent.chat.ui.motion.floatingCardLift
-import com.agent.chat.ui.theme.TextPrimary
+import com.agent.chat.ui.theme.AgentThemeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -44,6 +44,7 @@ fun HomeActivitySection(
     modifier: Modifier = Modifier,
     scrollPx: Float = 0f,
 ) {
+    val colors = AgentThemeColors
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val cardWidth = (screenWidth - 40.dp) * 0.86f
 
@@ -61,7 +62,7 @@ fun HomeActivitySection(
         Text(
             text = "最近活动",
             style = MaterialTheme.typography.titleLarge,
-            color = TextPrimary,
+            color = colors.textPrimary,
             modifier = Modifier
                 .padding(horizontal = 4.dp)
                 .graphicsLayer { alpha = titleAlpha.value },

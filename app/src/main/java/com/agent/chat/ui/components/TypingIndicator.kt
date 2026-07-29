@@ -24,19 +24,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.BubbleElevation
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.TextSecondary
 
 @Composable
 fun TypingIndicator(
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     val transition = rememberInfiniteTransition(label = "typing")
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = BubbleElevation),
     ) {
         Row(
@@ -63,7 +64,7 @@ fun TypingIndicator(
                         .size(7.dp)
                         .scale(scale)
                         .clip(CircleShape)
-                        .background(TextSecondary.copy(alpha = 0.55f)),
+                        .background(colors.textSecondary.copy(alpha = 0.55f)),
                 )
             }
         }

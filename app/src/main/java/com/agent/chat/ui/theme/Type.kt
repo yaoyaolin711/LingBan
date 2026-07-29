@@ -10,6 +10,10 @@ import androidx.compose.ui.unit.sp
 private val TitleFont = FontFamily.Serif
 private val BodyFont = FontFamily.SansSerif
 
+/**
+ * 不写死字色，交给 MaterialTheme / AgentThemeColors，
+ * 避免深色模式下仍用浅色主题的深棕字。
+ */
 val Typography = Typography(
     headlineLarge = TextStyle(
         fontFamily = TitleFont,
@@ -17,7 +21,6 @@ val Typography = Typography(
         fontSize = 28.sp,
         lineHeight = (28 * 1.35).sp,
         letterSpacing = (-0.2).sp,
-        color = TextPrimary,
     ),
     headlineMedium = TextStyle(
         fontFamily = TitleFont,
@@ -25,48 +28,41 @@ val Typography = Typography(
         fontSize = 22.sp,
         lineHeight = (22 * 1.4).sp,
         letterSpacing = (-0.15).sp,
-        color = TextPrimary,
     ),
     titleLarge = TextStyle(
         fontFamily = TitleFont,
         fontWeight = FontWeight.Medium,
         fontSize = 18.sp,
         lineHeight = (18 * 1.45).sp,
-        color = TextPrimary,
     ),
     titleMedium = TextStyle(
         fontFamily = BodyFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = (16 * 1.5).sp,
-        color = TextPrimary,
     ),
     bodyLarge = TextStyle(
         fontFamily = BodyFont,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = (16 * 1.55).sp,
-        color = TextPrimary,
     ),
     bodyMedium = TextStyle(
         fontFamily = BodyFont,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = (14 * 1.55).sp,
-        color = TextPrimary,
     ),
     bodySmall = TextStyle(
         fontFamily = BodyFont,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = (12 * 1.5).sp,
-        color = TextSecondary,
     ),
     labelLarge = TextStyle(
         fontFamily = BodyFont,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = (14 * 1.45).sp,
-        color = TextPrimary,
     ),
 )

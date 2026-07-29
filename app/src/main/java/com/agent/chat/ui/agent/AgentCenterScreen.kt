@@ -1,5 +1,6 @@
 package com.agent.chat.ui.agent
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -36,10 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.AppBg
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -51,10 +48,12 @@ fun SharedTransitionScope.AgentCenterScreen(
     onCreateClick: () -> Unit,
     viewModel: AgentCenterViewModel = hiltViewModel(),
 ) {
+    val colors = AgentThemeColors
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = AppBg,
+        containerColor = colors.background,
         topBar = {
             Row(
                 modifier = Modifier
@@ -67,27 +66,27 @@ fun SharedTransitionScope.AgentCenterScreen(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
-                        tint = TextPrimary,
+                        tint = colors.textPrimary,
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "我的 Agent",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = "你的 AI 伙伴集合",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                     )
                 }
                 IconButton(onClick = onManageClick) {
                     Icon(
                         Icons.Outlined.Tune,
                         contentDescription = "高级管理",
-                        tint = TextSecondary,
+                        tint = colors.textSecondary,
                     )
                 }
             }
@@ -95,7 +94,7 @@ fun SharedTransitionScope.AgentCenterScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreateClick,
-                containerColor = Accent,
+                containerColor = colors.accent,
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(18.dp),
             ) {
@@ -117,13 +116,13 @@ fun SharedTransitionScope.AgentCenterScreen(
                     Text(
                         text = "还没有伙伴",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "点右下角邀请第一位 Agent，或从高级管理导入角色卡。",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                     )
                 }
             }
@@ -145,7 +144,7 @@ fun SharedTransitionScope.AgentCenterScreen(
                     Text(
                         text = "点击一位伙伴，走进 TA 的世界",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }

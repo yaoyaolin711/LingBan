@@ -35,13 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agent.chat.ui.components.PersonaAvatar
-import com.agent.chat.ui.theme.Accent
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.HomeCardElevation
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import androidx.compose.material3.Surface
 import kotlinx.coroutines.delay
 
@@ -58,6 +53,8 @@ fun SharedTransitionScope.AgentCompanionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     val alpha = remember { Animatable(0f) }
     val offsetY = remember { Animatable(28f) }
     LaunchedEffect(visible) {
@@ -84,7 +81,7 @@ fun SharedTransitionScope.AgentCompanionCard(
             .clip(RoundedCornerShape(24.dp))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
-        color = SurfaceCard,
+        color = colors.surface,
         shadowElevation = HomeCardElevation,
         tonalElevation = 0.dp,
     ) {
@@ -110,7 +107,7 @@ fun SharedTransitionScope.AgentCompanionCard(
                     Text(
                         text = persona.name,
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -123,7 +120,7 @@ fun SharedTransitionScope.AgentCompanionCard(
                             "还没开始对话"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                     )
                 }
             }
@@ -134,7 +131,7 @@ fun SharedTransitionScope.AgentCompanionCard(
                     persona.openingLine.ifBlank { "一位愿意慢慢了解你的 AI 伙伴" }
                 },
                 style = MaterialTheme.typography.bodyLarge,
-                color = TextPrimary.copy(alpha = 0.9f),
+                color = colors.textPrimary.copy(alpha = 0.9f),
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -159,17 +156,19 @@ fun CapabilityTag(
     text: String,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceMuted)
-            .border(1.dp, OutlineSubtle, RoundedCornerShape(12.dp))
+            .background(colors.surfaceMuted)
+            .border(1.dp, colors.outline, RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = Accent,
+            color = colors.accent,
         )
     }
 }

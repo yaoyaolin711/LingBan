@@ -28,6 +28,6 @@ data class MemoryEntity(
     val content: String,
     val createdAt: Long,
     val importance: Int = 5,
-    val category: String = "short_term",
+    val category: String = "event",
     val blockedFromAi: Boolean = false,
 )

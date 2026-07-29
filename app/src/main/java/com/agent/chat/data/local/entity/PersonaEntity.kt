@@ -18,4 +18,6 @@ data class PersonaEntity(
     val lorebookJson: String = "[]",
     /** JSON: List<OutputRegex> */
     val outputRegexesJson: String = "[]",
+    /** JSON: PersonaProfile；空串表示旧人设尚无结构化 profile */
+    val personaProfileJson: String = "",
 )

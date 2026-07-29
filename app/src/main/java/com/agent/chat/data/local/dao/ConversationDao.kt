@@ -74,6 +74,32 @@ interface ConversationDao {
     )
     suspend fun updatePersona(id: String, personaId: String?, updatedAt: Long)
 
+    @Query(
+        """
+        UPDATE conversations
+        SET relationshipProfileJson = :relationshipProfileJson, updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun updateRelationship(
+        id: String,
+        relationshipProfileJson: String,
+        updatedAt: Long,
+    )
+
+    @Query(
+        """
+        UPDATE conversations
+        SET expressionProfileJson = :expressionProfileJson, updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun updateExpression(
+        id: String,
+        expressionProfileJson: String,
+        updatedAt: Long,
+    )
+
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun deleteById(id: String)
 
@@ -93,6 +119,8 @@ data class ConversationWithLastMessage(
     val title: String,
     val personaId: String?,
     val providerConfigId: String?,
+    val relationshipProfileJson: String = "",
+    val expressionProfileJson: String = "",
     val createdAt: Long,
     val updatedAt: Long,
     val lastMessage: String,

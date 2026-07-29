@@ -7,6 +7,10 @@ import com.agent.chat.data.local.entity.MessageEntity
 import com.agent.chat.data.local.entity.PersonaEntity
 import com.agent.chat.data.local.entity.ProviderConfigEntity
 import com.agent.chat.data.persona.PersonaExtrasCodec
+import com.agent.chat.data.expression.decodeExpressionProfile
+import com.agent.chat.data.expression.encodeExpressionProfile
+import com.agent.chat.data.relationship.decodeRelationshipProfile
+import com.agent.chat.data.relationship.encodeRelationshipProfile
 import com.agent.chat.domain.model.Conversation
 import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.MemoryCategory
@@ -21,6 +25,8 @@ fun ConversationEntity.toDomain(lastMessage: String = ""): Conversation = Conver
     title = title,
     personaId = personaId,
     providerConfigId = providerConfigId,
+    relationshipProfile = decodeRelationshipProfile(relationshipProfileJson),
+    expressionProfile = decodeExpressionProfile(expressionProfileJson),
     createdAt = createdAt,
     updatedAt = updatedAt,
     lastMessage = lastMessage,
@@ -31,6 +37,8 @@ fun ConversationWithLastMessage.toDomain(): Conversation = Conversation(
     title = title,
     personaId = personaId,
     providerConfigId = providerConfigId,
+    relationshipProfile = decodeRelationshipProfile(relationshipProfileJson),
+    expressionProfile = decodeExpressionProfile(expressionProfileJson),
     createdAt = createdAt,
     updatedAt = updatedAt,
     lastMessage = lastMessage,
@@ -41,6 +49,8 @@ fun Conversation.toEntity(): ConversationEntity = ConversationEntity(
     title = title,
     personaId = personaId,
     providerConfigId = providerConfigId,
+    relationshipProfileJson = encodeRelationshipProfile(relationshipProfile),
+    expressionProfileJson = expressionProfile?.let { encodeExpressionProfile(it) }.orEmpty(),
     createdAt = createdAt,
     updatedAt = updatedAt,
 )
@@ -106,6 +116,7 @@ fun PersonaEntity.toDomain(codec: PersonaExtrasCodec): Persona = Persona(
     presetMessages = codec.decodePresets(presetMessagesJson),
     lorebookEntries = codec.decodeLorebook(lorebookJson),
     outputRegexes = codec.decodeRegexes(outputRegexesJson),
+    profile = codec.decodeProfile(personaProfileJson),
 )
 
 fun Persona.toEntity(codec: PersonaExtrasCodec): PersonaEntity = PersonaEntity(
@@ -119,6 +130,7 @@ fun Persona.toEntity(codec: PersonaExtrasCodec): PersonaEntity = PersonaEntity(
     presetMessagesJson = codec.encodePresets(presetMessages),
     lorebookJson = codec.encodeLorebook(lorebookEntries),
     outputRegexesJson = codec.encodeRegexes(outputRegexes),
+    personaProfileJson = codec.encodeProfile(profile),
 )
 
 fun ProviderConfigEntity.toDomain(apiKey: String): ProviderConfig = ProviderConfig(

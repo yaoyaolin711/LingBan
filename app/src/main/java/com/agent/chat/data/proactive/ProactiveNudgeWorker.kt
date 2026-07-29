@@ -13,10 +13,14 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.agent.chat.MainActivity
-import com.agent.chat.data.ai.PromptContextInjector
+import com.agent.chat.data.ai.prompt.PromptAssetLoader
+import com.agent.chat.data.ai.prompt.PromptComposeRequest
+import com.agent.chat.data.ai.prompt.PromptComposer
+import com.agent.chat.data.ai.prompt.UserContext
 import com.agent.chat.data.care.CareContextBuilder
 import com.agent.chat.data.care.DayPeriod
 import com.agent.chat.data.care.CareHeuristics
+import com.agent.chat.data.care.HomeArrivalDetector
 import com.agent.chat.data.provider.AIProvider
 import com.agent.chat.data.provider.ChatMessage
 import com.agent.chat.data.repository.ChatRepository
@@ -24,6 +28,7 @@ import com.agent.chat.data.repository.MemoryRepository
 import com.agent.chat.data.repository.PersonaRepository
 import com.agent.chat.data.repository.ProviderConfigRepository
 import com.agent.chat.data.settings.ChatSettingsStore
+import com.agent.chat.data.interaction.InteractionPreferenceStore
 import com.agent.chat.domain.model.Message
 import com.agent.chat.domain.model.MessageRole
 import dagger.hilt.EntryPoint
@@ -48,6 +53,11 @@ class ProactiveNudgeWorker(
         fun providerConfigRepository(): ProviderConfigRepository
         fun aiProvider(): AIProvider
         fun careContextBuilder(): CareContextBuilder
+        fun promptComposer(): PromptComposer
+        fun promptAssetLoader(): PromptAssetLoader
+        fun interactionPreferenceStore(): InteractionPreferenceStore
+        fun homeArrivalDetector(): HomeArrivalDetector
+        fun proactiveContextCollector(): ProactiveContextCollector
     }
 
     override suspend fun doWork(): Result {
@@ -63,18 +73,28 @@ class ProactiveNudgeWorker(
             return Result.success()
         }
 
-        val (kind, scenarioHint) = deps.careContextBuilder().proactiveScenarioHint()
+        // 优先检测“到家”事件；该事件不依赖 idleLongEnough
+        val arrivalDecision = deps.homeArrivalDetector().detect(now)
+
         val period = CareHeuristics.dayPeriod(now)
         val idleMs = TimeUnit.HOURS.toMillis(settings.proactiveIdleHours.toLong())
         val idleLongEnough = settings.lastUserActivityAt > 0L &&
             now - settings.lastUserActivityAt >= idleMs
 
+        val (kind, scenarioHint) = arrivalDecision?.let { decision ->
+            decision.kind to decision.scenarioHint
+        } ?: deps.careContextBuilder().proactiveScenarioHint()
+
         // 日程提醒可在未完全闲置时触发；时段问候仍要求闲置
-        val allowByScenario = when {
-            kind == "calendar" -> true
-            period == DayPeriod.LATE_NIGHT && idleLongEnough -> true
-            idleLongEnough -> true
-            else -> false
+        val allowByScenario = if (arrivalDecision != null) {
+            true
+        } else {
+            when {
+                kind == "calendar" -> true
+                period == DayPeriod.LATE_NIGHT && idleLongEnough -> true
+                idleLongEnough -> true
+                else -> false
+            }
         }
         if (!allowByScenario) return Result.success()
 
@@ -92,7 +112,13 @@ class ProactiveNudgeWorker(
         val recent = deps.chatRepository().getMessages(target.id).takeLast(16)
         val persona = target.personaId?.let { deps.personaRepository().getPersona(it) }
         val memories = target.personaId
-            ?.let { deps.memoryRepository().getForPrompt(it) }
+            ?.let {
+                deps.memoryRepository().retrieveForPrompt(
+                    personaId = it,
+                    queryText = "主动关心问候",
+                    recentMessages = recent,
+                ).memories
+            }
             .orEmpty()
         val provider = target.providerConfigId
             ?.let { deps.providerConfigRepository().getConfig(it) }
@@ -103,23 +129,50 @@ class ProactiveNudgeWorker(
             personaId = target.personaId,
             recentMessages = recent,
         )
+        val execContext = com.agent.chat.data.ai.tool.ToolExecutionContext(
+            personaId = target.personaId,
+            conversationId = target.id,
+        )
+        val senseContext = deps.proactiveContextCollector().collect(execContext)
         val system = buildString {
             append(
-                PromptContextInjector.buildSystemPrompt(
-                    persona = persona,
-                    memories = memories,
-                    companionStyleEnabled = settings.companionStyleEnabled,
-                    userNickname = settings.userNickname,
-                    recentMessages = recent,
-                    careContext = care,
-                    userInterest = settings.userInterest,
-                    userOccupation = settings.userOccupation,
-                    userGoal = settings.userGoal,
-                ),
+                deps.promptComposer().compose(
+                    PromptComposeRequest(
+                        persona = persona,
+                        memories = memories,
+                        userContext = UserContext(
+                            nickname = settings.userNickname,
+                            interest = settings.userInterest,
+                            occupation = settings.userOccupation,
+                            goal = settings.userGoal,
+                        ),
+                        conversationHistory = recent,
+                        careContext = care,
+                        conversationGoal = "主动关心：像真人突然想起对方，发一句短问候",
+                        modelName = provider.modelName,
+                        providerName = provider.name,
+                        conversationId = target.id,
+                        baseHumanEnabled = settings.companionStyleEnabled,
+                        chatMode = settings.chatMode,
+                        rolePlayEnabled = settings.rolePlayEnabled,
+                        interactionPreference = deps.interactionPreferenceStore().get(),
+                        userMessage = "",
+                    ),
+                ).systemPrompt,
             )
+            if (senseContext.isNotBlank()) {
+                append("\n\n")
+                append(senseContext)
+            }
             append("\n\n")
-            append("【主动消息】$scenarioHint")
-            append("\n规则：不要提定时/系统/推送；不要列表；一两句即可；一句一行；像真人突然想起对方。")
+            val nudgePath = deps.promptAssetLoader().catalog().assets["proactive_nudge"]
+                ?: "prompts/proactive_nudge.txt"
+            append(
+                deps.promptAssetLoader().render(
+                    deps.promptAssetLoader().loadAsset(nudgePath),
+                    mapOf("scenario" to scenarioHint),
+                ).trim(),
+            )
         }
         val config = deps.providerConfigRepository().toModelConfig(
             provider,

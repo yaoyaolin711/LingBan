@@ -1,5 +1,6 @@
 package com.agent.chat.ui.memory
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -52,14 +53,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.MemoryCategory
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.AppBg
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.SurfaceSelected
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 @Composable
 fun MemoryScreen(
@@ -106,6 +99,8 @@ fun MemoryScreenContent(
     onDismissEdit: () -> Unit,
     onSaveEdit: (String, MemoryCategory) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     val categoryAlpha = remember { Animatable(0f) }
     LaunchedEffect(uiState.entranceReady) {
         if (uiState.entranceReady) {
@@ -114,7 +109,7 @@ fun MemoryScreenContent(
     }
 
     Scaffold(
-        containerColor = AppBg,
+        containerColor = colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Row(
@@ -128,20 +123,20 @@ fun MemoryScreenContent(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
-                        tint = TextPrimary,
+                        tint = colors.textPrimary,
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "我的记忆",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = "灵伴真正了解你的地方",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                     )
                 }
             }
@@ -168,7 +163,7 @@ fun MemoryScreenContent(
                 Text(
                     text = "记忆分类",
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     modifier = Modifier
                         .graphicsLayer { alpha = categoryAlpha.value }
                         .padding(bottom = 12.dp),
@@ -243,8 +238,10 @@ private fun CategoryChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val bg = if (selected) SurfaceSelected else SurfaceCard
-    val border = if (selected) Accent.copy(alpha = 0.35f) else OutlineSubtle
+    val colors = AgentThemeColors
+
+    val bg = if (selected) colors.surfaceSelected else colors.surface
+    val border = if (selected) colors.accent.copy(alpha = 0.35f) else colors.outline
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
@@ -256,38 +253,40 @@ private fun CategoryChip(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = TextPrimary,
+            color = colors.textPrimary,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = "$count 条",
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
+            color = colors.textSecondary,
         )
     }
 }
 
 @Composable
 private fun EmptyMemoryState(category: MemoryCategory) {
+    val colors = AgentThemeColors
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(SurfaceMuted)
+            .background(colors.surfaceMuted)
             .padding(horizontal = 20.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "还没有${category.displayName}",
             style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary,
+            color = colors.textPrimary,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "多聊几次，灵伴会把关于你的事轻轻记下来。",
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = colors.textSecondary,
         )
     }
 }
@@ -298,6 +297,8 @@ private fun PortraitEditDialog(
     onDismiss: () -> Unit,
     onSave: (String, String, String, String) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     var name by remember(portrait) { mutableStateOf(portrait.name) }
     var interest by remember(portrait) { mutableStateOf(portrait.interest) }
     var occupation by remember(portrait) { mutableStateOf(portrait.occupation) }
@@ -305,9 +306,9 @@ private fun PortraitEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = SurfaceCard,
+        containerColor = colors.surface,
         title = {
-            Text("编辑画像", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+            Text("编辑画像", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -319,12 +320,12 @@ private fun PortraitEditDialog(
         },
         confirmButton = {
             TextButton(onClick = { onSave(name, interest, occupation, goal) }) {
-                Text("保存", color = Accent)
+                Text("保存", color = colors.accent)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary)
+                Text("取消", color = colors.textSecondary)
             }
         },
     )
@@ -336,14 +337,16 @@ private fun MemoryEditDialog(
     onDismiss: () -> Unit,
     onSave: (String, MemoryCategory) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     var content by remember(memory.id) { mutableStateOf(memory.content) }
     var category by remember(memory.id) { mutableStateOf(memory.category) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = SurfaceCard,
+        containerColor = colors.surface,
         title = {
-            Text("编辑记忆", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+            Text("编辑记忆", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -353,7 +356,7 @@ private fun MemoryEditDialog(
                     onValueChange = { content = it },
                     singleLine = false,
                 )
-                Text("分类", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text("分类", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -363,10 +366,10 @@ private fun MemoryEditDialog(
                         Text(
                             text = cat.displayName,
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (selected) Accent else TextSecondary,
+                            color = if (selected) colors.accent else colors.textSecondary,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) SurfaceSelected else SurfaceMuted)
+                                .background(if (selected) colors.surfaceSelected else colors.surfaceMuted)
                                 .clickable { category = cat }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         )
@@ -379,12 +382,12 @@ private fun MemoryEditDialog(
                 onClick = { onSave(content, category) },
                 enabled = content.isNotBlank(),
             ) {
-                Text("保存", color = Accent)
+                Text("保存", color = colors.accent)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary)
+                Text("取消", color = colors.textSecondary)
             }
         },
     )
@@ -397,6 +400,8 @@ private fun MemoryField(
     onValueChange: (String) -> Unit,
     singleLine: Boolean = true,
 ) {
+    val colors = AgentThemeColors
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -406,15 +411,15 @@ private fun MemoryField(
         minLines = if (singleLine) 1 else 3,
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Accent.copy(alpha = 0.5f),
-            unfocusedBorderColor = OutlineSubtle,
-            focusedContainerColor = SurfaceCard,
-            unfocusedContainerColor = SurfaceCard,
-            cursorColor = Accent,
-            focusedTextColor = TextPrimary,
-            unfocusedTextColor = TextPrimary,
-            focusedLabelColor = TextSecondary,
-            unfocusedLabelColor = TextSecondary,
+            focusedBorderColor = colors.accent.copy(alpha = 0.5f),
+            unfocusedBorderColor = colors.outline,
+            focusedContainerColor = colors.surface,
+            unfocusedContainerColor = colors.surface,
+            cursorColor = colors.accent,
+            focusedTextColor = colors.textPrimary,
+            unfocusedTextColor = colors.textPrimary,
+            focusedLabelColor = colors.textSecondary,
+            unfocusedLabelColor = colors.textSecondary,
         ),
     )
 }

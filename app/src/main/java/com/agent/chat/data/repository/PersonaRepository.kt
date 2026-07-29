@@ -7,7 +7,9 @@ import com.agent.chat.data.persona.PersonaExtrasCodec
 import com.agent.chat.domain.model.LorebookEntry
 import com.agent.chat.domain.model.OutputRegex
 import com.agent.chat.domain.model.Persona
+import com.agent.chat.domain.model.PersonaProfile
 import com.agent.chat.domain.model.PresetMessage
+import com.agent.chat.domain.model.normalized
 import com.squareup.moshi.Moshi
 import java.util.UUID
 import javax.inject.Inject
@@ -44,6 +46,7 @@ class PersonaRepository @Inject constructor(
         presetMessages: List<PresetMessage> = emptyList(),
         lorebookEntries: List<LorebookEntry> = emptyList(),
         outputRegexes: List<OutputRegex> = emptyList(),
+        profile: PersonaProfile? = null,
     ): Persona {
         val persona = Persona(
             id = "persona_${UUID.randomUUID().toString().take(8)}",
@@ -56,6 +59,7 @@ class PersonaRepository @Inject constructor(
             presetMessages = presetMessages,
             lorebookEntries = lorebookEntries,
             outputRegexes = outputRegexes,
+            profile = profile?.normalized(),
         )
         personaDao.upsert(persona.toEntity(extrasCodec))
         return persona
@@ -70,6 +74,7 @@ class PersonaRepository @Inject constructor(
                 defaultTemperature = persona.defaultTemperature.coerceIn(0f, 2f),
                 description = persona.description.trim(),
                 openingLine = persona.openingLine.trim(),
+                profile = persona.profile?.normalized(),
             ).toEntity(extrasCodec),
         )
     }
@@ -92,6 +97,7 @@ class PersonaRepository @Inject constructor(
                 presetMessages = persona.presetMessages,
                 lorebookEntries = persona.lorebookEntries,
                 outputRegexes = persona.outputRegexes,
+                profile = persona.profile,
             )
         }
         return exportAdapter.indent("  ").toJson(PersonaExportPayload(personas = items))
@@ -117,6 +123,7 @@ class PersonaRepository @Inject constructor(
                 presetMessages = item.presetMessages,
                 lorebookEntries = item.lorebookEntries,
                 outputRegexes = item.outputRegexes,
+                profile = item.profile?.normalized(),
             ).toEntity(extrasCodec)
         }
         personaDao.upsertAll(entities)

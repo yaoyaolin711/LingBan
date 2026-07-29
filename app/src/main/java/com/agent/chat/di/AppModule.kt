@@ -3,6 +3,9 @@ package com.agent.chat.di
 import android.content.Context
 import androidx.room.Room
 import com.agent.chat.data.local.AgentChatDatabase
+import com.agent.chat.data.local.MIGRATION_7_8
+import com.agent.chat.data.local.MIGRATION_8_9
+import com.agent.chat.data.local.MIGRATION_9_10
 import com.agent.chat.data.local.dao.ConversationDao
 import com.agent.chat.data.local.dao.MemoryDao
 import com.agent.chat.data.local.dao.MessageDao
@@ -11,6 +14,8 @@ import com.agent.chat.data.local.dao.ProviderConfigDao
 import com.agent.chat.data.provider.AIProvider
 import com.agent.chat.data.provider.OpenAICompatibleProvider
 import com.agent.chat.data.provider.network.OpenAIApi
+import com.agent.chat.data.ai.response.HeuristicResponseEvaluator
+import com.agent.chat.data.ai.response.ResponseEvaluator
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Binds
@@ -33,6 +38,10 @@ abstract class ProviderBindModule {
     @Binds
     @Singleton
     abstract fun bindAIProvider(impl: OpenAICompatibleProvider): AIProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindResponseEvaluator(impl: HeuristicResponseEvaluator): ResponseEvaluator
 }
 
 @Module
@@ -47,7 +56,8 @@ object AppModule {
         context,
         AgentChatDatabase::class.java,
         "agent_chat.db",
-    ).fallbackToDestructiveMigration()
+    ).addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+        .fallbackToDestructiveMigration()
         .build()
 
     @Provides

@@ -2,10 +2,12 @@ package com.agent.chat.data.repository
 
 import com.agent.chat.domain.model.LorebookEntry
 import com.agent.chat.domain.model.OutputRegex
+import com.agent.chat.domain.model.PersonaProfile
 import com.agent.chat.domain.model.PresetMessage
 
 data class PersonaExportPayload(
-    val version: Int = 2,
+    /** v3：增加可选 Persona Engine [PersonaProfile] */
+    val version: Int = 3,
     val personas: List<PersonaExportItem>,
 )
 
@@ -20,4 +22,6 @@ data class PersonaExportItem(
     val presetMessages: List<PresetMessage> = emptyList(),
     val lorebookEntries: List<LorebookEntry> = emptyList(),
     val outputRegexes: List<OutputRegex> = emptyList(),
+    /** 结构化人设；旧导出 JSON 无此字段时为 null */
+    val profile: PersonaProfile? = null,
 )

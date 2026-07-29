@@ -102,18 +102,20 @@ class MemoryTool @Inject constructor(
                 ToolResult(true, "已删除记忆", JSONObject().put("id", id))
             }
             "list" -> {
-                val list = memoryRepository.getForPrompt(
+                val list = memoryRepository.retrieveForPrompt(
                     personaId = personaId,
-                    maxCount = 50,
-                    maxChars = Int.MAX_VALUE,
-                )
+                    queryText = "",
+                    maxTokens = 2000,
+                    maxItems = 50,
+                ).memories
                 val arr = JSONArray()
                 list.forEach { m ->
                     arr.put(
                         JSONObject()
                             .put("id", m.id)
                             .put("content", m.content)
-                            .put("importance", m.importance),
+                            .put("importance", m.importance)
+                            .put("category", m.category.storageKey),
                     )
                 }
                 ToolResult(true, "共 ${list.size} 条记忆", JSONObject().put("memories", arr))

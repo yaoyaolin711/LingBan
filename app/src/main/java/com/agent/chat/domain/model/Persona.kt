@@ -15,4 +15,9 @@ data class Persona(
     val lorebookEntries: List<LorebookEntry> = emptyList(),
     /** 助手输出正则改写 */
     val outputRegexes: List<OutputRegex> = emptyList(),
+    /**
+     * Persona Engine 结构化人设；旧数据为 null。
+     * 聊天仍以 [systemPrompt] 为准，直至后续阶段接入 Prompt 组装。
+     */
+    val profile: PersonaProfile? = null,
 )

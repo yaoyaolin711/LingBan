@@ -1,5 +1,6 @@
 package com.agent.chat.ui.persona
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -67,8 +68,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agent.chat.domain.model.Persona
 import com.agent.chat.ui.components.PersonaAvatar
 import com.agent.chat.ui.memory.MemoryManageDialog
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
 import java.nio.charset.Charset
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -415,7 +414,7 @@ private fun SmartImportDialog(
                         .height(220.dp),
                     enabled = !isParsing,
                     placeholder = {
-                        Text("粘贴人设描述或角色卡 JSON…")
+                        Text("用一句话描述想要的角色，例如：温柔、成熟、有幽默感的姐姐型 AI…")
                     },
                 )
                 if (isParsing) {
@@ -458,6 +457,8 @@ private fun PersonaListItem(
     onManageMemory: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     val badgeParts = buildList {
         if (persona.presetMessages.isNotEmpty()) add("预设 ${persona.presetMessages.size}")
         if (persona.lorebookEntries.isNotEmpty()) add("世界书 ${persona.lorebookEntries.size}")
@@ -468,8 +469,8 @@ private fun PersonaListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(SurfaceCard)
-            .border(1.dp, OutlineSubtle, RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.outline, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {

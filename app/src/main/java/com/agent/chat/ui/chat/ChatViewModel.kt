@@ -3,17 +3,38 @@ package com.agent.chat.ui.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agent.chat.BuildConfig
 import com.agent.chat.data.ai.OutputRegexApplier
 import com.agent.chat.data.ai.PromptContextInjector
 import com.agent.chat.data.ai.ToolChatEvent
 import com.agent.chat.data.ai.ToolChatOrchestrator
+import com.agent.chat.data.ai.prompt.PromptComposeRequest
+import com.agent.chat.data.ai.prompt.PromptComposer
+import com.agent.chat.data.ai.prompt.UserContext
+import com.agent.chat.data.ai.response.ResponseController
+import com.agent.chat.data.ai.response.ResponseEvalContext
+import com.agent.chat.data.ai.response.ResponseScores
 import com.agent.chat.data.ai.tool.ToolExecutionContext
 import com.agent.chat.data.care.CareContextBuilder
 import com.agent.chat.data.error.AppErrorLogger
 import com.agent.chat.data.error.AppErrorMapper
+import com.agent.chat.data.interaction.InteractionPreferenceStore
 import com.agent.chat.data.memory.MemoryExtractor
 import com.agent.chat.data.memory.MemorySettingsStore
+import com.agent.chat.data.expression.ExpressionDefaults
+import com.agent.chat.data.expression.ExpressionEngine
+import com.agent.chat.data.expression.ExpressionManager
+import com.agent.chat.data.expression.ExpressionPolicies
+import com.agent.chat.data.conversationstate.ConversationStateManager
+import com.agent.chat.data.conversationstate.ConversationStatePolicies
+import com.agent.chat.data.runtime.BehaviorPlanPolicies
+import com.agent.chat.data.runtime.RuntimeDecisionEngine
+import com.agent.chat.data.runtime.RuntimeDecisionInput
+import com.agent.chat.data.mode.ModeManager
+import com.agent.chat.data.relationship.RelationshipEngine
+import com.agent.chat.data.relationship.RelationshipManager
 import com.agent.chat.data.provider.ChatMessage
+import com.agent.chat.data.provider.ModelConfig
 import com.agent.chat.data.repository.ChatRepository
 import com.agent.chat.data.repository.MemoryRepository
 import com.agent.chat.data.repository.PersonaRepository
@@ -21,10 +42,13 @@ import com.agent.chat.data.repository.ProviderConfigRepository
 import com.agent.chat.data.settings.ChatSettingsStore
 import com.agent.chat.domain.error.AppError
 import com.agent.chat.domain.error.userMessage
+import com.agent.chat.domain.model.ExpressionProfile
+import com.agent.chat.domain.model.LingBanChatMode
 import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.Message
 import com.agent.chat.domain.model.MessageRole
 import com.agent.chat.domain.model.Persona
+import com.agent.chat.domain.model.RelationshipProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -65,6 +89,11 @@ data class ChatUiState(
     val animatingUserMessageId: String? = null,
     val showPersonaSwitcher: Boolean = false,
     val showMemoryManager: Boolean = false,
+    val showRelationshipManager: Boolean = false,
+    val showExpressionManager: Boolean = false,
+    val relationshipProfile: RelationshipProfile = RelationshipProfile(),
+    val expressionProfile: ExpressionProfile = ExpressionProfile(),
+    val expressionCustomized: Boolean = false,
     val memories: List<Memory> = emptyList(),
     val extractThreshold: Int = MemorySettingsStore.DEFAULT_THRESHOLD,
     val naturalChatPaceEnabled: Boolean = true,
@@ -76,6 +105,10 @@ data class ChatUiState(
     val debugErrorDetail: String? = null,
     /** 本轮工具调用过程（仅展示，不入库） */
     val toolCalls: List<ToolCallUiItem> = emptyList(),
+    /** 开发模式：最近一次 Response Controller 评分 */
+    val lastResponseScores: ResponseScores? = null,
+    val lastResponseEvalNote: String? = null,
+    val showResponseScores: Boolean = BuildConfig.DEBUG,
 ) {
     val isBusy: Boolean get() = isStreaming || isPacingReply
 }
@@ -91,6 +124,15 @@ class ChatViewModel @Inject constructor(
     private val memorySettingsStore: MemorySettingsStore,
     private val chatSettingsStore: ChatSettingsStore,
     private val careContextBuilder: CareContextBuilder,
+    private val promptComposer: PromptComposer,
+    private val responseController: ResponseController,
+    private val modeManager: ModeManager,
+    private val relationshipManager: RelationshipManager,
+    private val relationshipEngine: RelationshipEngine,
+    private val expressionManager: ExpressionManager,
+    private val interactionPreferenceStore: InteractionPreferenceStore,
+    private val conversationStateManager: ConversationStateManager,
+    private val runtimeDecisionEngine: RuntimeDecisionEngine,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -128,11 +170,18 @@ class ChatViewModel @Inject constructor(
                     val providerName = conversation.providerConfigId
                         ?.let { providerConfigRepository.getConfig(it)?.name }
                         ?: providerConfigRepository.getDefaultConfig()?.name
+                    val resolvedExpression = expressionManager.resolve(
+                        stored = conversation.expressionProfile,
+                        relationship = conversation.relationshipProfile,
+                    )
                     _uiState.update {
                         it.copy(
                             title = conversation.title,
                             persona = persona,
                             providerName = providerName,
+                            relationshipProfile = conversation.relationshipProfile,
+                            expressionProfile = resolvedExpression,
+                            expressionCustomized = conversation.expressionProfile != null,
                         )
                     }
                     observeMemoriesForPersona(conversation.personaId)
@@ -173,6 +222,7 @@ class ChatViewModel @Inject constructor(
     override fun onCleared() {
         streamJob?.cancel()
         pacingDisplayActive = false
+        conversationStateManager.onConversationInactive(conversationId)
         super.onCleared()
     }
 
@@ -274,6 +324,67 @@ class ChatViewModel @Inject constructor(
 
     fun dismissMemoryManager() {
         _uiState.update { it.copy(showMemoryManager = false) }
+    }
+
+    fun openRelationshipManager() {
+        _uiState.update { it.copy(showRelationshipManager = true) }
+    }
+
+    fun dismissRelationshipManager() {
+        _uiState.update { it.copy(showRelationshipManager = false) }
+    }
+
+    fun saveRelationshipProfile(profile: RelationshipProfile) {
+        viewModelScope.launch {
+            relationshipManager.save(conversationId, profile)
+            val expression = if (_uiState.value.expressionCustomized) {
+                _uiState.value.expressionProfile
+            } else {
+                ExpressionDefaults.recommend(profile)
+            }
+            _uiState.update {
+                it.copy(
+                    relationshipProfile = profile,
+                    expressionProfile = expression,
+                )
+            }
+            _events.emit("已更新关系设定：${profile.relationshipType.displayName}")
+        }
+    }
+
+    fun openExpressionManager() {
+        _uiState.update { it.copy(showExpressionManager = true) }
+    }
+
+    fun dismissExpressionManager() {
+        _uiState.update { it.copy(showExpressionManager = false) }
+    }
+
+    fun saveExpressionProfile(profile: ExpressionProfile) {
+        viewModelScope.launch {
+            expressionManager.save(conversationId, profile)
+            _uiState.update {
+                it.copy(
+                    expressionProfile = profile,
+                    expressionCustomized = true,
+                )
+            }
+            _events.emit("已更新表达风格")
+        }
+    }
+
+    fun applyRecommendedExpression() {
+        viewModelScope.launch {
+            chatRepository.clearConversationExpression(conversationId)
+            val recommended = ExpressionDefaults.recommend(_uiState.value.relationshipProfile)
+            _uiState.update {
+                it.copy(
+                    expressionProfile = recommended,
+                    expressionCustomized = false,
+                )
+            }
+            _events.emit("已恢复关系推荐表达风格")
+        }
     }
 
     fun deleteMemory(memoryId: String) {
@@ -529,26 +640,90 @@ class ChatViewModel @Inject constructor(
                 ?: throw IllegalStateException("请先在设置页配置 Provider")
 
             val persona = activePersonaId?.let { personaRepository.getPersona(it) }
-            val memories = activePersonaId
-                ?.let { memoryRepository.getForPrompt(it) }
-                .orEmpty()
             val chatSettings = chatSettingsStore.get()
+            val chatMode = chatSettings.chatMode
+            val personaEffect = modeManager.personaEffect(persona, chatMode)
             val careContext = careContextBuilder.build(
                 personaId = activePersonaId,
                 recentMessages = historyForApi,
             )
-            val systemPrompt = PromptContextInjector.buildSystemPrompt(
-                persona = persona,
-                memories = memories,
-                companionStyleEnabled = chatSettings.companionStyleEnabled,
-                userNickname = chatSettings.userNickname,
-                recentMessages = historyForApi,
-                careContext = careContext,
-                userInterest = chatSettings.userInterest,
-                userOccupation = chatSettings.userOccupation,
-                userGoal = chatSettings.userGoal,
+            val queryText = historyForApi
+                .asReversed()
+                .firstOrNull { it.role == MessageRole.USER }
+                ?.content
+                .orEmpty()
+            val memoryBudget = modeManager.memoryTokenBudget(
+                MemorySettingsStore.PROMPT_MEMORY_MAX_TOKENS,
+                chatMode,
             )
-            val requestMessages = buildList {
+            val memories = if (modeManager.promptPolicy(chatMode).memoryEnabled) {
+                activePersonaId
+                    ?.let {
+                        memoryRepository.retrieveForPrompt(
+                            personaId = it,
+                            queryText = queryText,
+                            recentMessages = historyForApi,
+                            maxTokens = memoryBudget,
+                        ).memories
+                    }
+                    .orEmpty()
+            } else {
+                emptyList()
+            }
+            val relationshipProfile = _uiState.value.relationshipProfile
+            val expressionProfile = _uiState.value.expressionProfile
+            val conversationState = conversationStateManager.updateOnUserMessage(
+                conversationId = conversationId,
+                userMessage = queryText,
+                chatMode = chatMode,
+            )
+            val runtimeDecision = runtimeDecisionEngine.decide(
+                RuntimeDecisionInput(
+                    persona = persona?.copy(
+                        defaultTemperature = personaEffect.temperature,
+                        profile = personaEffect.profile ?: persona.profile,
+                    ),
+                    relationship = relationshipProfile,
+                    expression = expressionProfile,
+                    interactionPreference = interactionPreferenceStore.get(),
+                    memories = memories,
+                    conversationState = conversationState,
+                    userMessage = queryText,
+                    chatMode = chatMode,
+                ),
+            )
+            val behaviorPlan = runtimeDecision.plan
+            val composed = promptComposer.compose(
+                PromptComposeRequest(
+                    persona = persona?.copy(
+                        defaultTemperature = personaEffect.temperature,
+                        profile = personaEffect.profile ?: persona.profile,
+                    ),
+                    memories = memories,
+                    userContext = UserContext(
+                        nickname = chatSettings.userNickname,
+                        interest = chatSettings.userInterest,
+                        occupation = chatSettings.userOccupation,
+                        goal = chatSettings.userGoal,
+                    ),
+                    conversationHistory = historyForApi,
+                    careContext = careContext,
+                    modelName = providerConfig.modelName,
+                    providerName = providerConfig.name,
+                    conversationId = conversationId,
+                    baseHumanEnabled = chatSettings.companionStyleEnabled,
+                    chatMode = chatMode,
+                    rolePlayEnabled = chatMode == LingBanChatMode.ROLEPLAY,
+                    relationshipProfile = relationshipProfile,
+                    expressionProfile = expressionProfile,
+                    interactionPreference = interactionPreferenceStore.get(),
+                    userMessage = queryText,
+                    conversationState = conversationState,
+                    behaviorPlan = behaviorPlan,
+                ),
+            )
+            val systemPrompt = composed.systemPrompt
+            val baseMessages = buildList {
                 if (systemPrompt.isNotEmpty()) {
                     add(ChatMessage.system(systemPrompt))
                 }
@@ -566,77 +741,81 @@ class ChatViewModel @Inject constructor(
             }
             val requestConfig = providerConfigRepository.toModelConfig(
                 config = providerConfig,
-                temperature = persona?.defaultTemperature,
+                temperature = personaEffect.temperature,
             )
-
-            var assistantContent = ""
             val paceEnabled = chatSettings.naturalChatPaceEnabled
-            toolChatOrchestrator.run(
-                messages = requestMessages,
-                baseConfig = requestConfig,
-                context = ToolExecutionContext(
-                    personaId = activePersonaId,
-                    conversationId = conversationId,
+
+            val responsePolicy = BehaviorPlanPolicies.adjustResponsePolicy(
+                ConversationStatePolicies.adjustResponsePolicy(
+                    relationshipEngine.adjustResponsePolicy(
+                        modeManager.responsePolicy(chatMode),
+                        relationshipProfile,
+                        chatMode,
+                    ),
+                    conversationState,
                 ),
-            ).collect { event ->
-                when (event) {
-                    is ToolChatEvent.ContentDelta -> {
-                        assistantContent = event.text
-                        if (paceEnabled) {
-                            updateCanonicalMessage(assistantId) {
-                                it.copy(content = assistantContent)
-                            }
-                        } else {
-                            updateCanonicalMessage(assistantId) {
-                                it.copy(content = assistantContent)
-                            }
-                            updateDisplayedFromCanonicalKeepStreaming(assistantId)
-                        }
-                    }
-                    is ToolChatEvent.ToolStarted -> {
-                        _uiState.update { state ->
-                            state.copy(
-                                toolCalls = state.toolCalls + ToolCallUiItem(
-                                    id = event.call.id,
-                                    name = event.call.name,
-                                    label = toolLabel(event.call.name),
-                                    running = true,
-                                ),
-                            )
-                        }
-                    }
-                    is ToolChatEvent.ToolFinished -> {
-                        _uiState.update { state ->
-                            state.copy(
-                                toolCalls = state.toolCalls.map { item ->
-                                    if (item.id == event.call.id) {
-                                        item.copy(
-                                            running = false,
-                                            success = event.success,
-                                            detail = event.resultPreview,
-                                        )
-                                    } else {
-                                        item
-                                    }
-                                },
-                            )
-                        }
-                    }
-                    is ToolChatEvent.Completed -> {
-                        assistantContent = event.finalContent
+                behaviorPlan,
+            )
+            val expressionPolicy = ExpressionPolicies.fromProfile(expressionProfile)
+            val evalContext = ResponseEvalContext(
+                userMessage = queryText,
+                chatMode = chatMode,
+                policy = responsePolicy,
+                relationshipProfile = relationshipProfile,
+                expressionProfile = expressionProfile,
+                expressionPolicy = expressionPolicy,
+                conversationState = conversationState,
+                behaviorPlan = behaviorPlan,
+            )
+            val controlled = responseController.run(
+                context = evalContext,
+                enabled = chatSettings.responseControllerEnabled,
+            ) { attempt, previous ->
+                if (attempt > 0) {
+                    // 重生成：清空气泡并重置工具条
+                    updateCanonicalMessage(assistantId) { it.copy(content = "") }
+                    _uiState.update {
+                        it.copy(toolCalls = emptyList(), streamingMessageId = assistantId)
                     }
                 }
+                val messages = if (attempt > 0 && previous != null) {
+                    baseMessages + ChatMessage.user(responseController.buildRepairHint(previous, evalContext))
+                } else {
+                    baseMessages
+                }
+                runAssistantGeneration(
+                    messages = messages,
+                    requestConfig = requestConfig,
+                    assistantId = assistantId,
+                    paceEnabled = paceEnabled,
+                )
             }
 
-            val rawFinal = assistantContent.ifBlank { "（无回复）" }
+            val rawFinal = controlled.text.ifBlank { "（无回复）" }
             val rewritten = OutputRegexApplier.apply(rawFinal, persona)
             val finalContent = rewritten.persisted
             val displayContent = rewritten.displayed
             chatRepository.updateMessageContent(assistantId, finalContent)
             chatRepository.touchConversation(conversationId)
             updateCanonicalMessage(assistantId) { it.copy(content = displayContent) }
+
+            val scoreNote = buildString {
+                append(if (controlled.evaluation.passed) "通过" else "未完全通过")
+                if (controlled.regenerated) append(" · 已重生成×${controlled.attempts - 1}")
+                if (controlled.evaluation.reasons.isNotEmpty()) {
+                    append(" · ")
+                    append(controlled.evaluation.reasons.joinToString("；"))
+                }
+            }
             _uiState.update {
-                it.copy(failedMessageId = null, messageError = null, debugErrorDetail = null)
+                it.copy(
+                    failedMessageId = null,
+                    messageError = null,
+                    debugErrorDetail = null,
+                    lastResponseScores = controlled.evaluation.scores,
+                    lastResponseEvalNote = scoreNote,
+                    showResponseScores = BuildConfig.DEBUG,
+                )
             }
 
             if (paceEnabled) {
@@ -681,6 +860,68 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private suspend fun runAssistantGeneration(
+        messages: List<ChatMessage>,
+        requestConfig: ModelConfig,
+        assistantId: String,
+        paceEnabled: Boolean,
+    ): String {
+        var assistantContent = ""
+        toolChatOrchestrator.run(
+            messages = messages,
+            baseConfig = requestConfig,
+            context = ToolExecutionContext(
+                personaId = activePersonaId,
+                conversationId = conversationId,
+            ),
+        ).collect { event ->
+            when (event) {
+                is ToolChatEvent.ContentDelta -> {
+                    assistantContent = event.text
+                    updateCanonicalMessage(assistantId) {
+                        it.copy(content = assistantContent)
+                    }
+                    if (!paceEnabled) {
+                        updateDisplayedFromCanonicalKeepStreaming(assistantId)
+                    }
+                }
+                is ToolChatEvent.ToolStarted -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            toolCalls = state.toolCalls + ToolCallUiItem(
+                                id = event.call.id,
+                                name = event.call.name,
+                                label = toolLabel(event.call.name),
+                                running = true,
+                            ),
+                        )
+                    }
+                }
+                is ToolChatEvent.ToolFinished -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            toolCalls = state.toolCalls.map { item ->
+                                if (item.id == event.call.id) {
+                                    item.copy(
+                                        running = false,
+                                        success = event.success,
+                                        detail = event.resultPreview,
+                                    )
+                                } else {
+                                    item
+                                }
+                            },
+                        )
+                    }
+                }
+                is ToolChatEvent.Completed -> {
+                    assistantContent = event.finalContent
+                }
+            }
+        }
+        return assistantContent.ifBlank { "（无回复）" }
+    }
+
     fun toggleToolCallExpanded(toolCallId: String) {
         _uiState.update { state ->
             state.copy(
@@ -700,7 +941,12 @@ class ChatViewModel @Inject constructor(
         "set_alarm" -> "设了闹钟"
         "get_location" -> "看了位置"
         "get_app_usage" -> "看了使用情况"
-        else -> name
+            "get_recent_notifications" -> "看了通知"
+            "music_control" -> "操作了音乐"
+            "get_recent_sms" -> "看了短信"
+            "get_screen_state" -> "看了屏幕状态"
+            "get_screen_content" -> "看了你的屏幕"
+            else -> name
     }
 
     private fun updateDisplayedFromCanonicalKeepStreaming(assistantId: String) {

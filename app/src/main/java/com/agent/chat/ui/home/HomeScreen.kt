@@ -50,8 +50,6 @@ import com.agent.chat.ui.motion.scaleClickable
 import com.agent.chat.ui.theme.AgentChatTheme
 import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.OrbDeep
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -103,6 +101,8 @@ fun SharedTransitionScope.HomeScreenContent(
     onRecentMemoryClick: () -> Unit,
     onRecommendedAgentClick: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     val orbScale = remember { Animatable(0.86f) }
     val orbAlpha = remember { Animatable(0f) }
     val greetingAlpha = remember { Animatable(0f) }
@@ -211,7 +211,7 @@ fun SharedTransitionScope.HomeScreenContent(
                     Text(
                         text = buildGreeting(uiState),
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -226,7 +226,7 @@ fun SharedTransitionScope.HomeScreenContent(
                     Text(
                         text = "轻触核心，开始对话",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .padding(top = 8.dp)
@@ -331,9 +331,11 @@ private fun buildGreeting(uiState: HomeUiState): String {
 @Preview(showBackground = true, backgroundColor = 0xFFFFF7F1)
 @Composable
 private fun HomeScreenPreview() {
+    val colors = AgentThemeColors
+
     AgentChatTheme {
         // Preview skips SharedTransitionScope — use non-shared content path via stub not available;
         // keep compile-safe by leaving preview as theme wrapper only.
-        Text("Home Preview", color = TextPrimary)
+        Text("Home Preview", color = colors.textPrimary)
     }
 }

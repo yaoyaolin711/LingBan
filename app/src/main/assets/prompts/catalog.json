@@ -1,0 +1,38 @@
+{
+  "version": 7,
+  "layers": [
+    "LINGBAN_CORE",
+    "HUMAN_CONVERSATION",
+    "INTERACTION_PREFERENCE",
+    "PERSONA",
+    "RELATIONSHIP",
+    "EXPRESSION",
+    "CONVERSATION_STATE",
+    "RUNTIME_DECISION",
+    "MEMORY",
+    "CONVERSATION_GOAL"
+  ],
+  "assets": {
+    "lingban_core": "prompts/lingban_core.txt",
+    "human_conversation": "prompts/human_conversation.txt",
+    "human_conversation_assistant": "prompts/human_conversation_assistant.txt",
+    "human_conversation_roleplay": "prompts/human_conversation_roleplay.txt",
+    "base_human": "prompts/human_conversation.txt",
+    "base_human_roleplay": "prompts/human_conversation_roleplay.txt",
+    "mode_assistant": "prompts/modes/assistant.txt",
+    "mode_companion": "prompts/modes/companion.txt",
+    "mode_roleplay": "prompts/modes/roleplay.txt",
+    "relationship_friend": "prompts/relationships/friend.txt",
+    "relationship_romantic": "prompts/relationships/romantic_partner.txt",
+    "relationship_mentor": "prompts/relationships/mentor.txt",
+    "relationship_family": "prompts/relationships/family.txt",
+    "relationship_roleplay": "prompts/relationships/roleplay.txt",
+    "relationship_boundaries": "prompts/relationships/boundaries.txt",
+    "labels": "prompts/labels.json",
+    "proactive_nudge": "prompts/proactive_nudge.txt",
+    "agent_coding": "prompts/agents/coding.txt",
+    "agent_tutor": "prompts/agents/tutor.txt",
+    "agent_creative": "prompts/agents/creative.txt",
+    "model_compact_hint": "prompts/models/compact_hint.txt"
+  }
+}

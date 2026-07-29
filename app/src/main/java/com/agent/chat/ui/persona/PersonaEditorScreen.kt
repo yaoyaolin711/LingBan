@@ -1,5 +1,6 @@
 package com.agent.chat.ui.persona
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,9 +49,6 @@ import com.agent.chat.domain.model.LorebookEntry
 import com.agent.chat.domain.model.OutputRegex
 import com.agent.chat.domain.model.PresetMessage
 import com.agent.chat.ui.components.PersonaAvatar
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
 
 enum class PersonaEditorTab(val label: String) {
     BASIC("基础"),
@@ -553,10 +551,12 @@ private fun RoleToggle(
     isAssistant: Boolean,
     onToggle: (Boolean) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(SurfaceMuted)
+            .background(colors.surfaceMuted)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -567,8 +567,10 @@ private fun RoleToggle(
 
 @Composable
 private fun RoleChip(selected: Boolean, label: String, onClick: () -> Unit) {
+    val colors = AgentThemeColors
+
     val bg by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primary else SurfaceMuted,
+        if (selected) MaterialTheme.colorScheme.primary else colors.surfaceMuted,
         label = "roleChip",
     )
     val fg by animateColorAsState(
@@ -588,12 +590,14 @@ private fun RoleChip(selected: Boolean, label: String, onClick: () -> Unit) {
 
 @Composable
 private fun EditorCard(content: @Composable () -> Unit) {
+    val colors = AgentThemeColors
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(SurfaceCard)
-            .border(1.dp, OutlineSubtle, RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.outline, RoundedCornerShape(18.dp))
             .padding(16.dp),
     ) {
         content()
@@ -612,11 +616,13 @@ private fun HintRow(text: String) {
 
 @Composable
 private fun AddRowButton(text: String, onClick: () -> Unit) {
+    val colors = AgentThemeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, OutlineSubtle, RoundedCornerShape(14.dp))
+            .border(1.dp, colors.outline, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 14.dp),
         horizontalArrangement = Arrangement.Center,
@@ -652,9 +658,12 @@ private fun EditorField(
 }
 
 @Composable
-private fun editorFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = SurfaceMuted,
-    unfocusedContainerColor = SurfaceMuted,
-    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-    unfocusedBorderColor = OutlineSubtle,
-)
+private fun editorFieldColors(): androidx.compose.material3.TextFieldColors {
+    val colors = AgentThemeColors
+    return OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = colors.surfaceMuted,
+        unfocusedContainerColor = colors.surfaceMuted,
+        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+        unfocusedBorderColor = colors.outline,
+    )
+}

@@ -29,6 +29,11 @@ class ToolSettingsStore @Inject constructor(
             .putBoolean(KEY_ALARM, next.alarmEnabled)
             .putBoolean(KEY_LOCATION, next.locationEnabled)
             .putBoolean(KEY_APP_USAGE, next.appUsageEnabled)
+            .putBoolean(KEY_NOTIFICATION, next.notificationEnabled)
+            .putBoolean(KEY_MUSIC, next.musicEnabled)
+            .putBoolean(KEY_SMS, next.smsEnabled)
+            .putBoolean(KEY_SCREEN_STATE, next.screenStateEnabled)
+            .putBoolean(KEY_SCREEN_CONTENT, next.screenContentEnabled)
             .apply()
         _snapshot.value = next
     }
@@ -42,6 +47,11 @@ class ToolSettingsStore @Inject constructor(
         alarmEnabled = prefs.getBoolean(KEY_ALARM, true),
         locationEnabled = prefs.getBoolean(KEY_LOCATION, false),
         appUsageEnabled = prefs.getBoolean(KEY_APP_USAGE, false),
+        notificationEnabled = prefs.getBoolean(KEY_NOTIFICATION, false),
+        musicEnabled = prefs.getBoolean(KEY_MUSIC, false),
+        smsEnabled = prefs.getBoolean(KEY_SMS, false),
+        screenStateEnabled = prefs.getBoolean(KEY_SCREEN_STATE, false),
+        screenContentEnabled = prefs.getBoolean(KEY_SCREEN_CONTENT, false),
     )
 
     companion object {
@@ -54,6 +64,11 @@ class ToolSettingsStore @Inject constructor(
         private const val KEY_ALARM = "alarm"
         private const val KEY_LOCATION = "location"
         private const val KEY_APP_USAGE = "app_usage"
+        private const val KEY_NOTIFICATION = "notification"
+        private const val KEY_MUSIC = "music"
+        private const val KEY_SMS = "sms"
+        private const val KEY_SCREEN_STATE = "screen_state"
+        private const val KEY_SCREEN_CONTENT = "screen_content"
     }
 }
 
@@ -66,4 +81,9 @@ data class ToolSettings(
     val alarmEnabled: Boolean = true,
     val locationEnabled: Boolean = false,
     val appUsageEnabled: Boolean = false,
+    val notificationEnabled: Boolean = false,
+    val musicEnabled: Boolean = false,
+    val smsEnabled: Boolean = false,
+    val screenStateEnabled: Boolean = false,
+    val screenContentEnabled: Boolean = false,
 )

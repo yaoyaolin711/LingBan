@@ -5,7 +5,11 @@ import com.agent.chat.data.local.dao.MessageDao
 import com.agent.chat.data.local.entity.ConversationEntity
 import com.agent.chat.data.local.mapper.toDomain
 import com.agent.chat.data.local.mapper.toEntity
+import com.agent.chat.data.expression.encodeExpressionProfile
+import com.agent.chat.data.relationship.encodeRelationshipProfile
 import com.agent.chat.domain.model.Conversation
+import com.agent.chat.domain.model.ExpressionProfile
+import com.agent.chat.domain.model.RelationshipProfile
 import com.agent.chat.domain.model.Message
 import java.util.UUID
 import javax.inject.Inject
@@ -137,6 +141,36 @@ class ChatRepository @Inject constructor(
         conversationDao.updatePersona(
             id = conversationId,
             personaId = personaId,
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    suspend fun updateConversationRelationship(
+        conversationId: String,
+        relationshipProfile: RelationshipProfile,
+    ) {
+        conversationDao.updateRelationship(
+            id = conversationId,
+            relationshipProfileJson = encodeRelationshipProfile(relationshipProfile),
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    suspend fun updateConversationExpression(
+        conversationId: String,
+        expressionProfile: ExpressionProfile,
+    ) {
+        conversationDao.updateExpression(
+            id = conversationId,
+            expressionProfileJson = encodeExpressionProfile(expressionProfile),
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    suspend fun clearConversationExpression(conversationId: String) {
+        conversationDao.updateExpression(
+            id = conversationId,
+            expressionProfileJson = "",
             updatedAt = System.currentTimeMillis(),
         )
     }

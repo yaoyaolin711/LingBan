@@ -1,5 +1,6 @@
 package com.agent.chat.ui.components
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -19,9 +20,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextPrimary
 
 @Composable
 fun PersonaAvatar(
@@ -31,6 +29,8 @@ fun PersonaAvatar(
     highlighted: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     val context = LocalContext.current
     val isUrl = remember(avatar) {
         avatar.startsWith("http://") || avatar.startsWith("https://")
@@ -40,7 +40,7 @@ fun PersonaAvatar(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (highlighted) Accent.copy(alpha = 0.12f) else SurfaceMuted),
+            .background(if (highlighted) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted),
         contentAlignment = Alignment.Center,
     ) {
         if (isUrl) {
@@ -60,7 +60,7 @@ fun PersonaAvatar(
         } else {
             Text(
                 text = avatar.ifBlank { name.take(1).ifBlank { "A" } },
-                color = if (highlighted) Accent else TextPrimary,
+                color = if (highlighted) colors.accent else colors.textPrimary,
                 fontSize = (size.value * 0.36f).sp,
                 fontWeight = FontWeight.Medium,
             )

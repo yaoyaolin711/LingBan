@@ -28,10 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.OnlineGreen
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 @Composable
 fun HomeTopBar(
@@ -39,6 +37,8 @@ fun HomeTopBar(
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
         animationSpec = tween(480, easing = FastOutSlowInEasing),
@@ -64,7 +64,7 @@ fun HomeTopBar(
             Text(
                 text = "灵伴",
                 style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(modifier = Modifier.size(4.dp))
@@ -79,7 +79,7 @@ fun HomeTopBar(
                 Text(
                     text = "在线 · 正在陪伴",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
             }
         }
@@ -88,12 +88,12 @@ fun HomeTopBar(
             onClick = onSettingsClick,
             modifier = Modifier
                 .clip(CircleShape)
-                .background(SurfaceCard.copy(alpha = 0.9f)),
+                .background(colors.surface.copy(alpha = 0.9f)),
         ) {
             Icon(
                 imageVector = Icons.Outlined.Settings,
                 contentDescription = "设置",
-                tint = TextSecondary,
+                tint = colors.textSecondary,
             )
         }
     }

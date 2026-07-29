@@ -26,12 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agent.chat.domain.model.Persona
-import com.agent.chat.ui.theme.Accent
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.CardElevation
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceSelected
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 data class PersonaPickerItem(
     val id: String?,
@@ -101,6 +97,8 @@ private fun PersonaPickerRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -108,7 +106,7 @@ private fun PersonaPickerRow(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) SurfaceSelected else SurfaceCard,
+            containerColor = if (selected) colors.surfaceSelected else colors.surface,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = CardElevation),
     ) {
@@ -122,7 +120,7 @@ private fun PersonaPickerRow(
                 modifier = Modifier
                     .width(3.dp)
                     .height(56.dp)
-                    .background(if (selected) Accent else androidx.compose.ui.graphics.Color.Transparent),
+                    .background(if (selected) colors.accent else androidx.compose.ui.graphics.Color.Transparent),
             )
             Spacer(modifier = Modifier.width(14.dp))
             PersonaAvatar(
@@ -140,7 +138,7 @@ private fun PersonaPickerRow(
                 Text(
                     text = item.name,
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -148,7 +146,7 @@ private fun PersonaPickerRow(
                 Text(
                     text = item.description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

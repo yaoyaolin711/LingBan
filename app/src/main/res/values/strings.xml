@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">灵伴</string>
+    <string name="accessibility_service_description">灵伴需要无障碍权限来感知你的手机屏幕内容，让 AI 伴侣更了解你正在做什么，提供贴心关心。</string>
 </resources>

@@ -29,6 +29,7 @@ import com.agent.chat.ui.memory.MemoryScreen
 import com.agent.chat.ui.motion.SwipeBackContainer
 import com.agent.chat.ui.persona.PersonaListScreen
 import com.agent.chat.ui.profile.ProfileScreen
+import com.agent.chat.ui.settings.ModelApiScreen
 import com.agent.chat.ui.settings.SettingsScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -42,6 +43,7 @@ object Routes {
     const val PERSONA_LIST = "persona_list"
     const val PROFILE = "profile"
     const val SETTINGS = "settings"
+    const val MODEL_API = "model_api"
     const val MEMORY = "memory"
 
     fun chat(conversationId: String): String = "chat/$conversationId"
@@ -109,11 +111,8 @@ fun AgentNavHost(
                 SwipeBackContainer(onBack = { navController.popBackStack() }) {
                     ProfileScreen(
                         onBackClick = { navController.popBackStack() },
-                        onModelSettingsClick = {
-                            navController.navigate(Routes.SETTINGS)
-                        },
-                        onApiConfigClick = {
-                            navController.navigate(Routes.SETTINGS)
+                        onModelApiClick = {
+                            navController.navigate(Routes.MODEL_API)
                         },
                         onMemoryClick = {
                             navController.navigate(Routes.MEMORY)
@@ -233,6 +232,14 @@ fun AgentNavHost(
             composable(Routes.SETTINGS) {
                 SwipeBackContainer(onBack = { navController.popBackStack() }) {
                     SettingsScreen(
+                        onBackClick = { navController.popBackStack() },
+                    )
+                }
+            }
+
+            composable(Routes.MODEL_API) {
+                SwipeBackContainer(onBack = { navController.popBackStack() }) {
+                    ModelApiScreen(
                         onBackClick = { navController.popBackStack() },
                     )
                 }

@@ -55,8 +55,11 @@ class MemorySettingsStore @Inject constructor(
         const val MIN_THRESHOLD = 15
         const val MAX_THRESHOLD = 50
 
-        /** 注入 System Prompt 的记忆硬性上限（字） */
-        const val PROMPT_MEMORY_MAX_CHARS = 4000
+        /** 注入 System Prompt 的记忆硬性上限（字，兼容旧设置文案） */
+        const val PROMPT_MEMORY_MAX_CHARS = 1200
+
+        /** 注入记忆的最大 token 预算（约 1.5 字/token） */
+        const val PROMPT_MEMORY_MAX_TOKENS = 800
 
         /** 单次滚动摘要输出上限（字） */
         const val SUMMARY_MAX_CHARS = 800
@@ -64,6 +67,10 @@ class MemorySettingsStore @Inject constructor(
         /** 粗略：中文约 1.5 字/Token，用于设置页提示 */
         fun estimatePromptMemoryTokens(chars: Int = PROMPT_MEMORY_MAX_CHARS): Int =
             (chars / 1.5).toInt().coerceAtLeast(1)
+
+        fun estimatePromptMemoryTokensByBudget(
+            tokens: Int = PROMPT_MEMORY_MAX_TOKENS,
+        ): Int = tokens
 
         fun estimateExtractTokens(threshold: Int, avgMsgChars: Int = 80): Int {
             val newDialogue = threshold * avgMsgChars

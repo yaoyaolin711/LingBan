@@ -1,5 +1,6 @@
 package com.agent.chat.ui.memory
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,11 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.agent.chat.data.memory.MemorySettingsStore
 import com.agent.chat.domain.model.Memory
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,16 +40,18 @@ fun MemoryManageDialog(
     onDelete: (String) -> Unit,
     extractThreshold: Int = MemorySettingsStore.DEFAULT_THRESHOLD,
 ) {
+    val colors = AgentThemeColors
+
     val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = SurfaceCard,
+        containerColor = colors.surface,
         title = {
             Text(
                 text = "记忆管理",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary,
+                color = colors.textPrimary,
             )
         },
         text = {
@@ -64,15 +62,15 @@ fun MemoryManageDialog(
                     } else {
                         "「$personaName」记住的用户信息（跨会话共享）"
                     },
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 if (memories.isEmpty()) {
                     Text(
                         text = "暂无记忆。可在对话中让 TA 用记忆工具记下重要信息；对话较多时也会自动补充摘要。" +
-                            "（注入上限 ${MemorySettingsStore.PROMPT_MEMORY_MAX_CHARS} 字）。",
-                        color = TextSecondary,
+                            "（按问题检索，上限约 ${MemorySettingsStore.PROMPT_MEMORY_MAX_TOKENS} tokens）。",
+                        color = colors.textSecondary,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
@@ -96,7 +94,7 @@ fun MemoryManageDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭", color = Accent)
+                Text("关闭", color = colors.accent)
             }
         },
     )
@@ -108,10 +106,12 @@ private fun MemoryListItem(
     timeLabel: String,
     onDelete: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = SurfaceMuted,
+        color = colors.surfaceMuted,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -121,13 +121,13 @@ private fun MemoryListItem(
                 Text(
                     text = memory.content,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "$timeLabel · 重要度 ${memory.importance}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
             }
             IconButton(onClick = onDelete) {

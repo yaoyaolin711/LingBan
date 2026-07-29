@@ -1,5 +1,6 @@
 package com.agent.chat.ui.components
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
@@ -25,8 +26,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextSecondary
 
 private val FenceRegex = Regex("```([\\w+#.-]*)\\n([\\s\\S]*?)```")
 private val ImageRegex = Regex("!\\[([^]]*)]\\(([^)]+)\\)")
@@ -46,6 +45,8 @@ fun MarkdownMessageContent(
     isUser: Boolean = false,
     showStreamingCursor: Boolean = false,
 ) {
+    val colors = AgentThemeColors
+
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
     Column(modifier = modifier) {
         blocks.forEach { block ->
@@ -89,13 +90,13 @@ fun MarkdownMessageContent(
                             .fillMaxWidth()
                             .padding(vertical = 6.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(SurfaceMuted)
+                            .background(colors.surfaceMuted)
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Text(
                             text = "引用",
                             style = MaterialTheme.typography.labelLarge,
-                            color = TextSecondary,
+                            color = colors.textSecondary,
                         )
                         Text(
                             text = block.value,

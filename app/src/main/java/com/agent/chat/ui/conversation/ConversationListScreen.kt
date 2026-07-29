@@ -60,15 +60,8 @@ import com.agent.chat.domain.model.Persona
 import com.agent.chat.domain.model.ProviderConfig
 import com.agent.chat.ui.components.PersonaAvatar
 import com.agent.chat.ui.components.PersonaPickerList
-import com.agent.chat.ui.theme.Accent
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.AgentChatTheme
-import com.agent.chat.ui.theme.AppBg
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.SurfaceSelected
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -134,9 +127,10 @@ fun ConversationListContent(
     onSettingsClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
 ) {
+    val colors = AgentThemeColors
     val personaMap = remember(personas) { personas.associateBy { it.id } }
     Scaffold(
-        containerColor = AppBg,
+        containerColor = colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             Box(
@@ -144,18 +138,18 @@ fun ConversationListContent(
                     .navigationBarsPadding()
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(Accent)
+                    .background(colors.accent)
                     .clickable(onClick = onNewConversationClick),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "新建会话", tint = SurfaceCard)
+                Icon(Icons.Default.Add, contentDescription = "新建会话", tint = colors.surface)
             }
         },
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AppBg)
+                .background(colors.background)
                 .padding(innerPadding)
                 .statusBarsPadding(),
         ) {
@@ -204,6 +198,8 @@ private fun HeaderBar(
     onPersonaManageClick: () -> Unit,
     onSettingsClick: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -223,13 +219,13 @@ private fun HeaderBar(
             Text(
                 text = "灵伴",
                 style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = "在就好",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
+                color = colors.textSecondary,
             )
         }
         IconButton(
@@ -237,9 +233,9 @@ private fun HeaderBar(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(SurfaceCard),
+                .background(colors.surface),
         ) {
-            Icon(Icons.Default.Person, contentDescription = "人设管理", tint = Accent)
+            Icon(Icons.Default.Person, contentDescription = "人设管理", tint = colors.accent)
         }
         Spacer(modifier = Modifier.width(6.dp))
         IconButton(
@@ -247,9 +243,9 @@ private fun HeaderBar(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(SurfaceCard),
+                .background(colors.surface),
         ) {
-            Icon(Icons.Default.Settings, contentDescription = "设置", tint = TextSecondary)
+            Icon(Icons.Default.Settings, contentDescription = "设置", tint = colors.textSecondary)
         }
     }
 }
@@ -260,26 +256,28 @@ private fun SearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
         leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary)
+            Icon(Icons.Default.Search, contentDescription = null, tint = colors.textSecondary)
         },
         placeholder = {
-            Text("搜索会话", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+            Text("搜索会话", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
         },
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = OutlineSubtle,
-            unfocusedBorderColor = OutlineSubtle,
-            focusedContainerColor = SurfaceCard,
-            unfocusedContainerColor = SurfaceCard,
-            cursorColor = Accent,
-            focusedTextColor = TextPrimary,
-            unfocusedTextColor = TextPrimary,
+            focusedBorderColor = colors.outline,
+            unfocusedBorderColor = colors.outline,
+            focusedContainerColor = colors.surface,
+            unfocusedContainerColor = colors.surface,
+            cursorColor = colors.accent,
+            focusedTextColor = colors.textPrimary,
+            unfocusedTextColor = colors.textPrimary,
         ),
     )
 }
@@ -290,6 +288,8 @@ private fun EmptyState(
     onNewConversationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     Column(
         modifier = modifier.padding(horizontal = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -305,7 +305,7 @@ private fun EmptyState(
         Text(
             text = if (isSearching) "没有找到相关会话" else "还没有对话",
             style = MaterialTheme.typography.headlineMedium,
-            color = TextPrimary,
+            color = colors.textPrimary,
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
@@ -315,12 +315,12 @@ private fun EmptyState(
                 "选一个陪伴对象，开始聊天"
             },
             style = MaterialTheme.typography.bodyLarge,
-            color = TextSecondary,
+            color = colors.textSecondary,
         )
         if (!isSearching) {
             Spacer(modifier = Modifier.height(28.dp))
             TextButton(onClick = onNewConversationClick) {
-                Text("新建会话", color = Accent)
+                Text("新建会话", color = colors.accent)
             }
         }
     }
@@ -337,14 +337,16 @@ private fun CreateConversationDialog(
     onSelectProvider: (String) -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = SurfaceCard,
+        containerColor = colors.surface,
         title = {
             Text(
                 text = "开始新对话",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary,
+                color = colors.textPrimary,
             )
         },
         text = {
@@ -357,7 +359,7 @@ private fun CreateConversationDialog(
                 Text(
                     text = "选择对话对象",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
                 PersonaPickerList(
                     personas = personas,
@@ -370,13 +372,13 @@ private fun CreateConversationDialog(
                 Text(
                     text = "选择 Provider",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
                 if (providers.isEmpty()) {
                     Text(
                         text = "请先到设置页添加 Provider",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Accent,
+                        color = colors.accent,
                     )
                 } else {
                     providers.forEach { provider ->
@@ -395,12 +397,12 @@ private fun CreateConversationDialog(
                 onClick = onConfirm,
                 enabled = !selectedProviderId.isNullOrBlank(),
             ) {
-                Text("开始", color = Accent)
+                Text("开始", color = colors.accent)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary)
+                Text("取消", color = colors.textSecondary)
             }
         },
     )
@@ -413,11 +415,13 @@ private fun ProviderRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) SurfaceSelected else SurfaceMuted)
+            .background(if (selected) colors.surfaceSelected else colors.surfaceMuted)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -426,14 +430,14 @@ private fun ProviderRow(
             modifier = Modifier
                 .width(3.dp)
                 .height(28.dp)
-                .background(if (selected) Accent else androidx.compose.ui.graphics.Color.Transparent),
+                .background(if (selected) colors.accent else androidx.compose.ui.graphics.Color.Transparent),
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+            Text(text = title, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
             if (!subtitle.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
             }
         }
     }
@@ -445,6 +449,8 @@ private fun ConversationItem(
     persona: Persona?,
     onClick: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     val displayName = persona?.name?.takeIf { it.isNotBlank() } ?: conversation.title
     Row(
         modifier = Modifier
@@ -464,7 +470,7 @@ private fun ConversationItem(
                 Text(
                     text = displayName,
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -473,14 +479,14 @@ private fun ConversationItem(
                 Text(
                     text = formatChatListTime(conversation.updatedAt),
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = conversation.lastMessage.ifBlank { "说点什么吧…" },
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
+                color = colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

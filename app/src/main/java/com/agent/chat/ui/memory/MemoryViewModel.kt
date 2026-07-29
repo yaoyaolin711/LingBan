@@ -29,7 +29,7 @@ data class UserPortraitUi(
 
 data class MemoryUiState(
     val portrait: UserPortraitUi = UserPortraitUi(),
-    val selectedCategory: MemoryCategory = MemoryCategory.LONG_TERM,
+    val selectedCategory: MemoryCategory = MemoryCategory.CORE,
     val memories: List<Memory> = emptyList(),
     val expandedId: String? = null,
     val editingMemory: Memory? = null,
@@ -60,7 +60,7 @@ class MemoryViewModel @Inject constructor(
 
     private val extras = MutableStateFlow(
         MemoryUiExtras(
-            selectedCategory = MemoryCategory.LONG_TERM,
+            selectedCategory = MemoryCategory.CORE,
             expandedId = null,
             editingMemory = null,
             editingPortrait = false,
@@ -140,10 +140,10 @@ class MemoryViewModel @Inject constructor(
                     content = content.trim(),
                     category = category,
                     importance = when (category) {
-                        MemoryCategory.IMPORTANT_EVENT -> maxOf(target.importance, 9)
-                        MemoryCategory.LONG_TERM -> maxOf(target.importance, 7)
+                        MemoryCategory.EMOTION -> maxOf(target.importance, 8)
+                        MemoryCategory.CORE -> maxOf(target.importance, 7)
                         MemoryCategory.PREFERENCE -> target.importance.coerceIn(5, 8)
-                        MemoryCategory.SHORT_TERM -> target.importance.coerceAtMost(6)
+                        MemoryCategory.EVENT -> target.importance.coerceAtMost(7)
                     },
                 ),
             )

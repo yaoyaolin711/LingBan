@@ -3,9 +3,13 @@ package com.agent.chat.data.repository
 import com.agent.chat.data.local.dao.MemoryDao
 import com.agent.chat.data.local.mapper.toDomain
 import com.agent.chat.data.local.mapper.toEntity
+import com.agent.chat.data.memory.MemoryManager
+import com.agent.chat.data.memory.MemoryRetrieveRequest
+import com.agent.chat.data.memory.MemoryRetrieveResult
 import com.agent.chat.data.memory.MemorySettingsStore
 import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.MemoryCategory
+import com.agent.chat.domain.model.Message
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,6 +19,7 @@ import kotlinx.coroutines.flow.map
 @Singleton
 class MemoryRepository @Inject constructor(
     private val memoryDao: MemoryDao,
+    private val memoryManager: MemoryManager,
 ) {
 
     fun observeByPersona(personaId: String): Flow<List<Memory>> =
@@ -27,31 +32,43 @@ class MemoryRepository @Inject constructor(
         memoryDao.observeAll().map { list -> list.map { it.toDomain() } }
 
     /**
-     * 按重要度与时间取最近若干条，并限制总字符数，避免挤占过多上下文。
-     * 已「禁止 AI 使用」的记忆不会进入 Prompt。
+     * 按当前问题检索相关记忆（分类 + 重要性 + token 预算），不灌全量历史。
+     */
+    suspend fun retrieveForPrompt(
+        personaId: String,
+        queryText: String = "",
+        recentMessages: List<Message> = emptyList(),
+        maxTokens: Int = MemorySettingsStore.PROMPT_MEMORY_MAX_TOKENS,
+        maxItems: Int = MemoryManager.DEFAULT_MAX_ITEMS,
+    ): MemoryRetrieveResult =
+        memoryManager.retrieveForPrompt(
+            MemoryRetrieveRequest(
+                personaId = personaId,
+                queryText = queryText,
+                recentMessages = recentMessages,
+                maxTokens = maxTokens,
+                maxItems = maxItems,
+            ),
+        )
+
+    /**
+     * 兼容旧调用：无查询词时仍走 MemoryManager（偏 Core / 高重要度）。
      */
     suspend fun getForPrompt(
         personaId: String,
-        maxCount: Int = DEFAULT_PROMPT_COUNT,
+        maxCount: Int = MemoryManager.DEFAULT_MAX_ITEMS,
         maxChars: Int = MemorySettingsStore.PROMPT_MEMORY_MAX_CHARS,
     ): List<Memory> {
-        val candidates = memoryDao.getTopByPersona(personaId, maxCount).map { it.toDomain() }
-            .filterNot { it.blockedFromAi }
-        if (candidates.isEmpty()) return emptyList()
-
-        val result = ArrayList<Memory>(candidates.size)
-        var used = 0
-        for (memory in candidates) {
-            val len = memory.content.length
-            if (result.isNotEmpty() && used + len > maxChars) break
-            if (result.isEmpty() && len > maxChars) {
-                result.add(memory.copy(content = memory.content.take(maxChars)))
-                break
-            }
-            result.add(memory)
-            used += len
-        }
-        return result
+        val maxTokens = (maxChars / 1.5f).toInt()
+            .coerceIn(1, MemorySettingsStore.PROMPT_MEMORY_MAX_TOKENS)
+        return memoryManager.retrieveForPrompt(
+            MemoryRetrieveRequest(
+                personaId = personaId,
+                queryText = "",
+                maxTokens = maxTokens,
+                maxItems = maxCount,
+            ),
+        ).memories
     }
 
     suspend fun getLatestByConversation(conversationId: String): Memory? =
@@ -121,9 +138,5 @@ class MemoryRepository @Inject constructor(
 
     suspend fun deleteByPersona(personaId: String) {
         memoryDao.deleteByPersona(personaId)
-    }
-
-    companion object {
-        const val DEFAULT_PROMPT_COUNT = 40
     }
 }

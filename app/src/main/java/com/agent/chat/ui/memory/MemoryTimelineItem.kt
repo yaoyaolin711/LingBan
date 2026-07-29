@@ -46,13 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agent.chat.domain.model.Memory
-import com.agent.chat.ui.theme.Accent
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.ErrorSoftText
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -69,6 +64,8 @@ fun MemoryTimelineItem(
     onDelete: () -> Unit,
     onToggleBlocked: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     val alpha = remember { Animatable(0f) }
     val offsetY = remember { Animatable(24f) }
     LaunchedEffect(visible) {
@@ -102,14 +99,14 @@ fun MemoryTimelineItem(
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(if (memory.blockedFromAi) TextSecondary.copy(alpha = 0.45f) else Accent),
+                    .background(if (memory.blockedFromAi) colors.textSecondary.copy(alpha = 0.45f) else colors.accent),
             )
             Box(
                 modifier = Modifier
                     .padding(top = 4.dp)
                     .width(2.dp)
                     .weight(1f)
-                    .background(OutlineSubtle),
+                    .background(colors.outline),
             )
         }
 
@@ -118,21 +115,21 @@ fun MemoryTimelineItem(
                 .weight(1f)
                 .padding(start = 10.dp, bottom = 14.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(SurfaceCard)
-                .border(1.dp, OutlineSubtle.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
+                .background(colors.surface)
+                .border(1.dp, colors.outline.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Text(
                 text = dateLabel,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = colors.textSecondary,
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = memory.timelineTitle(),
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = if (expanded) Int.MAX_VALUE else 1,
                 overflow = TextOverflow.Ellipsis,
@@ -141,7 +138,7 @@ fun MemoryTimelineItem(
             Text(
                 text = memory.timelineBody(),
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextPrimary.copy(alpha = 0.88f),
+                color = colors.textPrimary.copy(alpha = 0.88f),
                 maxLines = if (expanded) Int.MAX_VALUE else 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -149,7 +146,7 @@ fun MemoryTimelineItem(
             Text(
                 text = if (memory.blockedFromAi) "已禁止 AI 使用" else "AI 自动学习",
                 style = MaterialTheme.typography.bodySmall,
-                color = if (memory.blockedFromAi) ErrorSoftText else TextSecondary,
+                color = if (memory.blockedFromAi) ErrorSoftText else colors.textSecondary,
             )
 
             AnimatedVisibility(
@@ -162,13 +159,13 @@ fun MemoryTimelineItem(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(OutlineSubtle),
+                            .background(colors.outline),
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = memory.content,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(
@@ -176,21 +173,21 @@ fun MemoryTimelineItem(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = onEdit) {
-                            Icon(Icons.Outlined.Edit, null, tint = Accent, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Outlined.Edit, null, tint = colors.accent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("编辑", color = Accent)
+                            Text("编辑", color = colors.accent)
                         }
                         TextButton(onClick = onToggleBlocked) {
                             Icon(
                                 Icons.Outlined.Block,
                                 null,
-                                tint = if (memory.blockedFromAi) Accent else TextSecondary,
+                                tint = if (memory.blockedFromAi) colors.accent else colors.textSecondary,
                                 modifier = Modifier.size(16.dp),
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (memory.blockedFromAi) "允许使用" else "禁止使用",
-                                color = if (memory.blockedFromAi) Accent else TextSecondary,
+                                color = if (memory.blockedFromAi) colors.accent else colors.textSecondary,
                             )
                         }
                         TextButton(onClick = onDelete) {
@@ -217,6 +214,8 @@ fun UserPortraitCard(
     onEditClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = AgentThemeColors
+
     val alpha = remember { Animatable(0f) }
     val offsetY = remember { Animatable(16f) }
     LaunchedEffect(visible) {
@@ -238,12 +237,12 @@ fun UserPortraitCard(
                 brush = Brush.linearGradient(
                     colors = listOf(
                         Color(0xFFFFF4EC),
-                        SurfaceMuted,
+                        colors.surfaceMuted,
                         Color(0xFFFFF8F2),
                     ),
                 ),
             )
-            .border(1.dp, OutlineSubtle, RoundedCornerShape(24.dp))
+            .border(1.dp, colors.outline, RoundedCornerShape(24.dp))
             .clickable(onClick = onEditClick)
             .padding(20.dp),
     ) {
@@ -251,13 +250,13 @@ fun UserPortraitCard(
             Text(
                 text = "关于你",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary,
+                color = colors.textPrimary,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = "编辑",
                 style = MaterialTheme.typography.labelLarge,
-                color = Accent,
+                color = colors.accent,
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -274,6 +273,8 @@ private fun PortraitField(
     value: String,
     last: Boolean = false,
 ) {
+    val colors = AgentThemeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -283,13 +284,13 @@ private fun PortraitField(
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
+            color = colors.textSecondary,
             modifier = Modifier.width(40.dp),
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
-            color = TextPrimary,
+            color = colors.textPrimary,
             modifier = Modifier.weight(1f),
         )
     }

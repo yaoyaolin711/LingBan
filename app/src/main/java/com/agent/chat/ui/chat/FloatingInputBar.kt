@@ -1,5 +1,6 @@
 package com.agent.chat.ui.chat
 
+import com.agent.chat.ui.theme.AgentThemeColors
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -47,12 +48,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import com.agent.chat.ui.motion.scaleClickable
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.SurfaceMuted
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 @Composable
 fun FloatingInputBar(
@@ -69,6 +64,8 @@ fun FloatingInputBar(
     onVoiceClick: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     val canSend = enabled && value.isNotBlank()
     val placeholder = when {
         !enabled -> "正在回复…"
@@ -103,13 +100,13 @@ fun FloatingInputBar(
                 ) {
                     Text(
                         text = "编辑后重发",
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
                         text = "取消",
-                        color = Accent,
+                        color = colors.accent,
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -139,10 +136,10 @@ fun FloatingInputBar(
                             clip = false,
                         )
                         .clip(RoundedCornerShape(28.dp))
-                        .background(SurfaceCard.copy(alpha = if (focused) 0.96f else 0.98f))
+                        .background(colors.surface.copy(alpha = if (focused) 0.96f else 0.98f))
                         .border(
                             width = 1.dp,
-                            color = if (focused) Accent.copy(alpha = 0.3f) else OutlineSubtle,
+                            color = if (focused) colors.accent.copy(alpha = 0.3f) else colors.outline,
                             shape = RoundedCornerShape(28.dp),
                         )
                         .padding(horizontal = 4.dp, vertical = 5.dp),
@@ -150,10 +147,10 @@ fun FloatingInputBar(
                     horizontalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     RoundIcon(onClick = onPlusClick, enabled = enabled) {
-                        Icon(Icons.Default.Add, contentDescription = "更多", tint = TextSecondary)
+                        Icon(Icons.Default.Add, contentDescription = "更多", tint = colors.textSecondary)
                     }
                     RoundIcon(onClick = onAttachClick, enabled = enabled) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "附件", tint = TextSecondary)
+                        Icon(Icons.Default.AttachFile, contentDescription = "附件", tint = colors.textSecondary)
                     }
 
                     BasicTextField(
@@ -168,8 +165,8 @@ fun FloatingInputBar(
                                 focused = it.isFocused
                                 onFocusChange(it.isFocused)
                             },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextPrimary),
-                        cursorBrush = SolidColor(Accent),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.textPrimary),
+                        cursorBrush = SolidColor(colors.accent),
                         maxLines = 5,
                         decorationBox = { inner ->
                             Box {
@@ -177,7 +174,7 @@ fun FloatingInputBar(
                                     Text(
                                         text = placeholder,
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = TextSecondary,
+                                        color = colors.textSecondary,
                                     )
                                 }
                                 inner()
@@ -186,7 +183,7 @@ fun FloatingInputBar(
                     )
 
                     RoundIcon(onClick = onVoiceClick, enabled = enabled) {
-                        Icon(Icons.Default.Mic, contentDescription = "语音", tint = TextSecondary)
+                        Icon(Icons.Default.Mic, contentDescription = "语音", tint = colors.textSecondary)
                     }
 
                     IconButton(
@@ -195,12 +192,12 @@ fun FloatingInputBar(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .background(if (canSend) Accent else SurfaceMuted),
+                            .background(if (canSend) colors.accent else colors.surfaceMuted),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "发送",
-                            tint = if (canSend) Color.White else TextSecondary,
+                            tint = if (canSend) Color.White else colors.textSecondary,
                         )
                     }
                 }

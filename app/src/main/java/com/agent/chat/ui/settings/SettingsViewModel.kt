@@ -6,8 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.agent.chat.data.error.AppErrorException
 import com.agent.chat.data.error.AppErrorLogger
 import com.agent.chat.data.error.AppErrorMapper
+import com.agent.chat.data.care.HomeLocationStore
+import com.agent.chat.data.care.LocationSnapshotProvider
+import com.agent.chat.data.interaction.InteractionPreferenceStore
 import com.agent.chat.data.memory.MemorySettingsStore
 import com.agent.chat.data.proactive.ProactiveNudgeWorker
+import com.agent.chat.data.ai.prompt.PromptLogEntry
+import com.agent.chat.data.ai.prompt.PromptLogger
 import com.agent.chat.data.provider.ProviderDefaults
 import com.agent.chat.data.repository.ProviderConfigRepository
 import com.agent.chat.data.settings.ChatSettings
@@ -15,6 +20,8 @@ import com.agent.chat.data.settings.ChatSettingsStore
 import com.agent.chat.data.settings.ToolSettings
 import com.agent.chat.data.settings.ToolSettingsStore
 import com.agent.chat.domain.error.userMessage
+import com.agent.chat.domain.model.InteractionPreference
+import com.agent.chat.domain.model.LingBanChatMode
 import com.agent.chat.domain.model.ProviderConfig
 import com.agent.chat.domain.model.ProviderType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,14 +53,21 @@ data class SettingsUiState(
     val extractTokenEstimate: Int = MemorySettingsStore.estimateExtractTokens(
         MemorySettingsStore.DEFAULT_THRESHOLD,
     ),
-    val promptMemoryTokenEstimate: Int = MemorySettingsStore.estimatePromptMemoryTokens(),
+    val promptMemoryTokenEstimate: Int = MemorySettingsStore.estimatePromptMemoryTokensByBudget(),
     val naturalChatPaceEnabled: Boolean = true,
     val companionStyleEnabled: Boolean = true,
+    val chatMode: LingBanChatMode = LingBanChatMode.COMPANION,
+    val responseControllerEnabled: Boolean = true,
     val splitBubbleByNewline: Boolean = true,
     val userNickname: String = "",
     val proactiveEnabled: Boolean = false,
     val proactiveIdleHours: Int = 6,
     val toolSettings: ToolSettings = ToolSettings(),
+    val interactionPreference: InteractionPreference = InteractionPreference(),
+    val lastPromptLog: PromptLogEntry? = null,
+    val showPromptLogDialog: Boolean = false,
+    val hasHomeLocation: Boolean = false,
+    val homeRadiusMeters: Int = 300,
 )
 
 @HiltViewModel
@@ -62,7 +76,11 @@ class SettingsViewModel @Inject constructor(
     private val providerConfigRepository: ProviderConfigRepository,
     private val memorySettingsStore: MemorySettingsStore,
     private val chatSettingsStore: ChatSettingsStore,
+    private val interactionPreferenceStore: InteractionPreferenceStore,
     private val toolSettingsStore: ToolSettingsStore,
+    private val homeLocationStore: HomeLocationStore,
+    private val locationSnapshotProvider: LocationSnapshotProvider,
+    private val promptLogger: PromptLogger,
 ) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -76,9 +94,10 @@ class SettingsViewModel @Inject constructor(
                 providerConfigRepository.observeConfigs(),
                 memorySettingsStore.snapshot,
                 chatSettingsStore.snapshot,
+                interactionPreferenceStore.snapshot,
                 toolSettingsStore.snapshot,
-            ) { providers, memory, chat, tools ->
-                SettingsSnapshot(providers, memory, chat, tools)
+            ) { providers, memory, chat, interaction, tools ->
+                SettingsSnapshot(providers, memory, chat, interaction, tools)
             }.collect { snap ->
                 _uiState.update {
                     it.copy(
@@ -88,18 +107,44 @@ class SettingsViewModel @Inject constructor(
                         extractTokenEstimate = MemorySettingsStore.estimateExtractTokens(
                             snap.memory.extractThreshold,
                         ),
-                        promptMemoryTokenEstimate = MemorySettingsStore.estimatePromptMemoryTokens(),
+                        promptMemoryTokenEstimate = MemorySettingsStore.estimatePromptMemoryTokensByBudget(),
                         naturalChatPaceEnabled = snap.chat.naturalChatPaceEnabled,
                         companionStyleEnabled = snap.chat.companionStyleEnabled,
+                        chatMode = snap.chat.chatMode,
+                        responseControllerEnabled = snap.chat.responseControllerEnabled,
                         splitBubbleByNewline = snap.chat.splitBubbleByNewline,
                         userNickname = snap.chat.userNickname,
                         proactiveEnabled = snap.chat.proactiveEnabled,
                         proactiveIdleHours = snap.chat.proactiveIdleHours,
+                        interactionPreference = snap.interaction,
                         toolSettings = snap.tools,
                     )
                 }
             }
         }
+        viewModelScope.launch {
+            homeLocationStore.snapshot.collect { home ->
+                _uiState.update {
+                    it.copy(
+                        hasHomeLocation = home.hasHome,
+                        homeRadiusMeters = home.radiusMeters,
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            promptLogger.lastEntry.collect { entry ->
+                _uiState.update { it.copy(lastPromptLog = entry) }
+            }
+        }
+    }
+
+    fun openPromptLog() {
+        _uiState.update { it.copy(showPromptLogDialog = true) }
+    }
+
+    fun dismissPromptLog() {
+        _uiState.update { it.copy(showPromptLogDialog = false) }
     }
 
     fun onTitleTapped() {
@@ -151,7 +196,32 @@ class SettingsViewModel @Inject constructor(
     fun setCompanionStyleEnabled(enabled: Boolean) {
         chatSettingsStore.setCompanionStyleEnabled(enabled)
         _uiState.update {
-            it.copy(statusMessage = if (enabled) "已开启口语伴侣风格" else "已关闭口语伴侣风格")
+            it.copy(statusMessage = if (enabled) "已开启真人聊天基础约束" else "已关闭真人聊天基础约束")
+        }
+    }
+
+    fun setRolePlayEnabled(enabled: Boolean) {
+        chatSettingsStore.setRolePlayEnabled(enabled)
+        _uiState.update {
+            it.copy(statusMessage = if (enabled) "已切换到角色扮演模式" else "已切回伴侣模式")
+        }
+    }
+
+    fun setChatMode(mode: LingBanChatMode) {
+        chatSettingsStore.setChatMode(mode)
+        _uiState.update { it.copy(statusMessage = "已切换为${mode.displayName}") }
+    }
+
+    fun setResponseControllerEnabled(enabled: Boolean) {
+        chatSettingsStore.setResponseControllerEnabled(enabled)
+        _uiState.update {
+            it.copy(
+                statusMessage = if (enabled) {
+                    "已开启 Response Controller（不达标会重生成）"
+                } else {
+                    "已关闭 Response Controller"
+                },
+            )
         }
     }
 
@@ -177,6 +247,71 @@ class SettingsViewModel @Inject constructor(
     fun setProactiveIdleHours(hours: Int) {
         chatSettingsStore.setProactiveIdleHours(hours)
         _uiState.update { it.copy(statusMessage = "闲置 ${chatSettingsStore.get().proactiveIdleHours} 小时后可能主动找你") }
+    }
+
+    fun setHomeRadius(radiusMeters: Int) {
+        homeLocationStore.setHomeRadius(radiusMeters)
+        _uiState.update {
+            it.copy(statusMessage = if (homeLocationStore.snapshot.value.hasHome) {
+                "家位置半径已设置为 ${radiusMeters} 米"
+            } else {
+                "请先设置家位置，再调整半径"
+            })
+        }
+    }
+
+    fun setHomeToCurrentLocation(radiusMeters: Int? = null) {
+        val targetRadius = radiusMeters ?: _uiState.value.homeRadiusMeters
+        viewModelScope.launch {
+            val snapshot = locationSnapshotProvider.getLastKnown()
+            if (snapshot == null) {
+                _uiState.update {
+                    it.copy(
+                        statusMessage = "暂时拿不到定位。请先在「工具权限」里开启定位并授予权限。",
+                    )
+                }
+                return@launch
+            }
+            homeLocationStore.setHome(
+                latitude = snapshot.latitude,
+                longitude = snapshot.longitude,
+                radiusMeters = targetRadius,
+            )
+            _uiState.update { it.copy(statusMessage = "已设置家位置（半径 ${targetRadius} 米）") }
+        }
+    }
+
+    fun clearHomeLocation() {
+        homeLocationStore.clearHome()
+        _uiState.update { it.copy(statusMessage = "已清除家位置") }
+    }
+
+    fun setRomanticConversation(enabled: Boolean) {
+        interactionPreferenceStore.setRomanticConversation(enabled)
+        _uiState.update {
+            it.copy(statusMessage = if (enabled) "已允许浪漫对话（需用户主动）" else "已关闭浪漫对话")
+        }
+    }
+
+    fun setFlirting(enabled: Boolean) {
+        interactionPreferenceStore.setFlirting(enabled)
+        _uiState.update {
+            it.copy(statusMessage = if (enabled) "已允许暧昧互动（需用户主动）" else "已关闭暧昧互动")
+        }
+    }
+
+    fun setIntimateConversation(enabled: Boolean) {
+        interactionPreferenceStore.setIntimateConversation(enabled)
+        _uiState.update {
+            it.copy(statusMessage = if (enabled) "已允许亲密对话（需用户主动）" else "已关闭亲密对话")
+        }
+    }
+
+    fun setInteractionRoleplay(enabled: Boolean) {
+        interactionPreferenceStore.setRoleplay(enabled)
+        _uiState.update {
+            it.copy(statusMessage = if (enabled) "已允许角色扮演（需用户主动）" else "已关闭角色扮演")
+        }
     }
 
     fun updateToolSettings(transform: (ToolSettings) -> ToolSettings) {
@@ -368,6 +503,7 @@ class SettingsViewModel @Inject constructor(
         val providers: List<ProviderConfig>,
         val memory: com.agent.chat.data.memory.MemorySettings,
         val chat: ChatSettings,
+        val interaction: InteractionPreference,
         val tools: ToolSettings,
     )
 }

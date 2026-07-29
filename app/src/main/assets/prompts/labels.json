@@ -1,0 +1,12 @@
+{
+  "memory_header": "【相关记忆】仅注入与当前问题相关的条目（可引用但勿整段朗读）：",
+  "portrait_header": "【用户画像】请自然地了解对方，勿生硬宣读：",
+  "lore_header": "【相关设定】（由对话关键词触发，请自然融入，勿生硬宣读）",
+  "time_fallback": "【当前时间】{{time}}",
+  "persona_profile_header": "【结构化人设】",
+  "goal_header": "【Conversation Goal】本轮对话目标与情境：",
+  "memory_item": "- [{{category}}|重要性{{importance}}|id={{id}}] {{content}}",
+  "portrait_item": "- {{line}}",
+  "lore_item": "- {{entry}}",
+  "goal_item": "- {{line}}"
+}

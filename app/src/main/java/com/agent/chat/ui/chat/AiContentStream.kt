@@ -55,15 +55,10 @@ import com.agent.chat.ui.components.MarkdownMessageContent
 import com.agent.chat.ui.home.AiOrb
 import com.agent.chat.ui.home.AiOrbState
 import com.agent.chat.ui.motion.AiLoadingIndicator
-import com.agent.chat.ui.theme.Accent
-import com.agent.chat.ui.theme.BubbleUser
+import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.ErrorSoftBg
 import com.agent.chat.ui.theme.ErrorSoftBorder
 import com.agent.chat.ui.theme.ErrorSoftText
-import com.agent.chat.ui.theme.OutlineSubtle
-import com.agent.chat.ui.theme.SurfaceCard
-import com.agent.chat.ui.theme.TextPrimary
-import com.agent.chat.ui.theme.TextSecondary
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -76,6 +71,8 @@ fun UserMessageBubble(
     onFavorite: () -> Unit,
     onAddMemory: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     var menuExpanded by remember { mutableStateOf(false) }
 
     Row(
@@ -97,12 +94,12 @@ fun UserMessageBubble(
                     bottomStart = 20.dp,
                     bottomEnd = 20.dp,
                 ),
-                colors = CardDefaults.cardColors(containerColor = BubbleUser),
+                colors = CardDefaults.cardColors(containerColor = colors.bubbleUser),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Text(
                     text = message.content,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
@@ -137,6 +134,8 @@ fun AiContentStream(
     onAddMemory: () -> Unit,
     onToggleTool: (String) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     var menuExpanded by remember { mutableStateOf(false) }
     val cursorAlpha by rememberInfiniteTransition(label = "cursor").animateFloat(
         initialValue = 0.2f,
@@ -172,7 +171,7 @@ fun AiContentStream(
                 if (message.content.isNotEmpty()) {
                     MarkdownMessageContent(
                         markdown = message.content,
-                        textColor = TextPrimary,
+                        textColor = colors.textPrimary,
                         isUser = false,
                         showStreamingCursor = isStreaming,
                         modifier = Modifier.graphicsLayer {
@@ -204,6 +203,8 @@ fun AiContentStream(
 
 @Composable
 fun ThinkingStreamRow() {
+    val colors = AgentThemeColors
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -215,7 +216,7 @@ fun ThinkingStreamRow() {
         Text(
             text = "正在思考…",
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = colors.textSecondary,
         )
     }
 }
@@ -227,6 +228,8 @@ fun FailedMessageBlock(
     debugDetail: String?,
     onRetry: () -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -234,7 +237,7 @@ fun FailedMessageBlock(
         if (message.content.isNotBlank()) {
             MarkdownMessageContent(
                 markdown = message.content,
-                textColor = TextPrimary,
+                textColor = colors.textPrimary,
                 isUser = false,
             )
         }
@@ -256,7 +259,7 @@ fun FailedMessageBlock(
                 Text(
                     text = debugDetail,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                 )
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -264,7 +267,7 @@ fun FailedMessageBlock(
                 onClick = onRetry,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             ) {
-                Text("重试", color = Accent)
+                Text("重试", color = colors.accent)
             }
         }
     }
@@ -335,19 +338,21 @@ fun ToolCallStream(
     items: List<ToolCallUiItem>,
     onToggle: (String) -> Unit,
 ) {
+    val colors = AgentThemeColors
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items.forEach { item ->
             val borderColor = when {
-                item.running -> Accent.copy(alpha = 0.35f)
+                item.running -> colors.accent.copy(alpha = 0.35f)
                 item.success == false -> ErrorSoftBorder
-                else -> OutlineSubtle
+                else -> colors.outline
             }
             val bg = when {
                 item.success == false -> ErrorSoftBg
-                else -> SurfaceCard.copy(alpha = 0.7f)
+                else -> colors.surface.copy(alpha = 0.7f)
             }
             Column(
                 modifier = Modifier
@@ -366,7 +371,7 @@ fun ToolCallStream(
                             else -> "工具 · ${item.label}"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (item.success == false) ErrorSoftText else TextSecondary,
+                        color = if (item.success == false) ErrorSoftText else colors.textSecondary,
                         modifier = Modifier.weight(1f),
                     )
                     if (item.running) {
@@ -382,7 +387,7 @@ fun ToolCallStream(
                     Text(
                         text = item.detail,
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                     )
                 }
             }

@@ -1,5 +1,8 @@
 package com.agent.chat.ui.profile
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Api
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LightMode
@@ -35,6 +38,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,27 +52,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.agent.chat.BuildConfig
 import com.agent.chat.ui.theme.AgentThemeColors
 import com.agent.chat.ui.theme.AppThemeMode
+import java.io.File
 
 @Composable
 fun ProfileScreen(
     onBackClick: () -> Unit,
-    onModelSettingsClick: () -> Unit,
-    onApiConfigClick: () -> Unit,
+    onModelApiClick: () -> Unit,
     onMemoryClick: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showPrivacy by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showEditProfile by remember { mutableStateOf(false) }
     val colors = AgentThemeColors
+
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) viewModel.setAvatarFromUri(uri)
+    }
 
     Scaffold(
         containerColor = colors.background,
@@ -107,8 +120,9 @@ fun ProfileScreen(
         ) {
             ProfileHeader(
                 name = uiState.userName,
+                avatarPath = uiState.userAvatarPath,
                 membership = uiState.membershipLabel,
-                subtitle = uiState.userInterest.ifBlank { "在就好" },
+                onEditClick = { showEditProfile = true },
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -117,17 +131,14 @@ fun ProfileScreen(
                 ProfileSettingsItem(
                     icon = Icons.Outlined.SmartToy,
                     iconTint = Color(0xFF5B8DEF),
-                    title = "模型设置",
-                    description = uiState.modelName?.let { "当前：$it" } ?: "选择对话使用的模型",
-                    onClick = onModelSettingsClick,
-                    showDivider = true,
-                )
-                ProfileSettingsItem(
-                    icon = Icons.Outlined.Api,
-                    iconTint = Color(0xFF34C759),
-                    title = "API 配置",
-                    description = uiState.providerName?.let { "Provider：$it" } ?: "配置密钥与接口地址",
-                    onClick = onApiConfigClick,
+                    title = "模型与 API",
+                    description = when {
+                        uiState.modelName != null && uiState.providerName != null ->
+                            "${uiState.providerName} · ${uiState.modelName}"
+                        uiState.modelName != null -> "当前：${uiState.modelName}"
+                        else -> "配置密钥、接口地址与对话模型"
+                    },
+                    onClick = onModelApiClick,
                     showDivider = false,
                 )
             }
@@ -211,6 +222,24 @@ fun ProfileScreen(
         }
     }
 
+    if (showEditProfile) {
+        EditProfileDialog(
+            initialName = uiState.userName.takeIf { it != "未命名用户" }.orEmpty(),
+            avatarPath = uiState.userAvatarPath,
+            onDismiss = { showEditProfile = false },
+            onSaveNickname = { name ->
+                viewModel.setNickname(name)
+                showEditProfile = false
+            },
+            onPickAvatar = {
+                photoPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            },
+            onClearAvatar = viewModel::clearAvatar,
+        )
+    }
+
     if (showPrivacy) {
         AlertDialog(
             onDismissRequest = { showPrivacy = false },
@@ -279,32 +308,113 @@ fun ProfileScreen(
 }
 
 @Composable
+private fun EditProfileDialog(
+    initialName: String,
+    avatarPath: String,
+    onDismiss: () -> Unit,
+    onSaveNickname: (String) -> Unit,
+    onPickAvatar: () -> Unit,
+    onClearAvatar: () -> Unit,
+) {
+    val colors = AgentThemeColors
+    var nickname by remember(initialName) { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surface,
+        title = {
+            Text("编辑资料", color = colors.textPrimary, style = MaterialTheme.typography.titleLarge)
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    ProfileAvatar(
+                        name = nickname.ifBlank { "灵" },
+                        avatarPath = avatarPath,
+                        size = 88.dp,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent)
+                            .clickable(onClick = onPickAvatar),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Outlined.CameraAlt,
+                            contentDescription = "更换头像",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                if (avatarPath.isNotBlank()) {
+                    TextButton(onClick = onClearAvatar) {
+                        Text("恢复默认头像", color = colors.textSecondary)
+                    }
+                }
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it.take(24) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("昵称") },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSaveNickname(nickname.trim()) }) {
+                Text("保存", color = colors.accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = colors.textSecondary)
+            }
+        },
+    )
+}
+
+@Composable
 private fun ProfileHeader(
     name: String,
+    avatarPath: String,
     membership: String,
-    subtitle: String,
+    onEditClick: () -> Unit,
 ) {
     val colors = AgentThemeColors
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp),
+            .padding(top = 8.dp)
+            .clickable(onClick = onEditClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(88.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceMuted)
-                .border(1.dp, colors.outline, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = name.take(1).ifBlank { "灵" },
-                style = MaterialTheme.typography.headlineMedium,
-                color = colors.accent,
-                fontWeight = FontWeight.SemiBold,
+        Box(contentAlignment = Alignment.BottomEnd) {
+            ProfileAvatar(
+                name = name,
+                avatarPath = avatarPath,
+                size = 88.dp,
             )
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(colors.surface)
+                    .border(1.dp, colors.outline, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.CameraAlt,
+                    contentDescription = "编辑资料",
+                    tint = colors.accent,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
         Spacer(modifier = Modifier.height(14.dp))
         Text(
@@ -313,10 +423,10 @@ private fun ProfileHeader(
             color = colors.textPrimary,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
+            text = "点击编辑头像与昵称",
+            style = MaterialTheme.typography.bodySmall,
             color = colors.textSecondary,
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -330,6 +440,42 @@ private fun ProfileHeader(
                 text = membership,
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.accent,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileAvatar(
+    name: String,
+    avatarPath: String,
+    size: androidx.compose.ui.unit.Dp,
+) {
+    val colors = AgentThemeColors
+    val file = remember(avatarPath) {
+        avatarPath.takeIf { it.isNotBlank() }?.let { File(it) }?.takeIf { it.exists() }
+    }
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(colors.surfaceMuted)
+            .border(1.dp, colors.outline, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (file != null) {
+            AsyncImage(
+                model = file,
+                contentDescription = "头像",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                text = name.take(1).ifBlank { "灵" },
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.accent,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
