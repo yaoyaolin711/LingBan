@@ -29,19 +29,19 @@ class ProactiveContextCollector @Inject constructor(
     private val screenStateTool: ScreenStateTool,
 ) {
 
-    suspend fun collect(context: ToolExecutionContext): String {
+    suspend fun collect(toolContext: ToolExecutionContext): String {
         val settings = toolSettingsStore.get()
         val parts = mutableListOf<String>()
 
         if (settings.screenStateEnabled) {
-            val r = runCatching { screenStateTool.execute("{}", context) }.getOrNull()
+            val r = runCatching { screenStateTool.execute("{}", toolContext) }.getOrNull()
             if (r != null && r.success) {
                 parts += "屏幕状态：${r.message}"
             }
         }
 
         if (settings.batteryEnabled) {
-            val r = runCatching { batteryTool.execute("{}", context) }.getOrNull()
+            val r = runCatching { batteryTool.execute("{}", toolContext) }.getOrNull()
             if (r != null && r.success) {
                 parts += "电量：${r.message}"
             }
@@ -49,7 +49,7 @@ class ProactiveContextCollector @Inject constructor(
 
         if (settings.notificationEnabled) {
             val r = runCatching {
-                notificationTool.execute("""{"limit":5}""", context)
+                notificationTool.execute("""{"limit":5}""", toolContext)
             }.getOrNull()
             if (r != null && r.success) {
                 val data = r.data
@@ -72,7 +72,7 @@ class ProactiveContextCollector @Inject constructor(
 
         if (settings.appUsageEnabled) {
             val r = runCatching {
-                appUsageTool.execute("""{"limit":3}""", context)
+                appUsageTool.execute("""{"limit":3}""", toolContext)
             }.getOrNull()
             if (r != null && r.success) {
                 val data = r.data
