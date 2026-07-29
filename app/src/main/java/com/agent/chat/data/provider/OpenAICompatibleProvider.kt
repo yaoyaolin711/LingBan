@@ -114,11 +114,20 @@ class OpenAICompatibleProvider @Inject constructor(
     }
 
     private fun buildCompletionsUrl(baseUrl: String): String {
-        val normalized = baseUrl.trim().trimEnd('/')
+        val normalized = normalizeBaseUrl(baseUrl)
         return if (normalized.endsWith("/chat/completions")) {
             normalized
         } else {
             "$normalized/chat/completions"
+        }
+    }
+
+    private fun normalizeBaseUrl(baseUrl: String): String {
+        val normalized = baseUrl.trim().trimEnd('/')
+        return if (normalized.equals("https://api.deepseek.com/v1", ignoreCase = true)) {
+            "https://api.deepseek.com"
+        } else {
+            normalized
         }
     }
 }

@@ -5,6 +5,7 @@ import com.squareup.moshi.JsonReader
 import com.squareup.moshi.JsonWriter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
+import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 
 /**
@@ -84,15 +85,61 @@ class ObjectJsonAdapter : JsonAdapter<Any>() {
     }
 
     companion object {
-        val FACTORY = JsonAdapter.Factory { type, _, _ ->
-            if (Types.getRawType(type) == Any::class.java) {
-                ObjectJsonAdapter().nullSafe()
-            } else {
-                null
+        val FACTORY = JsonAdapter.Factory { type, _, moshi ->
+            when {
+                Types.getRawType(type) == Any::class.java -> ObjectJsonAdapter().nullSafe()
+                isStringAnyMap(type) -> MapStringAnyJsonAdapter(
+                    moshi.adapter(Any::class.java),
+                ).nullSafe()
+                else -> null
             }
+        }
+
+        private fun isStringAnyMap(type: Type): Boolean {
+            if (Types.getRawType(type) != Map::class.java) return false
+            val args = (type as? ParameterizedType)?.actualTypeArguments ?: return false
+            return args.size == 2 &&
+                args[0] == String::class.java &&
+                args[1] == Any::class.java
         }
 
         fun register(builder: Moshi.Builder): Moshi.Builder =
             builder.add(FACTORY)
+    }
+}
+
+class MapStringAnyJsonAdapter(
+    private val anyAdapter: JsonAdapter<Any>,
+) : JsonAdapter<Map<String, Any>>() {
+
+    override fun fromJson(reader: JsonReader): Map<String, Any>? {
+        if (reader.peek() == JsonReader.Token.NULL) {
+            reader.nextNull<Map<String, Any>>()
+            return null
+        }
+        reader.beginObject()
+        val map = LinkedHashMap<String, Any>()
+        while (reader.hasNext()) {
+            val key = reader.nextName()
+            val value = anyAdapter.fromJson(reader)
+            if (value != null) {
+                map[key] = value
+            }
+        }
+        reader.endObject()
+        return map
+    }
+
+    override fun toJson(writer: JsonWriter, value: Map<String, Any>?) {
+        if (value == null) {
+            writer.nullValue()
+            return
+        }
+        writer.beginObject()
+        value.forEach { (key, entryValue) ->
+            writer.name(key)
+            anyAdapter.toJson(writer, entryValue)
+        }
+        writer.endObject()
     }
 }

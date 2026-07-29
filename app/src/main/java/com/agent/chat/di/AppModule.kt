@@ -86,6 +86,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
+        .add(com.agent.chat.data.provider.network.ChatMessageJsonAdapter.FACTORY)
         .add(com.agent.chat.data.provider.network.ObjectJsonAdapter.FACTORY)
         .add(KotlinJsonAdapterFactory())
         .build()

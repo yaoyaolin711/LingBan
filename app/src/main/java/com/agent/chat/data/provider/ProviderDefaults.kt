@@ -80,10 +80,15 @@ object ProviderDefaults {
         ProviderPreset(
             id = "preset_deepseek",
             name = "DeepSeek",
-            baseUrl = "https://api.deepseek.com/v1/",
-            defaultModel = "deepseek-chat",
+            baseUrl = "https://api.deepseek.com",
+            defaultModel = "deepseek-v4-flash",
             iconKey = "deepseek",
-            modelSuggestions = listOf("deepseek-chat", "deepseek-reasoner"),
+            modelSuggestions = listOf(
+                "deepseek-v4-flash",
+                "deepseek-v4-pro",
+                "deepseek-chat",
+                "deepseek-reasoner",
+            ),
         ),
 
         // ── 阿里通义千问 ──────────────────────────────────────────────────────

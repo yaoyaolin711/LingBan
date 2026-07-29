@@ -8,6 +8,7 @@ import com.agent.chat.data.local.mapper.toDomain
 import com.agent.chat.data.local.mapper.toEntity
 import com.agent.chat.data.provider.AIProviderFactory
 import com.agent.chat.data.provider.ChatMessage
+import com.agent.chat.data.provider.ChatStreamEvent
 import com.agent.chat.data.provider.ModelConfig
 import com.agent.chat.data.security.ApiKeySecureStore
 import com.agent.chat.domain.model.ProviderConfig
@@ -93,7 +94,7 @@ class ProviderConfigRepository @Inject constructor(
             require(config.apiKey.isNotBlank()) { "API Key 不能为空" }
             val modelConfig = toModelConfig(config, temperature = 0f)
             val provider = aiProviderFactory.providerFor(config.providerType)
-            provider.chatStream(
+            val firstEvent = provider.chatStreamEvents(
                 messages = listOf(
                     ChatMessage(
                         role = ChatMessage.ROLE_USER,
@@ -102,6 +103,9 @@ class ProviderConfigRepository @Inject constructor(
                 ),
                 config = modelConfig,
             ).first()
+            require(firstEvent is ChatStreamEvent.ContentDelta || firstEvent is ChatStreamEvent.ToolCallDelta || firstEvent is ChatStreamEvent.Finished) {
+                "Provider 未返回有效的流事件"
+            }
             Result.success("连接成功：${config.modelName} 已响应")
         } catch (e: Exception) {
             val appError = AppErrorMapper.from(e)

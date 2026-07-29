@@ -26,8 +26,7 @@ data class ChatMessage(
     val role: String,
     /** 纯文本内容（非视觉消息） */
     val content: String? = null,
-    /** 多模态内容片段（视觉消息，content 为 null 时使用） */
-    @Json(name = "content")
+    /** 多模态内容片段（视觉消息，content 为 null 时使用；序列化由 ChatMessageJsonAdapter 处理） */
     val contentParts: List<ChatContentPart>? = null,
     @Json(name = "tool_calls")
     val toolCalls: List<ChatToolCallMessage>? = null,
