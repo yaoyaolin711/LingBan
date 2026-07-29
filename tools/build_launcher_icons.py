@@ -4,23 +4,19 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageStat
 
-# Default: latest user-provided flame/droplet mark
 DEFAULT_SRC = Path(
     r"C:\Users\Administrator\.cursor\projects\c-Users-Administrator-Desktop-Agent\assets"
     r"\c__Users_Administrator_AppData_Roaming_Cursor_User_workspaceStorage_"
-    r"16290efc8cc7b6f901f446c04d2de435_images_ChatGPT_Image_2026_7_29__"
-    r"11_19_47-52de17a8-ffd5-4b9a-9d1b-fa76df01bfb4.png"
+    r"16290efc8cc7b6f901f446c04d2de435_images_z-image-turbo_00058_"
+    r"-bd76d2de-2372-497a-9aaa-239a24064a91.png"
 )
 RES = Path(r"c:\Users\Administrator\Desktop\工作台\Agent移动端聊天框架\app\src\main\res")
 WORK = Path(r"c:\Users\Administrator\Desktop\工作台\Agent移动端聊天框架\tools\icon_work")
 
-# Deep purple matching the new mark (adaptive background)
-BG = (28, 12, 48, 255)
 FG_SIZE = 1024
-# Larger safe content so 48dp home-screen still reads the droplet
-SAFE = int(FG_SIZE * 0.78)
+SAFE = int(FG_SIZE * 0.76)
 
 
 def make_round(src: Image.Image) -> Image.Image:
@@ -33,18 +29,74 @@ def make_round(src: Image.Image) -> Image.Image:
     return out
 
 
-def extract_mark(im: Image.Image) -> Image.Image:
-    """Crop away outer dead margin + baked squircle frame; keep glowing core."""
+def luminance(rgb: tuple[int, int, int]) -> float:
+    r, g, b = rgb[:3]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def sample_bg(im: Image.Image) -> tuple[int, int, int, 255]:
+    """Sample near center-edge of dark plate (avoid metal ring)."""
     w, h = im.size
-    # Outer padding ~10%, then pull in past the neon frame (~another 4%)
-    left = int(w * 0.12)
-    top = int(h * 0.12)
-    right = int(w * 0.88)
-    bottom = int(h * 0.88)
+    pts = [
+        (int(w * 0.18), int(h * 0.18)),
+        (int(w * 0.82), int(h * 0.18)),
+        (int(w * 0.18), int(h * 0.82)),
+        (int(w * 0.82), int(h * 0.82)),
+        (int(w * 0.5), int(h * 0.12)),
+        (int(w * 0.12), int(h * 0.5)),
+    ]
+    dark = [im.getpixel(p)[:3] for p in pts if luminance(im.getpixel(p)[:3]) < 90]
+    if not dark:
+        dark = [(32, 18, 58)]
+    r = int(sum(c[0] for c in dark) / len(dark))
+    g = int(sum(c[1] for c in dark) / len(dark))
+    b = int(sum(c[2] for c in dark) / len(dark))
+    return (r, g, b, 255)
+
+
+def crop_dark_plate(im: Image.Image) -> Image.Image:
+    """
+    Drop light mockup margin / baked squircle outline.
+    Keep the dark purple plate + rose-gold mark.
+    """
+    rgb = im.convert("RGB")
+    w, h = rgb.size
+    # Find bbox of sufficiently dark pixels (the purple plate)
+    threshold = 110
+    xs: list[int] = []
+    ys: list[int] = []
+    # Sample every 4px for speed
+    for y in range(0, h, 4):
+        for x in range(0, w, 4):
+            if luminance(rgb.getpixel((x, y))) < threshold:
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        # fallback: center crop
+        m = int(min(w, h) * 0.12)
+        return im.crop((m, m, w - m, h - m))
+
+    pad = 8
+    left = max(0, min(xs) - pad)
+    top = max(0, min(ys) - pad)
+    right = min(w, max(xs) + pad)
+    bottom = min(h, max(ys) + pad)
+    # Make square
+    side = max(right - left, bottom - top)
+    cx = (left + right) // 2
+    cy = (top + bottom) // 2
+    half = side // 2
+    left = max(0, cx - half)
+    top = max(0, cy - half)
+    right = min(w, left + side)
+    bottom = min(h, top + side)
+    left = max(0, right - side)
+    top = max(0, bottom - side)
     cropped = im.crop((left, top, right, bottom))
-    # Mild center zoom so droplet dominates small sizes
+
+    # Pull in a bit more to kill rounded-corner bevel / pin dots
     cw, ch = cropped.size
-    inset = int(min(cw, ch) * 0.04)
+    inset = int(min(cw, ch) * 0.06)
     return cropped.crop((inset, inset, cw - inset, ch - inset))
 
 
@@ -55,21 +107,36 @@ def main() -> None:
 
     WORK.mkdir(parents=True, exist_ok=True)
     im = Image.open(args.src).convert("RGBA")
-    print("src", args.src.name, im.size)
+    # Normalize non-square masters
+    if im.size[0] != im.size[1]:
+        side = max(im.size)
+        canvas = Image.new("RGBA", (side, side), im.getpixel((0, 0)))
+        canvas.paste(im, ((side - im.size[0]) // 2, (side - im.size[1]) // 2))
+        im = canvas
 
-    core = extract_mark(im)
+    print("src", args.src.name, im.size)
+    core = crop_dark_plate(im)
+    bg = sample_bg(core)
+    print("bg", bg, "core", core.size)
+
+    # Mild zoom so metal ring reads at 48dp
+    cw, ch = core.size
+    zoom = int(min(cw, ch) * 0.03)
+    core = core.crop((zoom, zoom, cw - zoom, ch - zoom))
     core_resized = core.resize((SAFE, SAFE), Image.Resampling.LANCZOS)
+
+    tile = Image.new("RGBA", (SAFE, SAFE), bg)
+    tile.paste(core_resized, (0, 0), core_resized)
 
     fg = Image.new("RGBA", (FG_SIZE, FG_SIZE), (0, 0, 0, 0))
     off = (FG_SIZE - SAFE) // 2
-    # Fill safe tile with solid BG first so adaptive crop never shows holes
-    tile = Image.new("RGBA", (SAFE, SAFE), BG)
-    tile.paste(core_resized, (0, 0), core_resized)
+    # Adaptive foreground: only the mark area; outer is transparent, OS uses bg color
+    # Put full purple plate in safe zone for continuity under round masks
     fg.paste(tile, (off, off))
 
     fg.save(WORK / "ic_launcher_foreground_1024.png")
 
-    full = Image.new("RGBA", (FG_SIZE, FG_SIZE), BG)
+    full = Image.new("RGBA", (FG_SIZE, FG_SIZE), bg)
     full.paste(fg, (0, 0), fg)
     full.save(WORK / "ic_launcher_full_1024.png")
     make_round(full).save(WORK / "ic_launcher_round_1024.png")
@@ -96,10 +163,20 @@ def main() -> None:
     fg.save(RES / "drawable" / "ic_launcher_foreground.png")
     brand.save(RES / "drawable" / "brand_logo.png")
 
-    # Master for rebuilds (project-local)
-    im.save(WORK / "lingban_icon_master.png")
-    # Do not keep a second huge copy under drawable/
+    # Write adaptive background color resource
+    colors = RES / "values" / "colors.xml"
+    hex_bg = f"#{bg[0]:02X}{bg[1]:02X}{bg[2]:02X}"
+    colors.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        "<resources>\n"
+        f"    <!-- Adaptive icon background — sampled from mark -->\n"
+        f'    <color name="ic_launcher_background">{hex_bg}</color>\n'
+        "</resources>\n",
+        encoding="utf-8",
+    )
+    print("ic_launcher_background", hex_bg)
 
+    im.save(WORK / "lingban_icon_master.png")
     full.resize((48, 48), Image.Resampling.LANCZOS).save(WORK / "preview_48.png")
     full.resize((96, 96), Image.Resampling.LANCZOS).save(WORK / "preview_96.png")
     print("done ->", WORK)
