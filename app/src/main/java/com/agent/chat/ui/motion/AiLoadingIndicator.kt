@@ -23,7 +23,7 @@ import com.agent.chat.ui.theme.AgentThemeColors
 @Composable
 fun AiLoadingIndicator(
     modifier: Modifier = Modifier,
-    label: String = "灵伴思考中…",
+    label: String = "Solace 思考中…",
     size: Dp = 56.dp,
     state: AiOrbState = AiOrbState.Thinking,
     showLabel: Boolean = true,

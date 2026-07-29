@@ -26,7 +26,7 @@ data class ProfileUiState(
     val themeMode: AppThemeMode = AppThemeMode.Light,
     val providerName: String? = null,
     val modelName: String? = null,
-    val membershipLabel: String = "灵伴伙伴",
+    val membershipLabel: String = "Solace 伙伴",
 )
 
 @HiltViewModel
@@ -48,7 +48,7 @@ class ProfileViewModel @Inject constructor(
             themeMode = if (settings.isDarkTheme) AppThemeMode.Dark else AppThemeMode.Light,
             providerName = default?.name,
             modelName = default?.modelName,
-            membershipLabel = "灵伴伙伴 · 免费",
+            membershipLabel = "Solace 伙伴 · 免费",
         )
     }.stateIn(
         scope = viewModelScope,

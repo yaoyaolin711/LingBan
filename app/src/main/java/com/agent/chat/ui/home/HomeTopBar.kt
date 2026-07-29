@@ -62,7 +62,7 @@ fun HomeTopBar(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "灵伴",
+                text = "Solace",
                 style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
                 fontWeight = FontWeight.SemiBold,

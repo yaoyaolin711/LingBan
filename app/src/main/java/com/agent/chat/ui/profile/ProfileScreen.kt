@@ -30,9 +30,11 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -69,6 +71,8 @@ fun ProfileScreen(
     onBackClick: () -> Unit,
     onModelApiClick: () -> Unit,
     onMemoryClick: () -> Unit,
+    onPersonaListClick: () -> Unit = {},
+    onPermissionsClick: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -139,6 +143,14 @@ fun ProfileScreen(
                         else -> "配置密钥、接口地址与对话模型"
                     },
                     onClick = onModelApiClick,
+                    showDivider = true,
+                )
+                ProfileSettingsItem(
+                    icon = Icons.Outlined.Face,
+                    iconTint = Color(0xFFFF6B9D),
+                    title = "人设管理",
+                    description = "创建、导入或编辑 AI 人设，支持智能解析自然语言",
+                    onClick = onPersonaListClick,
                     showDivider = false,
                 )
             }
@@ -150,8 +162,16 @@ fun ProfileScreen(
                     icon = Icons.Outlined.Memory,
                     iconTint = Color(0xFFFF9F0A),
                     title = "记忆管理",
-                    description = "查看灵伴了解你的方式",
+                    description = "查看 Solace 了解你的方式",
                     onClick = onMemoryClick,
+                    showDivider = true,
+                )
+                ProfileSettingsItem(
+                    icon = Icons.Outlined.Security,
+                    iconTint = Color(0xFF34C759),
+                    title = "AI 能力授权",
+                    description = "管理 AI 可使用的工具与权限",
+                    onClick = onPermissionsClick,
                     showDivider = true,
                 )
                 ProfileSettingsItem(
@@ -213,7 +233,7 @@ fun ProfileScreen(
                 ProfileSettingsItem(
                     icon = Icons.Outlined.Info,
                     iconTint = Color(0xFFE8823A),
-                    title = "关于灵伴",
+                    title = "关于 Solace",
                     description = "版本 ${BuildConfig.VERSION_NAME}",
                     onClick = { showAbout = true },
                     showDivider = false,
@@ -257,7 +277,7 @@ fun ProfileScreen(
                     Text(
                         text = "· API Key 使用系统加密存储\n" +
                             "· 记忆可随时删除或禁止 AI 使用\n" +
-                            "· 不会上传你的聊天内容到灵伴服务器（应用本身无云端账号）",
+                            "· 不会上传你的聊天内容到 Solace 服务器（应用本身无云端账号）",
                         color = colors.textSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -276,12 +296,12 @@ fun ProfileScreen(
             onDismissRequest = { showAbout = false },
             containerColor = colors.surface,
             title = {
-                Text("关于灵伴", color = colors.textPrimary, style = MaterialTheme.typography.titleLarge)
+                Text("关于 Solace", color = colors.textPrimary, style = MaterialTheme.typography.titleLarge)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "灵伴 Agent Chat",
+                        text = "Solace",
                         color = colors.textPrimary,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,

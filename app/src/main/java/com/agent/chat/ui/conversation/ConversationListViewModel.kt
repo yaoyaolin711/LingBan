@@ -31,6 +31,7 @@ data class ConversationListUiState(
     val personas: List<Persona> = emptyList(),
     val providers: List<ProviderConfig> = emptyList(),
     val searchQuery: String = "",
+    val filterPersonaId: String? = null,
     val showCreateDialog: Boolean = false,
     val selectedPersonaId: String? = null,
     val selectedProviderId: String? = null,
@@ -56,19 +57,26 @@ class ConversationListViewModel @Inject constructor(
 
     private val dialogState = MutableStateFlow(CreateDialogState())
     private val searchQuery = MutableStateFlow("")
+    private val filterPersonaId = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<ConversationListUiState> = combine(
         searchQuery.flatMapLatest { query -> chatRepository.searchConversations(query) },
         personaRepository.observePersonas(),
         providerConfigRepository.observeConfigs(),
         dialogState,
-        searchQuery,
-    ) { conversations, personas, providers, dialog, query ->
+        combine(searchQuery, filterPersonaId) { q, f -> q to f },
+    ) { conversations, personas, providers, dialog, (query, filterId) ->
+        val filtered = if (filterId != null) {
+            conversations.filter { it.personaId == filterId }
+        } else {
+            conversations
+        }
         ConversationListUiState(
-            conversations = conversations,
+            conversations = filtered,
             personas = personas,
             providers = providers,
             searchQuery = query,
+            filterPersonaId = filterId,
             showCreateDialog = dialog.show,
             selectedPersonaId = dialog.selectedPersonaId,
             selectedProviderId = dialog.selectedProviderId
@@ -96,6 +104,10 @@ class ConversationListViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) {
         searchQuery.value = query
+    }
+
+    fun onFilterPersona(personaId: String?) {
+        filterPersonaId.value = if (filterPersonaId.value == personaId) null else personaId
     }
 
     fun openCreateDialog() {

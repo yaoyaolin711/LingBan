@@ -58,6 +58,7 @@ import com.agent.chat.R
 import com.agent.chat.domain.model.Conversation
 import com.agent.chat.domain.model.Persona
 import com.agent.chat.domain.model.ProviderConfig
+import androidx.compose.foundation.horizontalScroll
 import com.agent.chat.ui.components.PersonaAvatar
 import com.agent.chat.ui.components.PersonaPickerList
 import com.agent.chat.ui.theme.AgentThemeColors
@@ -93,12 +94,14 @@ fun ConversationListScreen(
         conversations = uiState.conversations,
         personas = uiState.personas,
         searchQuery = uiState.searchQuery,
+        filterPersonaId = uiState.filterPersonaId,
         snackbarHostState = snackbarHostState,
         onConversationClick = onConversationClick,
         onNewConversationClick = viewModel::openCreateDialog,
         onPersonaManageClick = onPersonaManageClick,
         onSettingsClick = onSettingsClick,
         onSearchQueryChange = viewModel::onSearchQueryChange,
+        onFilterPersona = viewModel::onFilterPersona,
     )
 
     if (uiState.showCreateDialog) {
@@ -120,12 +123,14 @@ fun ConversationListContent(
     conversations: List<Conversation>,
     personas: List<Persona> = emptyList(),
     searchQuery: String = "",
+    filterPersonaId: String? = null,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onConversationClick: (String) -> Unit,
     onNewConversationClick: () -> Unit,
     onPersonaManageClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
+    onFilterPersona: (String?) -> Unit = {},
 ) {
     val colors = AgentThemeColors
     val personaMap = remember(personas) { personas.associateBy { it.id } }
@@ -164,6 +169,16 @@ fun ConversationListContent(
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+
+            if (personas.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                PersonaFilterBar(
+                    personas = personas,
+                    selectedId = filterPersonaId,
+                    onSelect = onFilterPersona,
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             if (conversations.isEmpty()) {
@@ -217,7 +232,7 @@ private fun HeaderBar(
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "灵伴",
+                text = "Solace",
                 style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
                 fontWeight = FontWeight.SemiBold,
@@ -438,6 +453,64 @@ private fun ProviderRow(
             if (!subtitle.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonaFilterBar(
+    personas: List<Persona>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+) {
+    val colors = AgentThemeColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // "全部" chip
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (selectedId == null) colors.accent.copy(alpha = 0.15f) else colors.surface)
+                .clickable { onSelect(null) }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "全部",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (selectedId == null) colors.accent else colors.textSecondary,
+            )
+        }
+        personas.forEach { persona ->
+            val selected = persona.id == selectedId
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (selected) colors.accent.copy(alpha = 0.15f) else colors.surface)
+                    .clickable { onSelect(persona.id) }
+                    .padding(start = 4.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PersonaAvatar(
+                    name = persona.name,
+                    avatar = persona.avatar,
+                    size = 24.dp,
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = persona.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (selected) colors.accent else colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

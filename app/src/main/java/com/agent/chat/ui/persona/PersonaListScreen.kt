@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -318,32 +319,75 @@ private fun CreatePersonaChooserDialog(
     onSmartImport: () -> Unit,
     onImportCard: () -> Unit,
 ) {
+    var expandedGuide by remember { mutableStateOf<String?>(null) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("新建人设") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Text(
-                    text = "选择创建方式",
+                    text = "选择一种方式来创建你的专属角色",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                ChooserAction(
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ChooserActionWithGuide(
                     icon = Icons.Default.Edit,
                     title = "手动创建",
-                    subtitle = "自己写 Prompt / 预设 / 世界书",
+                    subtitle = "完全自定义，适合有经验的用户",
+                    isExpanded = expandedGuide == "manual",
+                    onToggleGuide = {
+                        expandedGuide = if (expandedGuide == "manual") null else "manual"
+                    },
+                    guideText = "从零开始打造角色：\n" +
+                            "• 填写角色名称和描述\n" +
+                            "• 编写 System Prompt 定义角色性格与行为\n" +
+                            "• 可选：添加预设对话示例，让 AI 学习说话风格\n" +
+                            "• 可选：配置世界书，补充背景设定\n" +
+                            "• 可选：添加正则规则，自动格式化输出\n\n" +
+                            "适合对 Prompt 工程有一定了解、想精细控制角色表现的用户。",
                     onClick = onManual,
                 )
-                ChooserAction(
+
+                ChooserActionWithGuide(
                     icon = Icons.Default.AutoAwesome,
                     title = "智能导入",
-                    subtitle = "粘贴设定文字，AI 帮你整理",
+                    subtitle = "用自然语言描述，AI 帮你生成",
+                    isExpanded = expandedGuide == "smart",
+                    onToggleGuide = {
+                        expandedGuide = if (expandedGuide == "smart") null else "smart"
+                    },
+                    guideText = "只需用几句话描述你想要的角色：\n" +
+                            "• 例如：「温柔体贴的姐姐，说话慢条斯理，喜欢用比喻」\n" +
+                            "• 例如：「毒舌但内心善良的傲娇少女，偶尔会害羞」\n" +
+                            "• 也可以粘贴一大段现有的角色设定文字\n\n" +
+                            "AI 会自动解析并生成结构化的角色配置，包括性格、说话风格、情感表达等维度，生成后你仍可手动微调。\n\n" +
+                            "推荐新手使用，无需了解任何技术细节！",
                     onClick = onSmartImport,
                 )
-                ChooserAction(
+
+                ChooserActionWithGuide(
                     icon = Icons.Default.ContactPage,
                     title = "导入角色卡",
-                    subtitle = "SillyTavern JSON / PNG",
+                    subtitle = "兼容 SillyTavern / TavernAI 格式",
+                    isExpanded = expandedGuide == "card",
+                    onToggleGuide = {
+                        expandedGuide = if (expandedGuide == "card") null else "card"
+                    },
+                    guideText = "直接导入社区分享的角色卡文件：\n" +
+                            "• 支持 SillyTavern V1/V2 JSON 格式\n" +
+                            "• 支持 PNG 角色卡（图片中内嵌角色数据）\n" +
+                            "• 会自动解析名称、设定、开场白、预设对话和世界书\n\n" +
+                            "如何获取角色卡：\n" +
+                            "• 从 chub.ai 等角色卡社区下载\n" +
+                            "• 从其他用户处获取分享的 JSON/PNG 文件\n" +
+                            "• 在 SillyTavern 中导出已有角色\n\n" +
+                            "导入后可在编辑器中自由修改所有字段。",
                     onClick = onImportCard,
                 )
             }
@@ -356,28 +400,69 @@ private fun CreatePersonaChooserDialog(
 }
 
 @Composable
-private fun ChooserAction(
+private fun ChooserActionWithGuide(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
+    isExpanded: Boolean,
+    onToggleGuide: () -> Unit,
+    guideText: String,
     onClick: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .background(
+                if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surface,
+            )
+            .border(
+                width = if (isExpanded) 1.dp else 0.dp,
+                color = if (isExpanded) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(12.dp),
+            ),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 12.dp, horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
-                subtitle,
+                text = if (isExpanded) "收起" else "指南",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onToggleGuide)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+
+        androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
+            Text(
+                text = guideText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.3,
+                modifier = Modifier.padding(start = 48.dp, end = 10.dp, bottom = 12.dp),
             )
         }
     }

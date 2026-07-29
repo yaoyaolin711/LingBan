@@ -6,7 +6,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * 通过 AccessibilityService 读取屏幕上的文字内容。
- * 用户需要在系统设置 → 无障碍 → 灵伴 中手动开启。
+ * 用户需要在系统设置 → 无障碍 → Solace 中手动开启。
  * 不需要 root，不需要电脑，纯手机实现。
  */
 class AgentAccessibilityService : AccessibilityService() {

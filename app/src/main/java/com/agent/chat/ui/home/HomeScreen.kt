@@ -288,7 +288,7 @@ private fun SharedTransitionScope.FirstExploreState(
         )
         Spacer(modifier = Modifier.height(28.dp))
         Text(
-            text = "你好，我是灵伴。",
+            text = "你好，我是 Solace。",
             style = MaterialTheme.typography.headlineMedium,
             color = theme.textPrimary,
             fontWeight = FontWeight.SemiBold,

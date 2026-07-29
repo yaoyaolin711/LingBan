@@ -31,7 +31,7 @@ class ScreenContentTool @Inject constructor(
         if (!AgentAccessibilityService.isRunning()) {
             return ToolResult(
                 false,
-                "未开启无障碍服务。请在系统设置 → 无障碍 → 灵伴 中开启，让 AI 能感知你的屏幕。",
+                "未开启无障碍服务。请在系统设置 → 无障碍 → Solace 中开启，让 AI 能感知你的屏幕。",
                 JSONObject().put("settings_action", Settings.ACTION_ACCESSIBILITY_SETTINGS),
             )
         }

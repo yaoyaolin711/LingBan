@@ -134,7 +134,7 @@ fun MemoryScreenContent(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "灵伴真正了解你的地方",
+                        text = "Solace 真正了解你的地方",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
@@ -284,7 +284,7 @@ private fun EmptyMemoryState(category: MemoryCategory) {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "多聊几次，灵伴会把关于你的事轻轻记下来。",
+            text = "多聊几次，Solace 会把关于你的事轻轻记下来。",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )

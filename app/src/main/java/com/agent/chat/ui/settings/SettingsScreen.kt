@@ -1,5 +1,7 @@
 package com.agent.chat.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agent.chat.data.memory.MemorySettingsStore
@@ -68,6 +72,7 @@ import com.agent.chat.ui.theme.ErrorSoftText
 @Composable
 fun SettingsScreen(
     onBackClick: () -> Unit,
+    onPermissionsClick: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val colors = AgentThemeColors
@@ -189,10 +194,17 @@ fun SettingsScreen(
             }
 
             item {
-                ToolSettingsSection(
-                    settings = uiState.toolSettings,
-                    onUpdate = viewModel::updateToolSettings,
-                )
+                if (onPermissionsClick != null) {
+                    ToolSettingsSummaryCard(
+                        settings = uiState.toolSettings,
+                        onClick = onPermissionsClick,
+                    )
+                } else {
+                    ToolSettingsSection(
+                        settings = uiState.toolSettings,
+                        onUpdate = viewModel::updateToolSettings,
+                    )
+                }
             }
 
             item {
@@ -492,6 +504,37 @@ private fun HomeLocationSection(
 }
 
 @Composable
+private fun ToolSettingsSummaryCard(
+    settings: com.agent.chat.data.settings.ToolSettings,
+    onClick: () -> Unit,
+) {
+    val enabledCount = listOf(
+        settings.memoryEnabled, settings.timeEnabled, settings.batteryEnabled,
+        settings.deviceEnabled, settings.calendarEnabled, settings.alarmEnabled,
+        settings.locationEnabled, settings.appUsageEnabled, settings.notificationEnabled,
+        settings.musicEnabled, settings.smsEnabled, settings.screenStateEnabled,
+        settings.screenContentEnabled,
+    ).count { it }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+    ) {
+        Text(text = "AI 能力授权", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "已开启 $enabledCount 项能力，点击管理 AI 可使用的工具与权限",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun ToolSettingsSection(
     settings: com.agent.chat.data.settings.ToolSettings,
     onUpdate: ((com.agent.chat.data.settings.ToolSettings) -> com.agent.chat.data.settings.ToolSettings) -> Unit,
@@ -500,6 +543,17 @@ private fun ToolSettingsSection(
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
     ) { }
+
+    fun hasPermissions(vararg perms: String) = perms.all {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    val hasLocationPerm = hasPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    val hasCalendarPerm = hasPermissions(
+        Manifest.permission.READ_CALENDAR,
+        Manifest.permission.WRITE_CALENDAR,
+    )
+    val hasSmsPerm = hasPermissions(Manifest.permission.READ_SMS)
 
     Column(
         modifier = Modifier
@@ -510,12 +564,12 @@ private fun ToolSettingsSection(
     ) {
         Text(text = "工具权限", style = MaterialTheme.typography.titleMedium)
         Text(
-            text = "开启后，模型可在对话中调用对应能力。敏感能力默认关闭。",
+            text = "控制 AI 可以调用哪些能力。开启后，AI 会在合适时机自动使用对应工具。敏感能力默认关闭，需手动授权。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
         )
-        ToolSwitch("记忆读写", "跨对话记住偏好与关系", settings.memoryEnabled) {
+        ToolSwitch("记忆读写", "跨对话记住你的偏好与关系", settings.memoryEnabled) {
             onUpdate { it.copy(memoryEnabled = it.memoryEnabled.not()) }
         }
         ToolSwitch("当前时间", null, settings.timeEnabled) {
@@ -527,13 +581,19 @@ private fun ToolSettingsSection(
         ToolSwitch("设备信息", null, settings.deviceEnabled) {
             onUpdate { it.copy(deviceEnabled = it.deviceEnabled.not()) }
         }
-        ToolSwitch("日历", "读写系统日程", settings.calendarEnabled) {
-            onUpdate { it.copy(calendarEnabled = it.calendarEnabled.not()) }
-            if (!settings.calendarEnabled) {
+        ToolSwitch(
+            title = "日历",
+            subtitle = "读写系统日程",
+            checked = settings.calendarEnabled,
+            systemPermGranted = if (settings.calendarEnabled) hasCalendarPerm else null,
+        ) {
+            val turningOn = !settings.calendarEnabled
+            onUpdate { it.copy(calendarEnabled = !it.calendarEnabled) }
+            if (turningOn && !hasCalendarPerm) {
                 permissionLauncher.launch(
                     arrayOf(
-                        android.Manifest.permission.READ_CALENDAR,
-                        android.Manifest.permission.WRITE_CALENDAR,
+                        Manifest.permission.READ_CALENDAR,
+                        Manifest.permission.WRITE_CALENDAR,
                     ),
                 )
             }
@@ -541,64 +601,101 @@ private fun ToolSettingsSection(
         ToolSwitch("闹钟", "调起系统闹钟", settings.alarmEnabled) {
             onUpdate { it.copy(alarmEnabled = it.alarmEnabled.not()) }
         }
-        ToolSwitch("定位", "粗略位置，默认关", settings.locationEnabled) {
-            onUpdate { it.copy(locationEnabled = it.locationEnabled.not()) }
-            if (!settings.locationEnabled) {
+        ToolSwitch(
+            title = "定位",
+            subtitle = "让 AI 知道你在哪，可据此关心你（如到家问候、天气提醒）。默认关闭，开启后需授予系统位置权限。",
+            checked = settings.locationEnabled,
+            systemPermGranted = if (settings.locationEnabled) hasLocationPerm else null,
+        ) {
+            val turningOn = !settings.locationEnabled
+            onUpdate { it.copy(locationEnabled = !it.locationEnabled) }
+            if (turningOn && !hasLocationPerm) {
                 permissionLauncher.launch(
                     arrayOf(
-                        android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_FINE_LOCATION,
                     ),
                 )
             }
         }
-        ToolSwitch("App 使用情况", "需特殊权限，默认关", settings.appUsageEnabled) {
+        ToolSwitch(
+            title = "App 使用情况",
+            subtitle = "AI 可了解你最近用了哪些 App，需跳转系统授予特殊权限",
+            checked = settings.appUsageEnabled,
+            systemPermGranted = null,
+        ) {
+            val turningOn = !settings.appUsageEnabled
             onUpdate { it.copy(appUsageEnabled = it.appUsageEnabled.not()) }
-            if (!settings.appUsageEnabled) {
+            if (turningOn) {
                 context.startActivity(
                     android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
         }
-        ToolSwitch("通知感知", "需要开启通知访问；默认不返回通知正文（更敏感）", settings.notificationEnabled) {
+        ToolSwitch(
+            title = "通知感知",
+            subtitle = "AI 可感知收到哪些通知（不含正文）。需跳转系统开启通知访问权限。",
+            checked = settings.notificationEnabled,
+            systemPermGranted = null,
+        ) {
+            val turningOn = !settings.notificationEnabled
             onUpdate { it.copy(notificationEnabled = it.notificationEnabled.not()) }
-            if (!settings.notificationEnabled) {
+            if (turningOn) {
                 context.startActivity(
                     android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
         }
-        ToolSwitch("音乐控制", "查看/控制当前播放，需通知访问权限", settings.musicEnabled) {
+        ToolSwitch(
+            title = "音乐控制",
+            subtitle = "AI 可查看/控制当前播放的音乐。需通知访问权限。",
+            checked = settings.musicEnabled,
+            systemPermGranted = null,
+        ) {
+            val turningOn = !settings.musicEnabled
             onUpdate { it.copy(musicEnabled = it.musicEnabled.not()) }
-            if (!settings.musicEnabled) {
+            if (turningOn) {
                 context.startActivity(
                     android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
         }
-        ToolSwitch("短信读取", "读取最近短信摘要，需短信权限", settings.smsEnabled) {
+        ToolSwitch(
+            title = "短信读取",
+            subtitle = "AI 可读取最近短信摘要（如验证码提醒等）",
+            checked = settings.smsEnabled,
+            systemPermGranted = if (settings.smsEnabled) hasSmsPerm else null,
+        ) {
+            val turningOn = !settings.smsEnabled
             onUpdate { it.copy(smsEnabled = it.smsEnabled.not()) }
-            if (!settings.smsEnabled) {
+            if (turningOn && !hasSmsPerm) {
                 permissionLauncher.launch(
-                    arrayOf(android.Manifest.permission.READ_SMS),
+                    arrayOf(Manifest.permission.READ_SMS),
                 )
             }
         }
         ToolSwitch("屏幕状态", "亮屏/息屏/锁屏状态", settings.screenStateEnabled) {
             onUpdate { it.copy(screenStateEnabled = it.screenStateEnabled.not()) }
         }
-        ToolSwitch("屏幕内容感知", "读取屏幕文字，需开启无障碍服务", settings.screenContentEnabled) {
+        ToolSwitch(
+            title = "屏幕内容感知",
+            subtitle = "AI 可读取你当前屏幕的文字内容。需在系统设置中开启无障碍服务。",
+            checked = settings.screenContentEnabled,
+            systemPermGranted = null,
+        ) {
+            val turningOn = !settings.screenContentEnabled
             onUpdate { it.copy(screenContentEnabled = it.screenContentEnabled.not()) }
-            if (!settings.screenContentEnabled) {
+            if (turningOn) {
                 context.startActivity(
                     android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
         }
+        Spacer(modifier = Modifier.height(4.dp))
         TextButton(
             onClick = {
                 context.startActivity(
@@ -609,7 +706,7 @@ private fun ToolSettingsSection(
                 )
             },
         ) {
-            Text("打开系统应用权限页")
+            Text("查看系统应用权限详情")
         }
     }
 }
@@ -672,15 +769,37 @@ private fun ToolSwitch(
     title: String,
     subtitle: String?,
     checked: Boolean,
+    systemPermGranted: Boolean? = null,
     onToggle: () -> Unit,
 ) {
-    SettingsSwitchRow(
-        title = title,
-        subtitle = subtitle ?: "",
-        checked = checked,
-        onCheckedChange = { onToggle() },
-    )
-    Spacer(modifier = Modifier.height(6.dp))
+    Column {
+        SettingsSwitchRow(
+            title = title,
+            subtitle = subtitle ?: "",
+            checked = checked,
+            onCheckedChange = { onToggle() },
+        )
+        if (checked && systemPermGranted == false) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 0.dp, top = 2.dp, bottom = 2.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "已开启但系统权限未授予，AI 将无法使用此功能。请点击下方「查看系统应用权限详情」授权。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+    }
 }
 
 @Composable

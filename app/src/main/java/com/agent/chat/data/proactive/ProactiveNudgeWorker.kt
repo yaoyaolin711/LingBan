@@ -28,6 +28,7 @@ import com.agent.chat.data.repository.MemoryRepository
 import com.agent.chat.data.repository.PersonaRepository
 import com.agent.chat.data.repository.ProviderConfigRepository
 import com.agent.chat.data.settings.ChatSettingsStore
+import com.agent.chat.data.settings.ToolSettingsStore
 import com.agent.chat.data.interaction.InteractionPreferenceStore
 import com.agent.chat.domain.model.Message
 import com.agent.chat.domain.model.MessageRole
@@ -58,6 +59,7 @@ class ProactiveNudgeWorker(
         fun interactionPreferenceStore(): InteractionPreferenceStore
         fun homeArrivalDetector(): HomeArrivalDetector
         fun proactiveContextCollector(): ProactiveContextCollector
+        fun toolSettingsStore(): ToolSettingsStore
     }
 
     override suspend fun doWork(): Result {
@@ -81,22 +83,36 @@ class ProactiveNudgeWorker(
         val idleLongEnough = settings.lastUserActivityAt > 0L &&
             now - settings.lastUserActivityAt >= idleMs
 
-        val (kind, scenarioHint) = arrivalDecision?.let { decision ->
+        val (rawKind, rawScenarioHint) = arrivalDecision?.let { decision ->
             decision.kind to decision.scenarioHint
         } ?: deps.careContextBuilder().proactiveScenarioHint()
 
-        // 日程提醒可在未完全闲置时触发；时段问候仍要求闲置
+        // 电量低（<20%）也可主动触发关心
+        val toolSettings = deps.toolSettingsStore().get()
+        val batteryLow = if (toolSettings.batteryEnabled) {
+            runCatching {
+                val bm = applicationContext.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+                val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                level in 1..19
+            }.getOrDefault(false)
+        } else false
+
+        // 日程提醒可在未完全闲置时触发；时段问候仍要求闲置；电量低时也触发
         val allowByScenario = if (arrivalDecision != null) {
             true
         } else {
             when {
-                kind == "calendar" -> true
+                rawKind == "calendar" -> true
+                batteryLow -> true
                 period == DayPeriod.LATE_NIGHT && idleLongEnough -> true
                 idleLongEnough -> true
                 else -> false
             }
         }
         if (!allowByScenario) return Result.success()
+
+        val kind = if (batteryLow && rawKind != "calendar" && arrivalDecision == null) "battery_low" else rawKind
+        val scenarioHint = if (kind == "battery_low") "用户手机电量很低，自然地关心一下" else rawScenarioHint
 
         // 同类型问候一天内不重复（日历除外）
         if (kind != "calendar" &&
@@ -163,6 +179,21 @@ class ProactiveNudgeWorker(
             if (senseContext.isNotBlank()) {
                 append("\n\n")
                 append(senseContext)
+            }
+            // 告知 AI 当前已开启的主动能力
+            val capabilities = buildList {
+                if (toolSettings.timeEnabled) add("获取时间")
+                if (toolSettings.calendarEnabled) add("查看日程")
+                if (toolSettings.locationEnabled) add("获取位置")
+                if (toolSettings.batteryEnabled) add("查看电量")
+                if (toolSettings.notificationEnabled) add("感知通知")
+                if (toolSettings.appUsageEnabled) add("感知App使用")
+                if (toolSettings.screenContentEnabled) add("感知屏幕内容")
+                if (toolSettings.musicEnabled) add("音乐控制")
+            }
+            if (capabilities.isNotEmpty()) {
+                append("\n\n【你当前已获授权的主动能力】${capabilities.joinToString("、")}")
+                append("\n你可以基于以上感知到的信息，自然地融入关心，不要生硬地报告数据。")
             }
             append("\n\n")
             val nudgePath = deps.promptAssetLoader().catalog().assets["proactive_nudge"]

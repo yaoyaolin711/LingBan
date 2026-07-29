@@ -109,6 +109,8 @@ data class ChatUiState(
     val lastResponseScores: ResponseScores? = null,
     val lastResponseEvalNote: String? = null,
     val showResponseScores: Boolean = BuildConfig.DEBUG,
+    val userAvatarPath: String = "",
+    val userNickname: String = "",
 ) {
     val isBusy: Boolean get() = isStreaming || isPacingReply
 }
@@ -214,7 +216,13 @@ class ChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             chatSettingsStore.snapshot.collect { settings ->
-                _uiState.update { it.copy(naturalChatPaceEnabled = settings.naturalChatPaceEnabled) }
+                _uiState.update {
+                    it.copy(
+                        naturalChatPaceEnabled = settings.naturalChatPaceEnabled,
+                        userAvatarPath = settings.userAvatarPath,
+                        userNickname = settings.userNickname,
+                    )
+                }
             }
         }
     }

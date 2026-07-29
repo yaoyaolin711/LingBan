@@ -30,6 +30,7 @@ import com.agent.chat.ui.motion.SwipeBackContainer
 import com.agent.chat.ui.persona.PersonaListScreen
 import com.agent.chat.ui.profile.ProfileScreen
 import com.agent.chat.ui.settings.ModelApiScreen
+import com.agent.chat.ui.settings.PermissionScreen
 import com.agent.chat.ui.settings.SettingsScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -45,6 +46,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val MODEL_API = "model_api"
     const val MEMORY = "memory"
+    const val PERMISSIONS = "permissions"
 
     fun chat(conversationId: String): String = "chat/$conversationId"
     fun agentDetail(personaId: String): String = "agent/$personaId"
@@ -116,6 +118,12 @@ fun AgentNavHost(
                         },
                         onMemoryClick = {
                             navController.navigate(Routes.MEMORY)
+                        },
+                        onPersonaListClick = {
+                            navController.navigate(Routes.PERSONA_LIST)
+                        },
+                        onPermissionsClick = {
+                            navController.navigate(Routes.PERMISSIONS)
                         },
                     )
                 }
@@ -233,6 +241,9 @@ fun AgentNavHost(
                 SwipeBackContainer(onBack = { navController.popBackStack() }) {
                     SettingsScreen(
                         onBackClick = { navController.popBackStack() },
+                        onPermissionsClick = {
+                            navController.navigate(Routes.PERMISSIONS)
+                        },
                     )
                 }
             }
@@ -240,6 +251,14 @@ fun AgentNavHost(
             composable(Routes.MODEL_API) {
                 SwipeBackContainer(onBack = { navController.popBackStack() }) {
                     ModelApiScreen(
+                        onBackClick = { navController.popBackStack() },
+                    )
+                }
+            }
+
+            composable(Routes.PERMISSIONS) {
+                SwipeBackContainer(onBack = { navController.popBackStack() }) {
+                    PermissionScreen(
                         onBackClick = { navController.popBackStack() },
                     )
                 }

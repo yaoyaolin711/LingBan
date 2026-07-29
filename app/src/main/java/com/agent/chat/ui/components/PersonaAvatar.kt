@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import java.io.File
 
 @Composable
 fun PersonaAvatar(
@@ -35,6 +36,9 @@ fun PersonaAvatar(
     val isUrl = remember(avatar) {
         avatar.startsWith("http://") || avatar.startsWith("https://")
     }
+    val isLocalFile = remember(avatar) {
+        !isUrl && avatar.isNotBlank() && avatar.startsWith("/") && File(avatar).exists()
+    }
 
     Box(
         modifier = modifier
@@ -43,10 +47,11 @@ fun PersonaAvatar(
             .background(if (highlighted) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted),
         contentAlignment = Alignment.Center,
     ) {
-        if (isUrl) {
+        if (isUrl || isLocalFile) {
+            val data: Any = if (isLocalFile) File(avatar) else avatar
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(avatar)
+                    .data(data)
                     .crossfade(true)
                     .memoryCachePolicy(CachePolicy.ENABLED)
                     .diskCachePolicy(CachePolicy.ENABLED)

@@ -3,11 +3,14 @@ package com.agent.chat.data.proactive
 import android.content.Context
 import com.agent.chat.data.ai.tool.ToolExecutionContext
 import com.agent.chat.data.ai.tool.impl.AppUsageTool
+import com.agent.chat.data.ai.tool.impl.CalendarTool
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.agent.chat.data.ai.tool.impl.BatteryTool
+import com.agent.chat.data.ai.tool.impl.LocationTool
 import com.agent.chat.data.ai.tool.impl.NotificationTool
 import com.agent.chat.data.ai.tool.impl.ScreenContentTool
 import com.agent.chat.data.ai.tool.impl.ScreenStateTool
+import com.agent.chat.data.ai.tool.impl.TimeTool
 import com.agent.chat.data.screen.AgentAccessibilityService
 import com.agent.chat.data.screen.ScreenContentStore
 import com.agent.chat.data.settings.ToolSettings
@@ -27,11 +30,51 @@ class ProactiveContextCollector @Inject constructor(
     private val appUsageTool: AppUsageTool,
     private val batteryTool: BatteryTool,
     private val screenStateTool: ScreenStateTool,
+    private val timeTool: TimeTool,
+    private val calendarTool: CalendarTool,
+    private val locationTool: LocationTool,
 ) {
 
     suspend fun collect(toolContext: ToolExecutionContext): String {
         val settings = toolSettingsStore.get()
         val parts = mutableListOf<String>()
+
+        if (settings.timeEnabled) {
+            val r = runCatching { timeTool.execute("{}", toolContext) }.getOrNull()
+            if (r != null && r.success) {
+                parts += "当前时间：${r.message}"
+            }
+        }
+
+        if (settings.calendarEnabled) {
+            val r = runCatching {
+                calendarTool.execute("""{"action":"list","days":2}""", toolContext)
+            }.getOrNull()
+            if (r != null && r.success) {
+                val data = r.data
+                if (data != null) {
+                    val events = data.optJSONArray("events")
+                    if (events != null && events.length() > 0) {
+                        val sb = StringBuilder("近期日程：")
+                        for (i in 0 until minOf(events.length(), 5)) {
+                            val ev = events.getJSONObject(i)
+                            sb.append(ev.optString("title"))
+                            val start = ev.optString("start")
+                            if (start.isNotBlank()) sb.append("($start)")
+                            if (i < minOf(events.length(), 5) - 1) sb.append("、")
+                        }
+                        parts += sb.toString()
+                    }
+                }
+            }
+        }
+
+        if (settings.locationEnabled) {
+            val r = runCatching { locationTool.execute("{}", toolContext) }.getOrNull()
+            if (r != null && r.success) {
+                parts += "位置：${r.message}"
+            }
+        }
 
         if (settings.screenStateEnabled) {
             val r = runCatching { screenStateTool.execute("{}", toolContext) }.getOrNull()

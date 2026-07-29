@@ -45,10 +45,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.ui.platform.LocalContext
 import com.agent.chat.domain.model.LorebookEntry
 import com.agent.chat.domain.model.OutputRegex
 import com.agent.chat.domain.model.PresetMessage
 import com.agent.chat.ui.components.PersonaAvatar
+import java.io.File
+import java.util.UUID
 
 enum class PersonaEditorTab(val label: String) {
     BASIC("基础"),
@@ -204,6 +212,21 @@ private fun BasicTab(
     onOpeningLineChange: (String) -> Unit,
     onTemperatureChange: (String) -> Unit,
 ) {
+    val context = LocalContext.current
+    val avatarPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            val dir = File(context.filesDir, "persona_avatars").also { it.mkdirs() }
+            val dest = File(dir, "${UUID.randomUUID()}.jpg")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
+            }
+            onAvatarChange(dest.absolutePath)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -218,9 +241,20 @@ private fun BasicTab(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("头像预览", style = MaterialTheme.typography.labelLarge)
                     Text(
-                        "用 emoji 或短字符即可",
+                        "选择图片、输入 URL 或 emoji",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = {
+                    avatarPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = "从相册选择",
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }

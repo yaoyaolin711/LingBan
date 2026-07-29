@@ -218,7 +218,7 @@ fun SharedTransitionScope.ChatScreenContent(
         streamingContentEmpty = streamingContent.isEmpty(),
         hasRunningTools = uiState.toolCalls.any { it.running },
     )
-    val displayName = uiState.persona?.name?.takeIf { it.isNotBlank() } ?: "灵伴"
+    val displayName = uiState.persona?.name?.takeIf { it.isNotBlank() } ?: "Solace"
 
     LaunchedEffect(
         messages.size,
@@ -343,6 +343,10 @@ fun SharedTransitionScope.ChatScreenContent(
                         val messageError = uiState.messageError
                         val debugDetail = uiState.debugErrorDetail
                         val toolCalls = uiState.toolCalls
+                        val pName = uiState.persona?.name.orEmpty()
+                        val pAvatar = uiState.persona?.avatar.orEmpty()
+                        val uAvatar = uiState.userAvatarPath
+                        val uNick = uiState.userNickname
 
                         LazyColumn(
                             state = listState,
@@ -368,7 +372,10 @@ fun SharedTransitionScope.ChatScreenContent(
 
                                 AnimatedChatItem(messageId = message.id) {
                                     when {
-                                        showThinking -> ThinkingStreamRow()
+                                        showThinking -> ThinkingStreamRow(
+                                            personaName = pName,
+                                            personaAvatar = pAvatar,
+                                        )
                                         isFailed -> FailedMessageBlock(
                                             message = message,
                                             error = messageError!!,
@@ -379,6 +386,8 @@ fun SharedTransitionScope.ChatScreenContent(
                                             UserMessageBubble(
                                                 message = message,
                                                 enabled = !isBusy,
+                                                userAvatarPath = uAvatar,
+                                                userNickname = uNick,
                                                 onCopy = { onCopyMessage(message.content) },
                                                 onRegenerate = { onRegenerate(message.id) },
                                                 onEditResend = { onEditResend(message.id) },
@@ -393,6 +402,8 @@ fun SharedTransitionScope.ChatScreenContent(
                                                 isStreaming = streamingThis,
                                                 toolCalls = if (streamingThis) toolCalls else emptyList(),
                                                 enabled = !isBusy,
+                                                personaName = pName,
+                                                personaAvatar = pAvatar,
                                                 onCopy = { onCopyMessage(message.content) },
                                                 onRegenerate = { onRegenerate(message.id) },
                                                 onFavorite = { onFavorite(message.id) },
@@ -417,7 +428,10 @@ fun SharedTransitionScope.ChatScreenContent(
 
                             if (showPaceTyping) {
                                 item(key = "pace_typing") {
-                                    ThinkingStreamRow()
+                                    ThinkingStreamRow(
+                                        personaName = pName,
+                                        personaAvatar = pAvatar,
+                                    )
                                 }
                             }
 
@@ -590,10 +604,18 @@ private fun EmptyChatState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        AiOrb(state = AiOrbState.Idle, size = 88.dp)
+        if (persona != null && persona.avatar.isNotBlank()) {
+            com.agent.chat.ui.components.PersonaAvatar(
+                name = persona.name,
+                avatar = persona.avatar,
+                size = 88.dp,
+            )
+        } else {
+            AiOrb(state = AiOrbState.Idle, size = 88.dp)
+        }
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-            text = persona?.name ?: "灵伴",
+            text = persona?.name ?: "Solace",
             style = MaterialTheme.typography.headlineMedium,
             color = colors.textPrimary,
         )

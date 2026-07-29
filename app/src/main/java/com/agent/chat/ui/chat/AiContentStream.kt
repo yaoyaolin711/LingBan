@@ -52,6 +52,7 @@ import com.agent.chat.domain.error.AppError
 import com.agent.chat.domain.error.userMessage
 import com.agent.chat.domain.model.Message
 import com.agent.chat.ui.components.MarkdownMessageContent
+import com.agent.chat.ui.components.PersonaAvatar
 import com.agent.chat.ui.home.AiOrb
 import com.agent.chat.ui.home.AiOrbState
 import com.agent.chat.ui.motion.AiLoadingIndicator
@@ -65,6 +66,8 @@ import com.agent.chat.ui.theme.ErrorSoftText
 fun UserMessageBubble(
     message: Message,
     enabled: Boolean,
+    userAvatarPath: String = "",
+    userNickname: String = "",
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
     onEditResend: () -> Unit,
@@ -78,11 +81,12 @@ fun UserMessageBubble(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.Top,
     ) {
         Box {
             Card(
                 modifier = Modifier
-                    .widthIn(max = 300.dp)
+                    .widthIn(max = 280.dp)
                     .combinedClickable(
                         enabled = enabled && message.content.isNotBlank(),
                         onClick = {},
@@ -115,7 +119,24 @@ fun UserMessageBubble(
                 onAddMemory = onAddMemory,
             )
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        UserAvatar(
+            avatarPath = userAvatarPath,
+            nickname = userNickname,
+        )
     }
+}
+
+@Composable
+private fun UserAvatar(
+    avatarPath: String,
+    nickname: String,
+) {
+    PersonaAvatar(
+        name = nickname.ifBlank { "我" },
+        avatar = avatarPath,
+        size = 34.dp,
+    )
 }
 
 /**
@@ -128,6 +149,8 @@ fun AiContentStream(
     isStreaming: Boolean,
     toolCalls: List<ToolCallUiItem>,
     enabled: Boolean,
+    personaName: String = "",
+    personaAvatar: String = "",
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
     onFavorite: () -> Unit,
@@ -147,72 +170,87 @@ fun AiContentStream(
         label = "cursor_alpha",
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                enabled = enabled && message.content.isNotBlank(),
-                onClick = {},
-                onLongClick = { menuExpanded = true },
-            ),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.Top,
     ) {
-        AiOrb(
-            state = when {
-                isStreaming && message.content.isEmpty() -> AiOrbState.Thinking
-                isStreaming -> AiOrbState.Speaking
-                else -> AiOrbState.Idle
-            },
-            size = 28.dp,
+        PersonaAvatar(
+            name = personaName.ifBlank { "AI" },
+            avatar = personaAvatar,
+            size = 34.dp,
         )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .combinedClickable(
+                    enabled = enabled && message.content.isNotBlank(),
+                    onClick = {},
+                    onLongClick = { menuExpanded = true },
+                ),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (message.content.isNotEmpty()) {
+                        MarkdownMessageContent(
+                            markdown = message.content,
+                            textColor = colors.textPrimary,
+                            isUser = false,
+                            showStreamingCursor = isStreaming,
+                            modifier = Modifier.graphicsLayer {
+                                if (isStreaming) alpha = 0.92f + cursorAlpha * 0.08f
+                            },
+                        )
+                    }
 
-        Box {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (message.content.isNotEmpty()) {
-                    MarkdownMessageContent(
-                        markdown = message.content,
-                        textColor = colors.textPrimary,
-                        isUser = false,
-                        showStreamingCursor = isStreaming,
-                        modifier = Modifier.graphicsLayer {
-                            if (isStreaming) alpha = 0.92f + cursorAlpha * 0.08f
-                        },
-                    )
+                    if (toolCalls.isNotEmpty()) {
+                        ToolCallStream(
+                            items = toolCalls,
+                            onToggle = onToggleTool,
+                        )
+                    }
                 }
-
-                if (toolCalls.isNotEmpty()) {
-                    ToolCallStream(
-                        items = toolCalls,
-                        onToggle = onToggleTool,
-                    )
-                }
+                MessageActionMenu(
+                    expanded = menuExpanded,
+                    onDismiss = { menuExpanded = false },
+                    isUser = false,
+                    onCopy = onCopy,
+                    onRegenerate = onRegenerate,
+                    onEditResend = {},
+                    onFavorite = onFavorite,
+                    onAddMemory = onAddMemory,
+                )
             }
-            MessageActionMenu(
-                expanded = menuExpanded,
-                onDismiss = { menuExpanded = false },
-                isUser = false,
-                onCopy = onCopy,
-                onRegenerate = onRegenerate,
-                onEditResend = {},
-                onFavorite = onFavorite,
-                onAddMemory = onAddMemory,
-            )
         }
     }
 }
 
 @Composable
-fun ThinkingStreamRow() {
+fun ThinkingStreamRow(
+    personaName: String = "",
+    personaAvatar: String = "",
+) {
     val colors = AgentThemeColors
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
     ) {
-        AiOrb(state = AiOrbState.Thinking, size = 32.dp)
+        PersonaAvatar(
+            name = personaName.ifBlank { "AI" },
+            avatar = personaAvatar,
+            size = 34.dp,
+        )
+        AiLoadingIndicator(
+            size = 18.dp,
+            showLabel = false,
+            state = AiOrbState.Thinking,
+        )
         Text(
             text = "正在思考…",
             style = MaterialTheme.typography.bodyMedium,
