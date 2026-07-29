@@ -76,6 +76,16 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query(
+        """
+        SELECT personaId AS personaId, COUNT(*) AS usageCount
+        FROM conversations
+        WHERE personaId IS NOT NULL AND personaId != ''
+        GROUP BY personaId
+        """,
+    )
+    fun observeUsageCounts(): Flow<List<PersonaUsageCount>>
 }
 
 data class ConversationWithLastMessage(
@@ -86,4 +96,9 @@ data class ConversationWithLastMessage(
     val createdAt: Long,
     val updatedAt: Long,
     val lastMessage: String,
+)
+
+data class PersonaUsageCount(
+    val personaId: String,
+    val usageCount: Int,
 )

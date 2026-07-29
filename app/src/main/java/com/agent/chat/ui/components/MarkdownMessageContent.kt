@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -22,12 +24,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.agent.chat.ui.theme.SurfaceMuted
+import com.agent.chat.ui.theme.TextSecondary
 
 private val FenceRegex = Regex("```([\\w+#.-]*)\\n([\\s\\S]*?)```")
+private val ImageRegex = Regex("!\\[([^]]*)]\\(([^)]+)\\)")
 
 private sealed class MarkdownBlock {
     data class Text(val value: String) : MarkdownBlock()
     data class Code(val language: String, val code: String) : MarkdownBlock()
+    data class Image(val alt: String, val url: String) : MarkdownBlock()
+    data class Quote(val value: String) : MarkdownBlock()
 }
 
 @Composable
@@ -36,6 +44,7 @@ fun MarkdownMessageContent(
     textColor: Color,
     modifier: Modifier = Modifier,
     isUser: Boolean = false,
+    showStreamingCursor: Boolean = false,
 ) {
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
     Column(modifier = modifier) {
@@ -45,7 +54,10 @@ fun MarkdownMessageContent(
                     if (block.value.isNotBlank()) {
                         SelectionContainer {
                             Text(
-                                text = renderInlineMarkdown(block.value.trimEnd(), textColor),
+                                text = renderInlineMarkdown(
+                                    text = block.value.trimEnd() + if (showStreamingCursor) "▍" else "",
+                                    textColor = textColor,
+                                ),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = textColor,
                             )
@@ -59,7 +71,48 @@ fun MarkdownMessageContent(
                         isUser = isUser,
                     )
                 }
+                is MarkdownBlock.Image -> {
+                    AsyncImage(
+                        model = block.url,
+                        contentDescription = block.alt.ifBlank { "图片" },
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                            .heightIn(max = 280.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                    )
+                }
+                is MarkdownBlock.Quote -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceMuted)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = "引用",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = TextSecondary,
+                        )
+                        Text(
+                            text = block.value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = textColor,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
             }
+        }
+        if (showStreamingCursor && blocks.none { it is MarkdownBlock.Text && it.value.isNotBlank() }) {
+            Text(
+                text = "▍",
+                style = MaterialTheme.typography.bodyLarge,
+                color = textColor.copy(alpha = 0.55f),
+            )
         }
     }
 }
@@ -75,18 +128,14 @@ private fun CodeBlock(
     } else {
         Color(0xFFF4F5F7)
     }
-    val codeColor = if (isUser) {
-        Color(0xFF1A1A1E)
-    } else {
-        Color(0xFF1A1A1E)
-    }
+    val codeColor = Color(0xFF1A1A1E)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(background)
-            .padding(10.dp),
+            .padding(12.dp),
     ) {
         if (language.isNotBlank()) {
             Text(
@@ -111,12 +160,12 @@ private fun CodeBlock(
 }
 
 private fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
-    if (markdown.isEmpty()) return listOf(MarkdownBlock.Text(""))
+    if (markdown.isEmpty()) return emptyList()
     val blocks = mutableListOf<MarkdownBlock>()
     var lastIndex = 0
     FenceRegex.findAll(markdown).forEach { match ->
         if (match.range.first > lastIndex) {
-            blocks += MarkdownBlock.Text(markdown.substring(lastIndex, match.range.first))
+            blocks += expandTextSegment(markdown.substring(lastIndex, match.range.first))
         }
         blocks += MarkdownBlock.Code(
             language = match.groupValues[1].trim(),
@@ -125,12 +174,73 @@ private fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
         lastIndex = match.range.last + 1
     }
     if (lastIndex < markdown.length) {
-        blocks += MarkdownBlock.Text(markdown.substring(lastIndex))
-    }
-    if (blocks.isEmpty()) {
-        blocks += MarkdownBlock.Text(markdown)
+        blocks += expandTextSegment(markdown.substring(lastIndex))
     }
     return blocks
+}
+
+private fun expandTextSegment(segment: String): List<MarkdownBlock> {
+    if (segment.isBlank()) return emptyList()
+    val result = mutableListOf<MarkdownBlock>()
+    var last = 0
+    ImageRegex.findAll(segment).forEach { match ->
+        if (match.range.first > last) {
+            result += splitQuotesAndText(segment.substring(last, match.range.first))
+        }
+        result += MarkdownBlock.Image(
+            alt = match.groupValues[1],
+            url = match.groupValues[2].trim(),
+        )
+        last = match.range.last + 1
+    }
+    if (last < segment.length) {
+        result += splitQuotesAndText(segment.substring(last))
+    }
+    return result
+}
+
+private fun splitQuotesAndText(segment: String): List<MarkdownBlock> {
+    if (segment.isBlank()) return emptyList()
+    val lines = segment.split('\n')
+    val result = mutableListOf<MarkdownBlock>()
+    val textBuf = StringBuilder()
+    val quoteBuf = StringBuilder()
+
+    fun flushText() {
+        if (textBuf.isNotEmpty()) {
+            result += MarkdownBlock.Text(textBuf.toString())
+            textBuf.clear()
+        }
+    }
+
+    fun flushQuote() {
+        if (quoteBuf.isNotEmpty()) {
+            result += MarkdownBlock.Quote(quoteBuf.toString().trim())
+            quoteBuf.clear()
+        }
+    }
+
+    lines.forEachIndexed { index, raw ->
+        val line = raw
+        val isQuote = line.trimStart().startsWith(">")
+        if (isQuote) {
+            flushText()
+            val body = line.trimStart().removePrefix(">").trimStart()
+            if (quoteBuf.isNotEmpty()) quoteBuf.append('\n')
+            quoteBuf.append(body)
+        } else {
+            flushQuote()
+            if (textBuf.isNotEmpty() || line.isNotEmpty()) {
+                if (textBuf.isNotEmpty()) textBuf.append('\n')
+                textBuf.append(line)
+            }
+        }
+        if (index == lines.lastIndex) {
+            flushQuote()
+            flushText()
+        }
+    }
+    return result
 }
 
 private fun renderInlineMarkdown(text: String, textColor: Color) = buildAnnotatedString {
@@ -199,10 +309,10 @@ private fun highlightCode(code: String, language: String, baseColor: Color) = bu
     val lines = code.split('\n')
     lines.forEachIndexed { lineIndex, line ->
         var remaining = line
-        // comments
         val commentIdx = when {
             remaining.trimStart().startsWith("//") -> remaining.indexOf("//")
-            remaining.trimStart().startsWith("#") && language.lowercase() in setOf("py", "python", "sh", "bash") ->
+            remaining.trimStart().startsWith("#") &&
+                language.lowercase() in setOf("py", "python", "sh", "bash") ->
                 remaining.indexOf("#")
             else -> -1
         }

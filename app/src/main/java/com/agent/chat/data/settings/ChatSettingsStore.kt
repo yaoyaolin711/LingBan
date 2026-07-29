@@ -42,6 +42,35 @@ class ChatSettingsStore @Inject constructor(
         _snapshot.value = read()
     }
 
+    fun setUserInterest(interest: String) {
+        prefs.edit().putString(KEY_INTEREST, interest.trim()).apply()
+        _snapshot.value = read()
+    }
+
+    fun setUserOccupation(occupation: String) {
+        prefs.edit().putString(KEY_OCCUPATION, occupation.trim()).apply()
+        _snapshot.value = read()
+    }
+
+    fun setUserGoal(goal: String) {
+        prefs.edit().putString(KEY_GOAL, goal.trim()).apply()
+        _snapshot.value = read()
+    }
+
+    fun setThemeMode(mode: String) {
+        val normalized = when (mode.lowercase()) {
+            "dark" -> "dark"
+            else -> "light"
+        }
+        prefs.edit().putString(KEY_THEME_MODE, normalized).apply()
+        _snapshot.value = read()
+    }
+
+    fun setHasExplored(explored: Boolean) {
+        prefs.edit().putBoolean(KEY_HAS_EXPLORED, explored).apply()
+        _snapshot.value = read()
+    }
+
     fun setProactiveEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_PROACTIVE, enabled).apply()
         _snapshot.value = read()
@@ -70,6 +99,11 @@ class ChatSettingsStore @Inject constructor(
         companionStyleEnabled = prefs.getBoolean(KEY_COMPANION_STYLE, true),
         splitBubbleByNewline = prefs.getBoolean(KEY_SPLIT_BY_NEWLINE, true),
         userNickname = prefs.getString(KEY_NICKNAME, "")?.orEmpty().orEmpty(),
+        userInterest = prefs.getString(KEY_INTEREST, "")?.orEmpty().orEmpty(),
+        userOccupation = prefs.getString(KEY_OCCUPATION, "")?.orEmpty().orEmpty(),
+        userGoal = prefs.getString(KEY_GOAL, "")?.orEmpty().orEmpty(),
+        themeMode = prefs.getString(KEY_THEME_MODE, "light")?.takeIf { it.isNotBlank() } ?: "light",
+        hasExplored = prefs.getBoolean(KEY_HAS_EXPLORED, false),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE, false),
         proactiveIdleHours = prefs.getInt(KEY_PROACTIVE_IDLE_HOURS, 6).coerceIn(1, 72),
         lastUserActivityAt = prefs.getLong(KEY_LAST_ACTIVITY, 0L),
@@ -83,6 +117,11 @@ class ChatSettingsStore @Inject constructor(
         private const val KEY_COMPANION_STYLE = "companion_style"
         private const val KEY_SPLIT_BY_NEWLINE = "split_by_newline"
         private const val KEY_NICKNAME = "user_nickname"
+        private const val KEY_INTEREST = "user_interest"
+        private const val KEY_OCCUPATION = "user_occupation"
+        private const val KEY_GOAL = "user_goal"
+        private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_HAS_EXPLORED = "has_explored"
         private const val KEY_PROACTIVE = "proactive_enabled"
         private const val KEY_PROACTIVE_IDLE_HOURS = "proactive_idle_hours"
         private const val KEY_LAST_ACTIVITY = "last_user_activity"
@@ -99,9 +138,18 @@ data class ChatSettings(
     /** 优先按模型换行拆气泡 */
     val splitBubbleByNewline: Boolean = true,
     val userNickname: String = "",
+    val userInterest: String = "",
+    val userOccupation: String = "",
+    val userGoal: String = "",
+    /** light / dark */
+    val themeMode: String = "light",
+    /** 是否完成首次「开始探索」 */
+    val hasExplored: Boolean = false,
     val proactiveEnabled: Boolean = false,
     val proactiveIdleHours: Int = 6,
     val lastUserActivityAt: Long = 0L,
     val lastProactiveNudgeAt: Long = 0L,
     val lastProactiveNudgeKind: String = "",
-)
+) {
+    val isDarkTheme: Boolean get() = themeMode.equals("dark", ignoreCase = true)
+}

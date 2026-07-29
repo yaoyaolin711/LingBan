@@ -27,5 +27,15 @@ val BubbleAssistant = SurfaceCard
 
 val OnlineGreen = Color(0xFF3CB371)
 
+/** 首页空间感：柔和径向氛围与 Orb 生命体色 */
+val HomeAtmosphere = Color(0xFFFFF3EA)
+val OrbCore = Color(0xFFFFF8F2)
+val OrbMid = Color(0xFFFFC89A)
+val OrbDeep = Color(0xFFE8823A)
+val OrbHalo = Color(0x66E8823A)
+val OrbParticle = Color(0xCCFFB074)
+
 val CardElevation = 1.5.dp
 val BubbleElevation = 1.dp
+val HomeCardElevation = 6.dp
+val HomeCardRadius = 24.dp

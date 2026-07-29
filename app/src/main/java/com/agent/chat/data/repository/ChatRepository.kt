@@ -24,6 +24,11 @@ class ChatRepository @Inject constructor(
             rows.map { it.toDomain() }
         }
 
+    fun observePersonaUsageCounts(): Flow<Map<String, Int>> =
+        conversationDao.observeUsageCounts().map { rows ->
+            rows.associate { it.personaId to it.usageCount }
+        }
+
     fun searchConversations(query: String): Flow<List<Conversation>> {
         val trimmed = query.trim()
         return if (trimmed.isEmpty()) {

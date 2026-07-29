@@ -9,6 +9,7 @@ import com.agent.chat.data.local.entity.ProviderConfigEntity
 import com.agent.chat.data.persona.PersonaExtrasCodec
 import com.agent.chat.domain.model.Conversation
 import com.agent.chat.domain.model.Memory
+import com.agent.chat.domain.model.MemoryCategory
 import com.agent.chat.domain.model.Message
 import com.agent.chat.domain.model.MessageRole
 import com.agent.chat.domain.model.Persona
@@ -63,14 +64,25 @@ fun Message.toEntity(): MessageEntity = MessageEntity(
     timestamp = createdAt,
 )
 
-fun MemoryEntity.toDomain(): Memory = Memory(
-    id = id,
-    personaId = personaId,
-    conversationId = conversationId,
-    content = content,
-    createdAt = createdAt,
-    importance = importance,
-)
+fun MemoryEntity.toDomain(): Memory {
+    val inferred = MemoryCategory.fromStorage(category).let { stored ->
+        if (category.isBlank()) {
+            MemoryCategory.infer(content, importance, createdAt)
+        } else {
+            stored
+        }
+    }
+    return Memory(
+        id = id,
+        personaId = personaId,
+        conversationId = conversationId,
+        content = content,
+        createdAt = createdAt,
+        importance = importance,
+        category = inferred,
+        blockedFromAi = blockedFromAi,
+    )
+}
 
 fun Memory.toEntity(): MemoryEntity = MemoryEntity(
     id = id,
@@ -79,6 +91,8 @@ fun Memory.toEntity(): MemoryEntity = MemoryEntity(
     content = content,
     createdAt = createdAt,
     importance = importance,
+    category = category.storageKey,
+    blockedFromAi = blockedFromAi,
 )
 
 fun PersonaEntity.toDomain(codec: PersonaExtrasCodec): Persona = Persona(

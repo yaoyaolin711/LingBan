@@ -55,6 +55,9 @@ object PromptContextInjector {
         userNickname: String,
         recentMessages: List<Message> = emptyList(),
         careContext: String = "",
+        userInterest: String = "",
+        userOccupation: String = "",
+        userGoal: String = "",
     ): String {
         val parts = mutableListOf<String>()
         val base = persona?.systemPrompt.orEmpty().trim()
@@ -69,6 +72,21 @@ object PromptContextInjector {
         } else {
             val now = SimpleDateFormat("yyyy-MM-dd HH:mm E", Locale.getDefault()).format(Date())
             parts.add("【当前时间】$now")
+        }
+
+        val portraitLines = buildList {
+            if (userNickname.isNotBlank()) add("姓名：$userNickname")
+            if (userInterest.isNotBlank()) add("兴趣：$userInterest")
+            if (userOccupation.isNotBlank()) add("职业：$userOccupation")
+            if (userGoal.isNotBlank()) add("目标：$userGoal")
+        }
+        if (portraitLines.isNotEmpty()) {
+            parts.add(
+                buildString {
+                    append("【用户画像】请自然地了解对方，勿生硬宣读：")
+                    portraitLines.forEach { append("\n- ").append(it) }
+                },
+            )
         }
 
         val lore = matchLorebook(persona, recentMessages, userNickname)

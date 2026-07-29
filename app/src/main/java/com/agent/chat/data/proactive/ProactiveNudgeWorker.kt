@@ -112,6 +112,9 @@ class ProactiveNudgeWorker(
                     userNickname = settings.userNickname,
                     recentMessages = recent,
                     careContext = care,
+                    userInterest = settings.userInterest,
+                    userOccupation = settings.userOccupation,
+                    userGoal = settings.userGoal,
                 ),
             )
             append("\n\n")

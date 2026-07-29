@@ -22,7 +22,24 @@ interface MemoryDao {
     @Query(
         """
         SELECT * FROM memories
-        WHERE personaId = :personaId
+        ORDER BY createdAt DESC
+        LIMIT :limit
+        """,
+    )
+    fun observeRecent(limit: Int): Flow<List<MemoryEntity>>
+
+    @Query(
+        """
+        SELECT * FROM memories
+        ORDER BY createdAt DESC
+        """,
+    )
+    fun observeAll(): Flow<List<MemoryEntity>>
+
+    @Query(
+        """
+        SELECT * FROM memories
+        WHERE personaId = :personaId AND blockedFromAi = 0
         ORDER BY importance DESC, createdAt DESC
         LIMIT :limit
         """,

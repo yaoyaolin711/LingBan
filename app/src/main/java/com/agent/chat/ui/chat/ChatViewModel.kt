@@ -386,6 +386,43 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(editingMessageId = null, inputText = "") }
     }
 
+    fun addMessageToMemory(messageId: String) {
+        viewModelScope.launch {
+            val personaId = activePersonaId
+            if (personaId.isNullOrBlank()) {
+                _events.emit("请先选择伙伴后再加入记忆")
+                return@launch
+            }
+            val realId = ReplySegmenter.sourceMessageId(messageId)
+            val message = _uiState.value.messages.find { it.id == realId }
+                ?: _uiState.value.displayedMessages.find { it.id == messageId }
+            if (message == null || message.content.isBlank()) {
+                _events.emit("无法加入空消息")
+                return@launch
+            }
+            memoryRepository.saveMemory(
+                personaId = personaId,
+                conversationId = conversationId,
+                content = message.content.trim().take(500),
+                importance = 7,
+            )
+            _events.emit("已加入记忆")
+        }
+    }
+
+    fun favoriteMessage(messageId: String) {
+        viewModelScope.launch {
+            val realId = ReplySegmenter.sourceMessageId(messageId)
+            val message = _uiState.value.messages.find { it.id == realId }
+                ?: _uiState.value.displayedMessages.find { it.id == messageId }
+            if (message == null || message.content.isBlank()) {
+                _events.emit("无法收藏空消息")
+                return@launch
+            }
+            _events.emit("已收藏")
+        }
+    }
+
     fun onUserFlyInFinished(messageId: String) {
         _uiState.update {
             if (it.animatingUserMessageId == messageId) {
@@ -507,6 +544,9 @@ class ChatViewModel @Inject constructor(
                 userNickname = chatSettings.userNickname,
                 recentMessages = historyForApi,
                 careContext = careContext,
+                userInterest = chatSettings.userInterest,
+                userOccupation = chatSettings.userOccupation,
+                userGoal = chatSettings.userGoal,
             )
             val requestMessages = buildList {
                 if (systemPrompt.isNotEmpty()) {
