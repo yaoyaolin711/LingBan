@@ -3,13 +3,17 @@ package com.agent.chat.ui.persona
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agent.chat.data.memory.MemorySettingsStore
+import com.agent.chat.data.persona.CharacterCardImporter
 import com.agent.chat.data.persona.ParsedPersonaDraft
 import com.agent.chat.data.persona.PersonaSmartImportException
 import com.agent.chat.data.persona.PersonaSmartImporter
 import com.agent.chat.data.repository.MemoryRepository
 import com.agent.chat.data.repository.PersonaRepository
+import com.agent.chat.domain.model.LorebookEntry
 import com.agent.chat.domain.model.Memory
+import com.agent.chat.domain.model.OutputRegex
 import com.agent.chat.domain.model.Persona
+import com.agent.chat.domain.model.PresetMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -26,17 +30,20 @@ data class PersonaListUiState(
     val personas: List<Persona> = emptyList(),
     val editingPersona: Persona? = null,
     val isEditorOpen: Boolean = false,
+    val editorTab: PersonaEditorTab = PersonaEditorTab.BASIC,
     val editorName: String = "",
     val editorAvatar: String = "",
     val editorSystemPrompt: String = "",
     val editorTemperature: String = "0.7",
     val editorDescription: String = "",
     val editorOpeningLine: String = "",
+    val editorPresets: List<PresetMessage> = emptyList(),
+    val editorLorebook: List<LorebookEntry> = emptyList(),
+    val editorRegexes: List<OutputRegex> = emptyList(),
     val statusMessage: String? = null,
     val memoryPersona: Persona? = null,
     val memories: List<Memory> = emptyList(),
     val extractThreshold: Int = MemorySettingsStore.DEFAULT_THRESHOLD,
-    /** 新建方式选择：手动 / 智能导入 */
     val showCreateChooser: Boolean = false,
     val showSmartImport: Boolean = false,
     val smartImportText: String = "",
@@ -49,6 +56,7 @@ class PersonaListViewModel @Inject constructor(
     private val memoryRepository: MemoryRepository,
     private val memorySettingsStore: MemorySettingsStore,
     private val personaSmartImporter: PersonaSmartImporter,
+    private val characterCardImporter: CharacterCardImporter,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PersonaListUiState())
@@ -94,12 +102,16 @@ class PersonaListViewModel @Inject constructor(
                 showSmartImport = false,
                 isEditorOpen = true,
                 editingPersona = null,
+                editorTab = PersonaEditorTab.BASIC,
                 editorName = "",
                 editorAvatar = "",
                 editorSystemPrompt = "",
                 editorTemperature = "0.7",
                 editorDescription = "",
                 editorOpeningLine = "",
+                editorPresets = emptyList(),
+                editorLorebook = emptyList(),
+                editorRegexes = emptyList(),
                 statusMessage = null,
             )
         }
@@ -146,8 +158,16 @@ class PersonaListViewModel @Inject constructor(
         parseJob = viewModelScope.launch {
             _uiState.update { it.copy(isSmartImportParsing = true) }
             try {
-                val draft = personaSmartImporter.parse(text)
-                applyDraftToEditor(draft)
+                // 若粘贴的是角色卡 JSON，优先直接解析，不走 AI
+                if (text.startsWith("{") &&
+                    (text.contains("\"spec\"") || text.contains("\"first_mes\"") || text.contains("\"mes_example\""))
+                ) {
+                    val draft = characterCardImporter.importFromJsonText(text)
+                    applyDraftToEditor(draft, fromCard = true)
+                } else {
+                    val draft = personaSmartImporter.parse(text)
+                    applyDraftToEditor(draft, fromCard = false)
+                }
             } catch (e: PersonaSmartImportException) {
                 _uiState.update {
                     it.copy(
@@ -173,21 +193,43 @@ class PersonaListViewModel @Inject constructor(
         }
     }
 
-    private fun applyDraftToEditor(draft: ParsedPersonaDraft) {
+    fun importCharacterCard(bytes: ByteArray, mimeHint: String? = null) {
+        viewModelScope.launch {
+            try {
+                val draft = characterCardImporter.import(bytes, mimeHint)
+                applyDraftToEditor(draft, fromCard = true)
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(statusMessage = "角色卡导入失败：${e.message ?: "未知错误"}")
+                }
+            }
+        }
+    }
+
+    private fun applyDraftToEditor(draft: ParsedPersonaDraft, fromCard: Boolean) {
         _uiState.update {
             it.copy(
+                showCreateChooser = false,
                 showSmartImport = false,
                 isSmartImportParsing = false,
                 smartImportText = "",
                 isEditorOpen = true,
                 editingPersona = null,
+                editorTab = if (fromCard && draft.presetMessages.isNotEmpty()) {
+                    PersonaEditorTab.PRESET
+                } else {
+                    PersonaEditorTab.BASIC
+                },
                 editorName = draft.name,
                 editorAvatar = DEFAULT_AVATAR_PLACEHOLDER,
                 editorSystemPrompt = draft.systemPrompt,
-                editorTemperature = "0.7",
+                editorTemperature = "0.85",
                 editorDescription = draft.description,
                 editorOpeningLine = draft.openingLine,
-                statusMessage = "已解析，请确认后保存",
+                editorPresets = draft.presetMessages,
+                editorLorebook = draft.lorebookEntries,
+                editorRegexes = emptyList(),
+                statusMessage = if (fromCard) "已导入角色卡，请确认后保存" else "已解析，请确认后保存",
             )
         }
     }
@@ -197,12 +239,16 @@ class PersonaListViewModel @Inject constructor(
             it.copy(
                 isEditorOpen = true,
                 editingPersona = persona,
+                editorTab = PersonaEditorTab.BASIC,
                 editorName = persona.name,
                 editorAvatar = persona.avatar,
                 editorSystemPrompt = persona.systemPrompt,
                 editorTemperature = persona.defaultTemperature.toString(),
                 editorDescription = persona.description,
                 editorOpeningLine = persona.openingLine,
+                editorPresets = persona.presetMessages,
+                editorLorebook = persona.lorebookEntries,
+                editorRegexes = persona.outputRegexes,
                 statusMessage = null,
                 showCreateChooser = false,
                 showSmartImport = false,
@@ -216,6 +262,10 @@ class PersonaListViewModel @Inject constructor(
                 isEditorOpen = false,
                 editingPersona = null,
                 editorOpeningLine = "",
+                editorPresets = emptyList(),
+                editorLorebook = emptyList(),
+                editorRegexes = emptyList(),
+                editorTab = PersonaEditorTab.BASIC,
             )
         }
     }
@@ -243,6 +293,7 @@ class PersonaListViewModel @Inject constructor(
         }
     }
 
+    fun onEditorTabChange(tab: PersonaEditorTab) = _uiState.update { it.copy(editorTab = tab) }
     fun onEditorNameChange(value: String) = _uiState.update { it.copy(editorName = value) }
     fun onEditorAvatarChange(value: String) = _uiState.update { it.copy(editorAvatar = value) }
     fun onEditorSystemPromptChange(value: String) =
@@ -257,6 +308,15 @@ class PersonaListViewModel @Inject constructor(
     fun onEditorOpeningLineChange(value: String) =
         _uiState.update { it.copy(editorOpeningLine = value) }
 
+    fun onEditorPresetsChange(value: List<PresetMessage>) =
+        _uiState.update { it.copy(editorPresets = value) }
+
+    fun onEditorLorebookChange(value: List<LorebookEntry>) =
+        _uiState.update { it.copy(editorLorebook = value) }
+
+    fun onEditorRegexesChange(value: List<OutputRegex>) =
+        _uiState.update { it.copy(editorRegexes = value) }
+
     fun saveEditor() {
         val state = _uiState.value
         val name = state.editorName.trim()
@@ -266,6 +326,20 @@ class PersonaListViewModel @Inject constructor(
             return
         }
         val temperature = state.editorTemperature.toFloatOrNull()?.coerceIn(0f, 2f) ?: 0.7f
+        val presets = state.editorPresets.mapNotNull { p ->
+            val content = p.content.trim()
+            if (content.isEmpty()) null else p.copy(content = content)
+        }
+        val lore = state.editorLorebook.mapNotNull { e ->
+            val content = e.content.trim()
+            if (content.isEmpty() || e.keys.isEmpty()) null
+            else e.copy(content = content, keys = e.keys.map { it.trim() }.filter { it.isNotEmpty() })
+        }
+        val regexes = state.editorRegexes.mapNotNull { r ->
+            val pattern = r.pattern.trim()
+            if (pattern.isEmpty()) null
+            else r.copy(pattern = pattern, replacement = r.replacement)
+        }
 
         viewModelScope.launch {
             val editing = state.editingPersona
@@ -277,6 +351,9 @@ class PersonaListViewModel @Inject constructor(
                     defaultTemperature = temperature,
                     description = state.editorDescription,
                     openingLine = state.editorOpeningLine,
+                    presetMessages = presets,
+                    lorebookEntries = lore,
+                    outputRegexes = regexes,
                 )
             } else {
                 personaRepository.updatePersona(
@@ -287,6 +364,9 @@ class PersonaListViewModel @Inject constructor(
                         defaultTemperature = temperature,
                         description = state.editorDescription,
                         openingLine = state.editorOpeningLine,
+                        presetMessages = presets,
+                        lorebookEntries = lore,
+                        outputRegexes = regexes,
                     ),
                 )
             }
@@ -295,6 +375,9 @@ class PersonaListViewModel @Inject constructor(
                     isEditorOpen = false,
                     editingPersona = null,
                     editorOpeningLine = "",
+                    editorPresets = emptyList(),
+                    editorLorebook = emptyList(),
+                    editorRegexes = emptyList(),
                     statusMessage = "已保存",
                 )
             }
@@ -323,6 +406,16 @@ class PersonaListViewModel @Inject constructor(
     fun importPersonas(json: String) {
         viewModelScope.launch {
             try {
+                // 单张角色卡 JSON 也允许从「导入」入口进来
+                val trimmed = json.trim()
+                if (trimmed.startsWith("{") &&
+                    !trimmed.contains("\"personas\"") &&
+                    (trimmed.contains("\"spec\"") || trimmed.contains("\"first_mes\""))
+                ) {
+                    val draft = characterCardImporter.importFromJsonText(trimmed)
+                    applyDraftToEditor(draft, fromCard = true)
+                    return@launch
+                }
                 val count = personaRepository.importFromJson(json)
                 _uiState.update { it.copy(statusMessage = "已导入 $count 个人设") }
             } catch (e: Exception) {

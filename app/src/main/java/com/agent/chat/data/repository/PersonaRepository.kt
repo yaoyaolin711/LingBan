@@ -3,7 +3,11 @@ package com.agent.chat.data.repository
 import com.agent.chat.data.local.dao.PersonaDao
 import com.agent.chat.data.local.mapper.toDomain
 import com.agent.chat.data.local.mapper.toEntity
+import com.agent.chat.data.persona.PersonaExtrasCodec
+import com.agent.chat.domain.model.LorebookEntry
+import com.agent.chat.domain.model.OutputRegex
 import com.agent.chat.domain.model.Persona
+import com.agent.chat.domain.model.PresetMessage
 import com.squareup.moshi.Moshi
 import java.util.UUID
 import javax.inject.Inject
@@ -14,19 +18,20 @@ import kotlinx.coroutines.flow.map
 @Singleton
 class PersonaRepository @Inject constructor(
     private val personaDao: PersonaDao,
+    private val extrasCodec: PersonaExtrasCodec,
     moshi: Moshi,
 ) {
 
     private val exportAdapter = moshi.adapter(PersonaExportPayload::class.java)
 
     fun observePersonas(): Flow<List<Persona>> =
-        personaDao.observeAll().map { list -> list.map { it.toDomain() } }
+        personaDao.observeAll().map { list -> list.map { it.toDomain(extrasCodec) } }
 
     suspend fun getPersona(id: String): Persona? =
-        personaDao.getById(id)?.toDomain()
+        personaDao.getById(id)?.toDomain(extrasCodec)
 
     suspend fun savePersona(persona: Persona) {
-        personaDao.upsert(persona.toEntity())
+        personaDao.upsert(persona.toEntity(extrasCodec))
     }
 
     suspend fun createPersona(
@@ -36,6 +41,9 @@ class PersonaRepository @Inject constructor(
         defaultTemperature: Float = 0.7f,
         description: String = "",
         openingLine: String = "",
+        presetMessages: List<PresetMessage> = emptyList(),
+        lorebookEntries: List<LorebookEntry> = emptyList(),
+        outputRegexes: List<OutputRegex> = emptyList(),
     ): Persona {
         val persona = Persona(
             id = "persona_${UUID.randomUUID().toString().take(8)}",
@@ -45,8 +53,11 @@ class PersonaRepository @Inject constructor(
             defaultTemperature = defaultTemperature.coerceIn(0f, 2f),
             description = description.trim(),
             openingLine = openingLine.trim(),
+            presetMessages = presetMessages,
+            lorebookEntries = lorebookEntries,
+            outputRegexes = outputRegexes,
         )
-        personaDao.upsert(persona.toEntity())
+        personaDao.upsert(persona.toEntity(extrasCodec))
         return persona
     }
 
@@ -59,7 +70,7 @@ class PersonaRepository @Inject constructor(
                 defaultTemperature = persona.defaultTemperature.coerceIn(0f, 2f),
                 description = persona.description.trim(),
                 openingLine = persona.openingLine.trim(),
-            ).toEntity(),
+            ).toEntity(extrasCodec),
         )
     }
 
@@ -69,14 +80,18 @@ class PersonaRepository @Inject constructor(
 
     suspend fun exportToJson(): String {
         val items = personaDao.getAll().map {
+            val persona = it.toDomain(extrasCodec)
             PersonaExportItem(
-                id = it.id,
-                name = it.name,
-                avatar = it.avatar,
-                systemPrompt = it.systemPrompt,
-                defaultTemperature = it.defaultTemperature,
-                description = it.description,
-                openingLine = it.openingLine,
+                id = persona.id,
+                name = persona.name,
+                avatar = persona.avatar,
+                systemPrompt = persona.systemPrompt,
+                defaultTemperature = persona.defaultTemperature,
+                description = persona.description,
+                openingLine = persona.openingLine,
+                presetMessages = persona.presetMessages,
+                lorebookEntries = persona.lorebookEntries,
+                outputRegexes = persona.outputRegexes,
             )
         }
         return exportAdapter.indent("  ").toJson(PersonaExportPayload(personas = items))
@@ -99,7 +114,10 @@ class PersonaRepository @Inject constructor(
                 defaultTemperature = item.defaultTemperature.coerceIn(0f, 2f),
                 description = item.description.trim(),
                 openingLine = item.openingLine.trim(),
-            ).toEntity()
+                presetMessages = item.presetMessages,
+                lorebookEntries = item.lorebookEntries,
+                outputRegexes = item.outputRegexes,
+            ).toEntity(extrasCodec)
         }
         personaDao.upsertAll(entities)
         return entities.size

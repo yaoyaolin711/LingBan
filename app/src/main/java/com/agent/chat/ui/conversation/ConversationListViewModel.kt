@@ -34,7 +34,10 @@ data class ConversationListUiState(
     val showCreateDialog: Boolean = false,
     val selectedPersonaId: String? = null,
     val selectedProviderId: String? = null,
-)
+) {
+    fun personaOf(conversation: Conversation): Persona? =
+        conversation.personaId?.let { id -> personas.find { it.id == id } }
+}
 
 private data class CreateDialogState(
     val show: Boolean = false,

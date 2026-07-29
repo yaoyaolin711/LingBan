@@ -8,6 +8,8 @@ import com.agent.chat.data.provider.ModelConfig
 import com.agent.chat.data.repository.ProviderConfigRepository
 import com.agent.chat.domain.error.AppError
 import com.agent.chat.domain.error.userMessage
+import com.agent.chat.domain.model.LorebookEntry
+import com.agent.chat.domain.model.PresetMessage
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import javax.inject.Inject
@@ -18,6 +20,8 @@ data class ParsedPersonaDraft(
     val description: String,
     val systemPrompt: String,
     val openingLine: String,
+    val presetMessages: List<PresetMessage> = emptyList(),
+    val lorebookEntries: List<LorebookEntry> = emptyList(),
 )
 
 sealed class PersonaSmartImportException(message: String) : Exception(message) {

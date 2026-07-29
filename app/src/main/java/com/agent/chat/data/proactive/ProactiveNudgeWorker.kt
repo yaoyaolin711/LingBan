@@ -14,6 +14,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.agent.chat.MainActivity
 import com.agent.chat.data.ai.PromptContextInjector
+import com.agent.chat.data.care.CareContextBuilder
+import com.agent.chat.data.care.DayPeriod
+import com.agent.chat.data.care.CareHeuristics
 import com.agent.chat.data.provider.AIProvider
 import com.agent.chat.data.provider.ChatMessage
 import com.agent.chat.data.repository.ChatRepository
@@ -44,6 +47,7 @@ class ProactiveNudgeWorker(
         fun memoryRepository(): MemoryRepository
         fun providerConfigRepository(): ProviderConfigRepository
         fun aiProvider(): AIProvider
+        fun careContextBuilder(): CareContextBuilder
     }
 
     override suspend fun doWork(): Result {
@@ -51,14 +55,41 @@ class ProactiveNudgeWorker(
         val settings = deps.chatSettingsStore().get()
         if (!settings.proactiveEnabled) return Result.success()
 
+        val now = System.currentTimeMillis()
+        // 主动消息冷却：至少间隔 3 小时，避免刷屏
+        if (settings.lastProactiveNudgeAt > 0L &&
+            now - settings.lastProactiveNudgeAt < TimeUnit.HOURS.toMillis(3)
+        ) {
+            return Result.success()
+        }
+
+        val (kind, scenarioHint) = deps.careContextBuilder().proactiveScenarioHint()
+        val period = CareHeuristics.dayPeriod(now)
         val idleMs = TimeUnit.HOURS.toMillis(settings.proactiveIdleHours.toLong())
-        val last = settings.lastUserActivityAt
-        if (last <= 0L || System.currentTimeMillis() - last < idleMs) {
+        val idleLongEnough = settings.lastUserActivityAt > 0L &&
+            now - settings.lastUserActivityAt >= idleMs
+
+        // 日程提醒可在未完全闲置时触发；时段问候仍要求闲置
+        val allowByScenario = when {
+            kind == "calendar" -> true
+            period == DayPeriod.LATE_NIGHT && idleLongEnough -> true
+            idleLongEnough -> true
+            else -> false
+        }
+        if (!allowByScenario) return Result.success()
+
+        // 同类型问候一天内不重复（日历除外）
+        if (kind != "calendar" &&
+            kind == settings.lastProactiveNudgeKind &&
+            settings.lastProactiveNudgeAt > 0L &&
+            now - settings.lastProactiveNudgeAt < TimeUnit.HOURS.toMillis(18)
+        ) {
             return Result.success()
         }
 
         val conversations = deps.chatRepository().observeConversations().first()
         val target = conversations.firstOrNull() ?: return Result.success()
+        val recent = deps.chatRepository().getMessages(target.id).takeLast(16)
         val persona = target.personaId?.let { deps.personaRepository().getPersona(it) }
         val memories = target.personaId
             ?.let { deps.memoryRepository().getForPrompt(it) }
@@ -68,6 +99,10 @@ class ProactiveNudgeWorker(
             ?: deps.providerConfigRepository().getDefaultConfig()
             ?: return Result.success()
 
+        val care = deps.careContextBuilder().build(
+            personaId = target.personaId,
+            recentMessages = recent,
+        )
         val system = buildString {
             append(
                 PromptContextInjector.buildSystemPrompt(
@@ -75,15 +110,13 @@ class ProactiveNudgeWorker(
                     memories = memories,
                     companionStyleEnabled = settings.companionStyleEnabled,
                     userNickname = settings.userNickname,
+                    recentMessages = recent,
+                    careContext = care,
                 ),
             )
             append("\n\n")
-            append(
-                """
-                【主动消息】用户已经有一段时间没说话了。请像朋友突然想起对方一样，发一句简短自然的关心或闲聊。
-                规则：不要提定时/提醒/系统；不要复述工具或数据来源；不要列表；一两句即可；一句一行。
-                """.trimIndent(),
-            )
+            append("【主动消息】$scenarioHint")
+            append("\n规则：不要提定时/系统/推送；不要列表；一两句即可；一句一行；像真人突然想起对方。")
         }
         val config = deps.providerConfigRepository().toModelConfig(
             provider,
@@ -99,7 +132,6 @@ class ProactiveNudgeWorker(
             ).collect { append(it) }
         }.trim().ifBlank { return Result.success() }
 
-        val now = System.currentTimeMillis()
         val msg = Message(
             id = "assistant_nudge_$now",
             conversationId = target.id,
@@ -110,8 +142,7 @@ class ProactiveNudgeWorker(
         deps.chatRepository().ensureConversationExists(target.id)
         deps.chatRepository().saveMessage(msg)
         deps.chatRepository().touchConversation(target.id)
-        // 避免连续轰炸：刷新活动时间
-        deps.chatSettingsStore().touchLastUserActivity()
+        deps.chatSettingsStore().markProactiveNudge(kind)
 
         showNotification(applicationContext, target.id, persona?.name ?: "伙伴", text)
         return Result.success()

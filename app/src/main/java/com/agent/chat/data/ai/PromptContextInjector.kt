@@ -4,6 +4,8 @@ import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.Message
 import com.agent.chat.domain.model.MessageRole
 import com.agent.chat.domain.model.Persona
+import com.agent.chat.domain.model.PresetMessage
+import com.agent.chat.data.provider.ChatMessage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -22,6 +24,10 @@ object CompanionStylePrompt {
 }
 
 object PromptContextInjector {
+
+    /** 扫描近期消息时最多取多少条 */
+    private const val LOREBOOK_SCAN_LIMIT = 12
+    private const val LOREBOOK_MAX_ENTRIES = 8
 
     fun applyPlaceholders(
         text: String,
@@ -47,6 +53,8 @@ object PromptContextInjector {
         memories: List<Memory>,
         companionStyleEnabled: Boolean,
         userNickname: String,
+        recentMessages: List<Message> = emptyList(),
+        careContext: String = "",
     ): String {
         val parts = mutableListOf<String>()
         val base = persona?.systemPrompt.orEmpty().trim()
@@ -56,8 +64,26 @@ object PromptContextInjector {
         if (companionStyleEnabled) {
             parts.add(CompanionStylePrompt.DEFAULT)
         }
-        val now = SimpleDateFormat("yyyy-MM-dd HH:mm E", Locale.getDefault()).format(Date())
-        parts.add("【当前时间】$now")
+        if (careContext.isNotBlank()) {
+            parts.add(careContext.trim())
+        } else {
+            val now = SimpleDateFormat("yyyy-MM-dd HH:mm E", Locale.getDefault()).format(Date())
+            parts.add("【当前时间】$now")
+        }
+
+        val lore = matchLorebook(persona, recentMessages, userNickname)
+        if (lore.isNotEmpty()) {
+            parts.add(
+                buildString {
+                    append("【相关设定】（由对话关键词触发，请自然融入，勿生硬宣读）")
+                    lore.forEach { entry ->
+                        append("\n- ")
+                        append(entry)
+                    }
+                },
+            )
+        }
+
         if (memories.isNotEmpty()) {
             val block = buildString {
                 append("【长期记忆】以下是你记住的关于用户的重要信息（可引用但勿整段朗读）：")
@@ -68,6 +94,57 @@ object PromptContextInjector {
             parts.add(block)
         }
         return parts.joinToString("\n\n").trim()
+    }
+
+    /**
+     * 将预设示范对话转为 API 消息（占位符已替换）。
+     */
+    fun buildPresetChatMessages(
+        persona: Persona?,
+        userNickname: String,
+    ): List<ChatMessage> {
+        if (persona == null) return emptyList()
+        return persona.presetMessages.mapNotNull { preset ->
+            val content = applyPlaceholders(preset.content.trim(), persona, userNickname)
+            if (content.isEmpty()) return@mapNotNull null
+            when (preset.role.lowercase(Locale.ROOT)) {
+                PresetMessage.ROLE_ASSISTANT, "assistant", "char", "bot" ->
+                    ChatMessage.assistant(content)
+                else -> ChatMessage.user(content)
+            }
+        }
+    }
+
+    fun matchLorebook(
+        persona: Persona?,
+        recentMessages: List<Message>,
+        userNickname: String,
+    ): List<String> {
+        val entries = persona?.lorebookEntries.orEmpty().filter { it.enabled && it.content.isNotBlank() }
+        if (entries.isEmpty()) return emptyList()
+
+        val haystack = recentMessages
+            .takeLast(LOREBOOK_SCAN_LIMIT)
+            .joinToString("\n") { it.content }
+        if (haystack.isBlank()) return emptyList()
+
+        val matched = mutableListOf<String>()
+        for (entry in entries) {
+            if (matched.size >= LOREBOOK_MAX_ENTRIES) break
+            val keys = entry.keys.map { it.trim() }.filter { it.isNotEmpty() }
+            if (keys.isEmpty()) continue
+            val hit = keys.any { key ->
+                if (entry.caseSensitive) {
+                    haystack.contains(key)
+                } else {
+                    haystack.contains(key, ignoreCase = true)
+                }
+            }
+            if (hit) {
+                matched.add(applyPlaceholders(entry.content.trim(), persona, userNickname))
+            }
+        }
+        return matched
     }
 
     /**

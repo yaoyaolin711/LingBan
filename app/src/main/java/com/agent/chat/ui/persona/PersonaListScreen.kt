@@ -1,9 +1,11 @@
 package com.agent.chat.ui.persona
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContactPage
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
@@ -56,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,6 +67,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agent.chat.domain.model.Persona
 import com.agent.chat.ui.components.PersonaAvatar
 import com.agent.chat.ui.memory.MemoryManageDialog
+import com.agent.chat.ui.theme.OutlineSubtle
+import com.agent.chat.ui.theme.SurfaceCard
 import java.nio.charset.Charset
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,10 +100,17 @@ fun PersonaListScreen(
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         runCatching {
-            val json = context.contentResolver.openInputStream(uri)?.use { input ->
-                input.readBytes().toString(Charset.forName("UTF-8"))
-            }.orEmpty()
-            viewModel.importPersonas(json)
+            val mime = context.contentResolver.getType(uri)
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: ByteArray(0)
+            if (mime?.contains("png", ignoreCase = true) == true ||
+                uri.toString().endsWith(".png", ignoreCase = true)
+            ) {
+                viewModel.importCharacterCard(bytes, mime)
+            } else {
+                val json = bytes.toString(Charset.forName("UTF-8"))
+                viewModel.importPersonas(json)
+            }
         }.onFailure { error ->
             viewModel.reportMessage("导入失败：${error.message ?: "无法读取文件"}")
         }
@@ -116,13 +129,65 @@ fun PersonaListScreen(
         viewModel.consumeStatusMessage()
     }
 
+    if (uiState.isEditorOpen) {
+        BackHandler(onBack = viewModel::closeEditor)
+        PersonaEditorScreen(
+            isEditing = uiState.editingPersona != null,
+            tab = uiState.editorTab,
+            name = uiState.editorName,
+            avatar = uiState.editorAvatar,
+            systemPrompt = uiState.editorSystemPrompt,
+            temperature = uiState.editorTemperature,
+            description = uiState.editorDescription,
+            openingLine = uiState.editorOpeningLine,
+            presets = uiState.editorPresets,
+            lorebook = uiState.editorLorebook,
+            regexes = uiState.editorRegexes,
+            onTabChange = viewModel::onEditorTabChange,
+            onNameChange = viewModel::onEditorNameChange,
+            onAvatarChange = viewModel::onEditorAvatarChange,
+            onSystemPromptChange = viewModel::onEditorSystemPromptChange,
+            onTemperatureChange = viewModel::onEditorTemperatureChange,
+            onDescriptionChange = viewModel::onEditorDescriptionChange,
+            onOpeningLineChange = viewModel::onEditorOpeningLineChange,
+            onPresetsChange = viewModel::onEditorPresetsChange,
+            onLorebookChange = viewModel::onEditorLorebookChange,
+            onRegexesChange = viewModel::onEditorRegexesChange,
+            onDismiss = viewModel::closeEditor,
+            onConfirm = viewModel::saveEditor,
+            onManageMemory = uiState.editingPersona?.let { persona ->
+                {
+                    viewModel.closeEditor()
+                    viewModel.openMemoryManager(persona)
+                }
+            },
+        )
+        uiState.memoryPersona?.let { persona ->
+            MemoryManageDialog(
+                memories = uiState.memories,
+                personaName = persona.name,
+                onDismiss = viewModel::dismissMemoryManager,
+                onDelete = viewModel::deleteMemory,
+                extractThreshold = uiState.extractThreshold,
+            )
+        }
+        return
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
-                    Text("人设", style = MaterialTheme.typography.titleLarge)
+                    Column {
+                        Text("人设", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "自由文本 + 预设 / 世界书 / 正则",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
@@ -134,7 +199,14 @@ fun PersonaListScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        importLauncher.launch(arrayOf("application/json", "text/*"))
+                        importLauncher.launch(
+                            arrayOf(
+                                "application/json",
+                                "text/*",
+                                "image/png",
+                                "image/*",
+                            ),
+                        )
                     }) {
                         Icon(
                             imageVector = Icons.Default.FileUpload,
@@ -171,19 +243,26 @@ fun PersonaListScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "还没有人设，点右下角创建",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "还没有人设",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "点右下角创建，或导入 SillyTavern 角色卡",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(uiState.personas, key = { it.id }) { persona ->
                     PersonaListItem(
@@ -193,6 +272,7 @@ fun PersonaListScreen(
                         onDelete = { viewModel.deletePersona(persona.id) },
                     )
                 }
+                item { Spacer(modifier = Modifier.height(72.dp)) }
             }
         }
     }
@@ -202,6 +282,12 @@ fun PersonaListScreen(
             onDismiss = viewModel::dismissCreateChooser,
             onManual = viewModel::openCreateEditor,
             onSmartImport = viewModel::openSmartImport,
+            onImportCard = {
+                viewModel.dismissCreateChooser()
+                importLauncher.launch(
+                    arrayOf("application/json", "text/*", "image/png", "image/*"),
+                )
+            },
         )
     }
 
@@ -212,32 +298,6 @@ fun PersonaListScreen(
             onTextChange = viewModel::onSmartImportTextChange,
             onParse = viewModel::parseSmartImport,
             onDismiss = viewModel::dismissSmartImport,
-        )
-    }
-
-    if (uiState.isEditorOpen) {
-        PersonaEditorDialog(
-            isEditing = uiState.editingPersona != null,
-            name = uiState.editorName,
-            avatar = uiState.editorAvatar,
-            systemPrompt = uiState.editorSystemPrompt,
-            temperature = uiState.editorTemperature,
-            description = uiState.editorDescription,
-            openingLine = uiState.editorOpeningLine,
-            onNameChange = viewModel::onEditorNameChange,
-            onAvatarChange = viewModel::onEditorAvatarChange,
-            onSystemPromptChange = viewModel::onEditorSystemPromptChange,
-            onTemperatureChange = viewModel::onEditorTemperatureChange,
-            onDescriptionChange = viewModel::onEditorDescriptionChange,
-            onOpeningLineChange = viewModel::onEditorOpeningLineChange,
-            onDismiss = viewModel::closeEditor,
-            onConfirm = viewModel::saveEditor,
-            onManageMemory = uiState.editingPersona?.let { persona ->
-                {
-                    viewModel.closeEditor()
-                    viewModel.openMemoryManager(persona)
-                }
-            },
         )
     }
 
@@ -257,33 +317,36 @@ private fun CreatePersonaChooserDialog(
     onDismiss: () -> Unit,
     onManual: () -> Unit,
     onSmartImport: () -> Unit,
+    onImportCard: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("新建人设") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = "选择创建方式",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(
+                ChooserAction(
+                    icon = Icons.Default.Edit,
+                    title = "手动创建",
+                    subtitle = "自己写 Prompt / 预设 / 世界书",
                     onClick = onManual,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("手动创建")
-                }
-                TextButton(
+                )
+                ChooserAction(
+                    icon = Icons.Default.AutoAwesome,
+                    title = "智能导入",
+                    subtitle = "粘贴设定文字，AI 帮你整理",
                     onClick = onSmartImport,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("智能导入")
-                }
+                )
+                ChooserAction(
+                    icon = Icons.Default.ContactPage,
+                    title = "导入角色卡",
+                    subtitle = "SillyTavern JSON / PNG",
+                    onClick = onImportCard,
+                )
             }
         },
         confirmButton = {},
@@ -291,6 +354,34 @@ private fun CreatePersonaChooserDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
+}
+
+@Composable
+private fun ChooserAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable
@@ -312,7 +403,7 @@ private fun SmartImportDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = "粘贴角色设定后，AI 会整理成可编辑的人设字段，确认后再保存。",
+                    text = "粘贴角色设定或 SillyTavern JSON；普通文字会由 AI 整理成可编辑字段。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -324,9 +415,7 @@ private fun SmartImportDialog(
                         .height(220.dp),
                     enabled = !isParsing,
                     placeholder = {
-                        Text(
-                            "粘贴任何人设描述文字，比如角色的性格、说话方式、背景故事，AI会自动帮你整理",
-                        )
+                        Text("粘贴人设描述或角色卡 JSON…")
                     },
                 )
                 if (isParsing) {
@@ -369,146 +458,75 @@ private fun PersonaListItem(
     onManageMemory: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
+    val badgeParts = buildList {
+        if (persona.presetMessages.isNotEmpty()) add("预设 ${persona.presetMessages.size}")
+        if (persona.lorebookEntries.isNotEmpty()) add("世界书 ${persona.lorebookEntries.size}")
+        if (persona.outputRegexes.isNotEmpty()) add("正则 ${persona.outputRegexes.size}")
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(RoundedCornerShape(18.dp))
+            .background(SurfaceCard)
+            .border(1.dp, OutlineSubtle, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        PersonaAvatar(
-            name = persona.name,
-            avatar = persona.avatar,
-            size = 44.dp,
-        )
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = persona.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PersonaAvatar(
+                name = persona.name,
+                avatar = persona.avatar,
+                size = 48.dp,
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = persona.description.ifBlank { persona.systemPrompt },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        IconButton(onClick = onManageMemory) {
-            Icon(
-                imageVector = Icons.Default.Psychology,
-                contentDescription = "记忆管理",
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "删除",
-                tint = MaterialTheme.colorScheme.error,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PersonaEditorDialog(
-    isEditing: Boolean,
-    name: String,
-    avatar: String,
-    systemPrompt: String,
-    temperature: String,
-    description: String,
-    openingLine: String,
-    onNameChange: (String) -> Unit,
-    onAvatarChange: (String) -> Unit,
-    onSystemPromptChange: (String) -> Unit,
-    onTemperatureChange: (String) -> Unit,
-    onDescriptionChange: (String) -> Unit,
-    onOpeningLineChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-    onManageMemory: (() -> Unit)? = null,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "编辑人设" else "确认人设") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = onNameChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("名称") },
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = persona.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                OutlinedTextField(
-                    value = avatar,
-                    onValueChange = onAvatarChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("头像（emoji 或短字符）") },
-                    supportingText = {
-                        Text("文本导入默认用占位头像，可自行修改")
-                    },
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = onDescriptionChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("描述") },
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = persona.description.ifBlank { persona.systemPrompt },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                OutlinedTextField(
-                    value = openingLine,
-                    onValueChange = onOpeningLineChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("开场白") },
-                    maxLines = 2,
+            }
+            IconButton(onClick = onManageMemory) {
+                Icon(
+                    imageVector = Icons.Default.Psychology,
+                    contentDescription = "记忆管理",
+                    tint = MaterialTheme.colorScheme.primary,
                 )
-                OutlinedTextField(
-                    value = temperature,
-                    onValueChange = onTemperatureChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Temperature (0~2)") },
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "删除",
+                    tint = MaterialTheme.colorScheme.error,
                 )
-                OutlinedTextField(
-                    value = systemPrompt,
-                    onValueChange = onSystemPromptChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("System Prompt") },
-                    minLines = 4,
-                    maxLines = 8,
-                )
-                if (onManageMemory != null) {
-                    TextButton(onClick = onManageMemory) {
-                        Icon(
-                            imageVector = Icons.Default.Psychology,
-                            contentDescription = null,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("记忆管理")
-                    }
+            }
+        }
+        if (badgeParts.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                badgeParts.forEach { label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text("保存") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
+        }
+    }
 }

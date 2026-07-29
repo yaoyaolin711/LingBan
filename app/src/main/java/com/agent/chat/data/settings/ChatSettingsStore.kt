@@ -57,6 +57,14 @@ class ChatSettingsStore @Inject constructor(
         _snapshot.value = read()
     }
 
+    fun markProactiveNudge(kind: String) {
+        prefs.edit()
+            .putLong(KEY_LAST_NUDGE_AT, System.currentTimeMillis())
+            .putString(KEY_LAST_NUDGE_KIND, kind)
+            .apply()
+        _snapshot.value = read()
+    }
+
     private fun read(): ChatSettings = ChatSettings(
         naturalChatPaceEnabled = prefs.getBoolean(KEY_NATURAL_CHAT_PACE, true),
         companionStyleEnabled = prefs.getBoolean(KEY_COMPANION_STYLE, true),
@@ -65,6 +73,8 @@ class ChatSettingsStore @Inject constructor(
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE, false),
         proactiveIdleHours = prefs.getInt(KEY_PROACTIVE_IDLE_HOURS, 6).coerceIn(1, 72),
         lastUserActivityAt = prefs.getLong(KEY_LAST_ACTIVITY, 0L),
+        lastProactiveNudgeAt = prefs.getLong(KEY_LAST_NUDGE_AT, 0L),
+        lastProactiveNudgeKind = prefs.getString(KEY_LAST_NUDGE_KIND, "").orEmpty(),
     )
 
     companion object {
@@ -76,6 +86,8 @@ class ChatSettingsStore @Inject constructor(
         private const val KEY_PROACTIVE = "proactive_enabled"
         private const val KEY_PROACTIVE_IDLE_HOURS = "proactive_idle_hours"
         private const val KEY_LAST_ACTIVITY = "last_user_activity"
+        private const val KEY_LAST_NUDGE_AT = "last_proactive_nudge_at"
+        private const val KEY_LAST_NUDGE_KIND = "last_proactive_nudge_kind"
     }
 }
 
@@ -90,4 +102,6 @@ data class ChatSettings(
     val proactiveEnabled: Boolean = false,
     val proactiveIdleHours: Int = 6,
     val lastUserActivityAt: Long = 0L,
+    val lastProactiveNudgeAt: Long = 0L,
+    val lastProactiveNudgeKind: String = "",
 )

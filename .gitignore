@@ -18,3 +18,5 @@ google-services.json
 *.log
 .cxx/
 .externalNativeBuild/
+/tools/icon_work/
+

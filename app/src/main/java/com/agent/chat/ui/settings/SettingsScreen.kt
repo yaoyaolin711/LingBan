@@ -303,15 +303,15 @@ private fun ChatDisplaySettingsSection(
         )
         Spacer(modifier = Modifier.height(10.dp))
         SettingsSwitchRow(
-            title = "闲置主动问候",
-            subtitle = "一段时间没聊时，可能发一句自然关心（通知点进会话）。",
+            title = "贴心主动关心",
+            subtitle = "按早晚/饭点/深夜与日历，在合适时机主动发一句关心（通知点进会话）。",
             checked = proactiveEnabled,
             onCheckedChange = onProactiveChange,
         )
         if (proactiveEnabled) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "闲置约 ${proactiveIdleHours} 小时后可能主动找你",
+                text = "基础闲置阈值约 ${proactiveIdleHours} 小时；日程临近时可更早轻轻提醒。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

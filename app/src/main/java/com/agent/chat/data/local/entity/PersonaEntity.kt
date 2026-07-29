@@ -12,4 +12,10 @@ data class PersonaEntity(
     val defaultTemperature: Float,
     val description: String,
     val openingLine: String = "",
+    /** JSON: List<PresetMessage> */
+    val presetMessagesJson: String = "[]",
+    /** JSON: List<LorebookEntry> */
+    val lorebookJson: String = "[]",
+    /** JSON: List<OutputRegex> */
+    val outputRegexesJson: String = "[]",
 )

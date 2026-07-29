@@ -21,7 +21,7 @@ import com.agent.chat.data.local.entity.ProviderConfigEntity
         ProviderConfigEntity::class,
         MemoryEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AgentChatDatabase : RoomDatabase() {

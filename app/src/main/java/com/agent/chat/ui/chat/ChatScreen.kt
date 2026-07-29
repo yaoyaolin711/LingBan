@@ -100,6 +100,7 @@ import com.agent.chat.ui.theme.BubbleAssistant
 import com.agent.chat.ui.theme.BubbleElevation
 import com.agent.chat.ui.theme.BubbleUser
 import com.agent.chat.ui.theme.CardElevation
+import com.agent.chat.ui.theme.OnlineGreen
 import com.agent.chat.ui.theme.OutlineSubtle
 import com.agent.chat.ui.theme.SurfaceCard
 import com.agent.chat.ui.theme.SurfaceMuted
@@ -109,9 +110,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Psychology
 
 private val SuggestedTopics = listOf(
-    "用三句话介绍你自己",
-    "今天想聊点轻松的",
-    "给我一个小建议",
+    "今天过得怎么样",
+    "陪我聊聊天",
+    "有点累了",
 )
 
 @Composable
@@ -353,6 +354,8 @@ fun ChatScreenContent(
                             } else if (message.content.isNotEmpty()) {
                                 AnimatedMessageBubble(
                                     message = message,
+                                    personaName = personaName,
+                                    personaAvatar = personaAvatar,
                                     enabled = !isBusy,
                                     onCopy = { onCopyMessage(message.content) },
                                     onRegenerate = { onRegenerate(message.id) },
@@ -510,7 +513,7 @@ private fun ChatTopBar(
             Text(
                 text = if (persona != null) "在线" else "自由对话",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = if (persona != null) OnlineGreen else TextSecondary,
             )
         }
         Box {
@@ -699,6 +702,8 @@ private fun SuggestionChip(
 @Composable
 private fun AnimatedMessageBubble(
     message: Message,
+    personaName: String,
+    personaAvatar: String,
     enabled: Boolean,
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
@@ -723,6 +728,8 @@ private fun AnimatedMessageBubble(
     ) {
         MessageBubble(
             message = message,
+            personaName = personaName,
+            personaAvatar = personaAvatar,
             enabled = enabled,
             onCopy = onCopy,
             onRegenerate = onRegenerate,
@@ -735,6 +742,8 @@ private fun AnimatedMessageBubble(
 @Composable
 private fun MessageBubble(
     message: Message,
+    personaName: String,
+    personaAvatar: String,
     enabled: Boolean,
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
@@ -746,17 +755,31 @@ private fun MessageBubble(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Top,
     ) {
+        if (!isUser) {
+            PersonaAvatar(
+                name = personaName,
+                avatar = personaAvatar,
+                size = 32.dp,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Box {
             Card(
                 modifier = Modifier
-                    .widthIn(max = 300.dp)
+                    .widthIn(max = 280.dp)
                     .combinedClickable(
                         enabled = enabled && message.content.isNotBlank(),
                         onClick = {},
                         onLongClick = { menuExpanded = true },
                     ),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(
+                    topStart = if (isUser) 18.dp else 4.dp,
+                    topEnd = if (isUser) 4.dp else 18.dp,
+                    bottomStart = 18.dp,
+                    bottomEnd = 18.dp,
+                ),
                 colors = CardDefaults.cardColors(
                     containerColor = if (isUser) BubbleUser else BubbleAssistant,
                 ),
@@ -764,7 +787,7 @@ private fun MessageBubble(
                     defaultElevation = if (isUser) 0.dp else BubbleElevation,
                 ),
             ) {
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                     if (isUser) {
                         Text(
                             text = message.content,

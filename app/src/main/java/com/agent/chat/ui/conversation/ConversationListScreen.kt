@@ -29,8 +29,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -59,11 +58,11 @@ import com.agent.chat.R
 import com.agent.chat.domain.model.Conversation
 import com.agent.chat.domain.model.Persona
 import com.agent.chat.domain.model.ProviderConfig
+import com.agent.chat.ui.components.PersonaAvatar
 import com.agent.chat.ui.components.PersonaPickerList
 import com.agent.chat.ui.theme.Accent
 import com.agent.chat.ui.theme.AgentChatTheme
 import com.agent.chat.ui.theme.AppBg
-import com.agent.chat.ui.theme.CardElevation
 import com.agent.chat.ui.theme.OutlineSubtle
 import com.agent.chat.ui.theme.SurfaceCard
 import com.agent.chat.ui.theme.SurfaceMuted
@@ -71,6 +70,7 @@ import com.agent.chat.ui.theme.SurfaceSelected
 import com.agent.chat.ui.theme.TextPrimary
 import com.agent.chat.ui.theme.TextSecondary
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -98,6 +98,7 @@ fun ConversationListScreen(
 
     ConversationListContent(
         conversations = uiState.conversations,
+        personas = uiState.personas,
         searchQuery = uiState.searchQuery,
         snackbarHostState = snackbarHostState,
         onConversationClick = onConversationClick,
@@ -124,6 +125,7 @@ fun ConversationListScreen(
 @Composable
 fun ConversationListContent(
     conversations: List<Conversation>,
+    personas: List<Persona> = emptyList(),
     searchQuery: String = "",
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onConversationClick: (String) -> Unit,
@@ -132,6 +134,7 @@ fun ConversationListContent(
     onSettingsClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
 ) {
+    val personaMap = remember(personas) { personas.associateBy { it.id } }
     Scaffold(
         containerColor = AppBg,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -139,8 +142,8 @@ fun ConversationListContent(
             Box(
                 modifier = Modifier
                     .navigationBarsPadding()
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(56.dp)
+                    .clip(CircleShape)
                     .background(Accent)
                     .clickable(onClick = onNewConversationClick),
                 contentAlignment = Alignment.Center,
@@ -156,18 +159,18 @@ fun ConversationListContent(
                 .padding(innerPadding)
                 .statusBarsPadding(),
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             HeaderBar(
                 onPersonaManageClick = onPersonaManageClick,
                 onSettingsClick = onSettingsClick,
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             SearchField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                modifier = Modifier.padding(horizontal = 24.dp),
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (conversations.isEmpty()) {
                 EmptyState(
@@ -178,24 +181,15 @@ fun ConversationListContent(
                         .fillMaxWidth(),
                 )
             } else {
-                Text(
-                    text = "${conversations.size} 个会话",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
-                )
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 24.dp,
-                        end = 24.dp,
-                        bottom = 100.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 100.dp),
                 ) {
                     items(conversations, key = { it.id }) { conversation ->
+                        val persona = conversation.personaId?.let { personaMap[it] }
                         ConversationItem(
                             conversation = conversation,
+                            persona = persona,
                             onClick = { onConversationClick(conversation.id) },
                         )
                     }
@@ -213,25 +207,27 @@ private fun HeaderBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
             painter = painterResource(id = R.drawable.brand_logo),
-            contentDescription = "Agent Chat",
-            modifier = Modifier.size(40.dp),
+            contentDescription = null,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp)),
             contentScale = ContentScale.Fit,
         )
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Agent Chat",
+                text = "灵伴",
                 style = MaterialTheme.typography.headlineMedium,
                 color = TextPrimary,
+                fontWeight = FontWeight.SemiBold,
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "安静地聊一会",
+                text = "在就好",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
             )
@@ -243,9 +239,9 @@ private fun HeaderBar(
                 .clip(CircleShape)
                 .background(SurfaceCard),
         ) {
-            Icon(Icons.Default.Person, contentDescription = "人设管理", tint = TextSecondary)
+            Icon(Icons.Default.Person, contentDescription = "人设管理", tint = Accent)
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         IconButton(
             onClick = onSettingsClick,
             modifier = Modifier
@@ -316,7 +312,7 @@ private fun EmptyState(
             text = if (isSearching) {
                 "换个关键词，或开始一段新对话"
             } else {
-                "选一个人设，找一个安静的角落聊起来"
+                "选一个陪伴对象，开始聊天"
             },
             style = MaterialTheme.typography.bodyLarge,
             color = TextSecondary,
@@ -446,66 +442,66 @@ private fun ProviderRow(
 @Composable
 private fun ConversationItem(
     conversation: Conversation,
+    persona: Persona?,
     onClick: () -> Unit,
 ) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = CardElevation),
+    val displayName = persona?.name?.takeIf { it.isNotBlank() } ?: conversation.title
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceMuted),
-                contentAlignment = Alignment.Center,
-            ) {
+        PersonaAvatar(
+            name = displayName,
+            avatar = persona?.avatar.orEmpty(),
+            size = 52.dp,
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = conversation.title.take(1).ifBlank { "A" },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
-                )
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = conversation.title,
+                    text = displayName,
                     style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = conversation.lastMessage.ifBlank { "还没有消息" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = formatRelativeTime(conversation.updatedAt),
+                    text = formatChatListTime(conversation.updatedAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                 )
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = conversation.lastMessage.ifBlank { "说点什么吧…" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
 
-private fun formatRelativeTime(timestamp: Long): String {
-    val formatter = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
-    return formatter.format(Date(timestamp))
+private fun formatChatListTime(timestamp: Long): String {
+    if (timestamp <= 0L) return ""
+    val nowCal = Calendar.getInstance()
+    val msgCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val sameDay = nowCal.get(Calendar.YEAR) == msgCal.get(Calendar.YEAR) &&
+        nowCal.get(Calendar.DAY_OF_YEAR) == msgCal.get(Calendar.DAY_OF_YEAR)
+    return if (sameDay) {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+    } else {
+        SimpleDateFormat("M/d", Locale.getDefault()).format(Date(timestamp))
+    }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFFEDEEF0)
+@Preview(showBackground = true, backgroundColor = 0xFFFFF7F1)
 @Composable
 private fun ConversationListScreenPreview() {
     AgentChatTheme {
@@ -513,10 +509,19 @@ private fun ConversationListScreenPreview() {
             conversations = listOf(
                 Conversation(
                     id = "1",
-                    title = "周末出行",
+                    title = "小橘的会话",
+                    personaId = "p1",
                     createdAt = 0L,
                     updatedAt = System.currentTimeMillis(),
-                    lastMessage = "帮我规划一下行程",
+                    lastMessage = "今天过得怎么样？",
+                ),
+            ),
+            personas = listOf(
+                Persona(
+                    id = "p1",
+                    name = "小橘",
+                    avatar = "🍊",
+                    systemPrompt = "test",
                 ),
             ),
             onConversationClick = {},

@@ -3,10 +3,12 @@ package com.agent.chat.ui.chat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agent.chat.data.ai.OutputRegexApplier
 import com.agent.chat.data.ai.PromptContextInjector
 import com.agent.chat.data.ai.ToolChatEvent
 import com.agent.chat.data.ai.ToolChatOrchestrator
 import com.agent.chat.data.ai.tool.ToolExecutionContext
+import com.agent.chat.data.care.CareContextBuilder
 import com.agent.chat.data.error.AppErrorLogger
 import com.agent.chat.data.error.AppErrorMapper
 import com.agent.chat.data.memory.MemoryExtractor
@@ -88,6 +90,7 @@ class ChatViewModel @Inject constructor(
     private val memoryExtractor: MemoryExtractor,
     private val memorySettingsStore: MemorySettingsStore,
     private val chatSettingsStore: ChatSettingsStore,
+    private val careContextBuilder: CareContextBuilder,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -493,16 +496,28 @@ class ChatViewModel @Inject constructor(
                 ?.let { memoryRepository.getForPrompt(it) }
                 .orEmpty()
             val chatSettings = chatSettingsStore.get()
+            val careContext = careContextBuilder.build(
+                personaId = activePersonaId,
+                recentMessages = historyForApi,
+            )
             val systemPrompt = PromptContextInjector.buildSystemPrompt(
                 persona = persona,
                 memories = memories,
                 companionStyleEnabled = chatSettings.companionStyleEnabled,
                 userNickname = chatSettings.userNickname,
+                recentMessages = historyForApi,
+                careContext = careContext,
             )
             val requestMessages = buildList {
                 if (systemPrompt.isNotEmpty()) {
                     add(ChatMessage.system(systemPrompt))
                 }
+                addAll(
+                    PromptContextInjector.buildPresetChatMessages(
+                        persona = persona,
+                        userNickname = chatSettings.userNickname,
+                    ),
+                )
                 val reminder = PromptContextInjector.timeReminderIfNeeded(historyForApi)
                 if (reminder != null) {
                     add(ChatMessage.user(reminder))
@@ -573,10 +588,13 @@ class ChatViewModel @Inject constructor(
                 }
             }
 
-            val finalContent = assistantContent.ifBlank { "（无回复）" }
+            val rawFinal = assistantContent.ifBlank { "（无回复）" }
+            val rewritten = OutputRegexApplier.apply(rawFinal, persona)
+            val finalContent = rewritten.persisted
+            val displayContent = rewritten.displayed
             chatRepository.updateMessageContent(assistantId, finalContent)
             chatRepository.touchConversation(conversationId)
-            updateCanonicalMessage(assistantId) { it.copy(content = finalContent) }
+            updateCanonicalMessage(assistantId) { it.copy(content = displayContent) }
             _uiState.update {
                 it.copy(failedMessageId = null, messageError = null, debugErrorDetail = null)
             }
@@ -584,7 +602,7 @@ class ChatViewModel @Inject constructor(
             if (paceEnabled) {
                 revealInNaturalPace(
                     assistantId = assistantId,
-                    fullContent = finalContent,
+                    fullContent = displayContent,
                     preferNewline = chatSettings.splitBubbleByNewline,
                 )
             } else {

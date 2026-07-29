@@ -128,7 +128,7 @@ object ConversationExporter {
         titleLayout.draw(canvas)
         canvas.restore()
         y += titleLayout.height + 16
-        canvas.drawText("Agent Chat 导出会话", padding.toFloat(), y + 24, metaPaint)
+        canvas.drawText("灵伴 导出会话", padding.toFloat(), y + 24, metaPaint)
         y += 48
 
         blocks.forEach { block ->

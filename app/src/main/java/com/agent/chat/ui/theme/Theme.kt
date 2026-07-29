@@ -13,6 +13,7 @@ private val ChatColorScheme = lightColorScheme(
     onPrimaryContainer = TextPrimary,
     secondary = TextSecondary,
     onSecondary = Color.White,
+    tertiary = AccentSoft,
     background = AppBg,
     onBackground = TextPrimary,
     surface = SurfaceCard,

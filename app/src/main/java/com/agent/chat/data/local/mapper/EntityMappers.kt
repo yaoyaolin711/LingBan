@@ -6,6 +6,7 @@ import com.agent.chat.data.local.entity.MemoryEntity
 import com.agent.chat.data.local.entity.MessageEntity
 import com.agent.chat.data.local.entity.PersonaEntity
 import com.agent.chat.data.local.entity.ProviderConfigEntity
+import com.agent.chat.data.persona.PersonaExtrasCodec
 import com.agent.chat.domain.model.Conversation
 import com.agent.chat.domain.model.Memory
 import com.agent.chat.domain.model.Message
@@ -80,7 +81,7 @@ fun Memory.toEntity(): MemoryEntity = MemoryEntity(
     importance = importance,
 )
 
-fun PersonaEntity.toDomain(): Persona = Persona(
+fun PersonaEntity.toDomain(codec: PersonaExtrasCodec): Persona = Persona(
     id = id,
     name = name,
     avatar = avatar,
@@ -88,9 +89,12 @@ fun PersonaEntity.toDomain(): Persona = Persona(
     defaultTemperature = defaultTemperature,
     description = description,
     openingLine = openingLine,
+    presetMessages = codec.decodePresets(presetMessagesJson),
+    lorebookEntries = codec.decodeLorebook(lorebookJson),
+    outputRegexes = codec.decodeRegexes(outputRegexesJson),
 )
 
-fun Persona.toEntity(): PersonaEntity = PersonaEntity(
+fun Persona.toEntity(codec: PersonaExtrasCodec): PersonaEntity = PersonaEntity(
     id = id,
     name = name,
     avatar = avatar,
@@ -98,6 +102,9 @@ fun Persona.toEntity(): PersonaEntity = PersonaEntity(
     defaultTemperature = defaultTemperature,
     description = description,
     openingLine = openingLine,
+    presetMessagesJson = codec.encodePresets(presetMessages),
+    lorebookJson = codec.encodeLorebook(lorebookEntries),
+    outputRegexesJson = codec.encodeRegexes(outputRegexes),
 )
 
 fun ProviderConfigEntity.toDomain(apiKey: String): ProviderConfig = ProviderConfig(
