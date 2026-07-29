@@ -13,6 +13,7 @@ import com.agent.chat.data.ai.tool.impl.ScreenContentTool
 import com.agent.chat.data.ai.tool.impl.ScreenStateTool
 import com.agent.chat.data.ai.tool.impl.SmsTool
 import com.agent.chat.data.ai.tool.impl.TimeTool
+import com.agent.chat.data.ai.tool.impl.WebSearchTool
 import com.agent.chat.data.provider.ChatToolDefinition
 import com.agent.chat.data.settings.ToolSettings
 import com.agent.chat.data.settings.ToolSettingsStore
@@ -35,6 +36,7 @@ class LocalToolRegistry @Inject constructor(
     private val smsTool: SmsTool,
     private val screenStateTool: ScreenStateTool,
     private val screenContentTool: ScreenContentTool,
+    private val webSearchTool: WebSearchTool,
 ) {
 
     fun enabledTools(settings: ToolSettings = toolSettingsStore.get()): List<AgentTool> {
@@ -52,6 +54,7 @@ class LocalToolRegistry @Inject constructor(
             if (settings.smsEnabled) add(smsTool)
             if (settings.screenStateEnabled) add(screenStateTool)
             if (settings.screenContentEnabled) add(screenContentTool)
+            if (settings.webSearchEnabled) add(webSearchTool)
         }
         return all
     }

@@ -34,6 +34,7 @@ class ToolSettingsStore @Inject constructor(
             .putBoolean(KEY_SMS, next.smsEnabled)
             .putBoolean(KEY_SCREEN_STATE, next.screenStateEnabled)
             .putBoolean(KEY_SCREEN_CONTENT, next.screenContentEnabled)
+            .putBoolean(KEY_WEB_SEARCH, next.webSearchEnabled)
             .apply()
         _snapshot.value = next
     }
@@ -52,6 +53,7 @@ class ToolSettingsStore @Inject constructor(
         smsEnabled = prefs.getBoolean(KEY_SMS, false),
         screenStateEnabled = prefs.getBoolean(KEY_SCREEN_STATE, false),
         screenContentEnabled = prefs.getBoolean(KEY_SCREEN_CONTENT, false),
+        webSearchEnabled = prefs.getBoolean(KEY_WEB_SEARCH, false),
     )
 
     companion object {
@@ -69,6 +71,7 @@ class ToolSettingsStore @Inject constructor(
         private const val KEY_SMS = "sms"
         private const val KEY_SCREEN_STATE = "screen_state"
         private const val KEY_SCREEN_CONTENT = "screen_content"
+        private const val KEY_WEB_SEARCH = "web_search"
     }
 }
 
@@ -86,4 +89,5 @@ data class ToolSettings(
     val smsEnabled: Boolean = false,
     val screenStateEnabled: Boolean = false,
     val screenContentEnabled: Boolean = false,
+    val webSearchEnabled: Boolean = false,
 )

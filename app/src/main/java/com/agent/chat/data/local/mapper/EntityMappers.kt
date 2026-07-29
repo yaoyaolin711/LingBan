@@ -64,6 +64,7 @@ fun MessageEntity.toDomain(): Message = Message(
     },
     content = content,
     createdAt = timestamp,
+    imageUri = imageUri,
 )
 
 fun Message.toEntity(): MessageEntity = MessageEntity(
@@ -72,6 +73,7 @@ fun Message.toEntity(): MessageEntity = MessageEntity(
     role = role.name,
     content = content,
     timestamp = createdAt,
+    imageUri = imageUri,
 )
 
 fun MemoryEntity.toDomain(): Memory {
@@ -141,6 +143,10 @@ fun ProviderConfigEntity.toDomain(apiKey: String): ProviderConfig = ProviderConf
     modelName = modelName,
     providerType = runCatching { ProviderType.valueOf(providerType) }
         .getOrDefault(ProviderType.OPENAI_COMPATIBLE),
+    isEnabled = isEnabled,
+    sortOrder = sortOrder,
+    supportsVision = supportsVision,
+    supportsToolCalling = supportsToolCalling,
 )
 
 fun ProviderConfig.toEntity(): ProviderConfigEntity = ProviderConfigEntity(
@@ -150,4 +156,8 @@ fun ProviderConfig.toEntity(): ProviderConfigEntity = ProviderConfigEntity(
     apiKey = "",
     modelName = modelName,
     providerType = providerType.name,
+    isEnabled = isEnabled,
+    sortOrder = sortOrder,
+    supportsVision = supportsVision,
+    supportsToolCalling = supportsToolCalling,
 )

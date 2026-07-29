@@ -52,6 +52,7 @@ import com.agent.chat.domain.model.RelationshipProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -62,6 +63,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ToolCallUiItem(
     val id: String,
@@ -111,6 +113,8 @@ data class ChatUiState(
     val showResponseScores: Boolean = BuildConfig.DEBUG,
     val userAvatarPath: String = "",
     val userNickname: String = "",
+    /** 待发送的图片 URI（视觉功能附件）*/
+    val pendingImageUri: String? = null,
 ) {
     val isBusy: Boolean get() = isStreaming || isPacingReply
 }
@@ -136,6 +140,7 @@ class ChatViewModel @Inject constructor(
     private val conversationStateManager: ConversationStateManager,
     private val runtimeDecisionEngine: RuntimeDecisionEngine,
     savedStateHandle: SavedStateHandle,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
 
     private val conversationId: String =
@@ -427,10 +432,20 @@ class ChatViewModel @Inject constructor(
         sendMessage()
     }
 
+    /** 用户从相册/相机选取图片后调用 */
+    fun onImageAttached(uri: String) {
+        _uiState.update { it.copy(pendingImageUri = uri) }
+    }
+
+    /** 取消待发送的图片附件 */
+    fun onImageAttachmentCleared() {
+        _uiState.update { it.copy(pendingImageUri = null) }
+    }
+
     fun sendMessage() {
         val state = _uiState.value
         val text = state.inputText.trim()
-        if (text.isEmpty() || state.isBusy) return
+        if ((text.isEmpty() && state.pendingImageUri == null) || state.isBusy) return
 
         val editingId = state.editingMessageId
         if (editingId != null) {
@@ -451,8 +466,10 @@ class ChatViewModel @Inject constructor(
             return
         }
 
+        val pendingImage = state.pendingImageUri
+        _uiState.update { it.copy(pendingImageUri = null) }
         launchStream {
-            performUserTurn(text, historyBeforeUser = state.messages)
+            performUserTurn(text, historyBeforeUser = state.messages, imageUri = pendingImage)
         }
     }
 
@@ -591,15 +608,28 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun performUserTurn(text: String, historyBeforeUser: List<Message>) {
+    private suspend fun performUserTurn(
+        text: String,
+        historyBeforeUser: List<Message>,
+        imageUri: String? = null,
+    ) {
         val state = _uiState.value
         val now = System.currentTimeMillis()
+        // Build user message content — include image description prefix for storage
+        val contentForStorage = if (imageUri != null && text.isBlank()) {
+            "[图片]"
+        } else if (imageUri != null) {
+            "[图片] $text"
+        } else {
+            text
+        }
         val userMessage = Message(
             id = "user_$now",
             conversationId = conversationId,
             role = MessageRole.USER,
-            content = text,
+            content = contentForStorage,
             createdAt = now,
+            imageUri = imageUri,
         )
         val assistant = Message(
             id = "assistant_${now + 1}",
@@ -875,6 +905,8 @@ class ChatViewModel @Inject constructor(
         paceEnabled: Boolean,
     ): String {
         var assistantContent = ""
+        var pendingUiFlush = false
+        var lastUiFlushTime = 0L
         toolChatOrchestrator.run(
             messages = messages,
             baseConfig = requestConfig,
@@ -886,14 +918,29 @@ class ChatViewModel @Inject constructor(
             when (event) {
                 is ToolChatEvent.ContentDelta -> {
                     assistantContent = event.text
-                    updateCanonicalMessage(assistantId) {
-                        it.copy(content = assistantContent)
-                    }
-                    if (!paceEnabled) {
-                        updateDisplayedFromCanonicalKeepStreaming(assistantId)
+                    val now = System.nanoTime()
+                    val elapsed = (now - lastUiFlushTime) / 1_000_000L
+                    if (elapsed >= 32 || !pendingUiFlush) {
+                        withContext(Dispatchers.Default) {
+                            updateCanonicalMessage(assistantId) {
+                                it.copy(content = assistantContent)
+                            }
+                        }
+                        if (!paceEnabled) {
+                            updateDisplayedFromCanonicalKeepStreaming(assistantId)
+                        }
+                        lastUiFlushTime = now
+                        pendingUiFlush = false
+                    } else {
+                        pendingUiFlush = true
                     }
                 }
                 is ToolChatEvent.ToolStarted -> {
+                    if (pendingUiFlush) {
+                        updateCanonicalMessage(assistantId) { it.copy(content = assistantContent) }
+                        if (!paceEnabled) updateDisplayedFromCanonicalKeepStreaming(assistantId)
+                        pendingUiFlush = false
+                    }
                     _uiState.update { state ->
                         state.copy(
                             toolCalls = state.toolCalls + ToolCallUiItem(
@@ -926,6 +973,10 @@ class ChatViewModel @Inject constructor(
                     assistantContent = event.finalContent
                 }
             }
+        }
+        if (pendingUiFlush) {
+            updateCanonicalMessage(assistantId) { it.copy(content = assistantContent) }
+            if (!paceEnabled) updateDisplayedFromCanonicalKeepStreaming(assistantId)
         }
         return assistantContent.ifBlank { "（无回复）" }
     }
@@ -1097,11 +1148,32 @@ class ChatViewModel @Inject constructor(
         return messages.filter { it.content.contains(trimmed, ignoreCase = true) }
     }
 
-    private fun Message.toChatMessage(): ChatMessage = ChatMessage(
-        role = when (role) {
+    private fun Message.toChatMessage(): ChatMessage = messageToChatMessage(this)
+
+    private fun messageToChatMessage(message: Message): ChatMessage {
+        val apiRole = when (message.role) {
             MessageRole.USER -> ChatMessage.ROLE_USER
             MessageRole.ASSISTANT -> ChatMessage.ROLE_ASSISTANT
-        },
-        content = content,
-    )
+        }
+        // Vision: encode local image URI to base64 data URI for API
+        val imgUri = message.imageUri
+        if (imgUri != null && apiRole == ChatMessage.ROLE_USER) {
+                val base64 = runCatching {
+                val stream = appContext.contentResolver.openInputStream(android.net.Uri.parse(imgUri))
+                val bytes = stream?.readBytes() ?: return@runCatching null
+                stream.close()
+                "data:image/jpeg;base64," + android.util.Base64.encodeToString(
+                    bytes,
+                    android.util.Base64.NO_WRAP,
+                )
+            }.getOrNull()
+            if (base64 != null) {
+                return ChatMessage.userWithImage(
+                    text = message.content.removePrefix("[图片] ").removePrefix("[图片]").trim(),
+                    imageDataUri = base64,
+                )
+            }
+        }
+        return ChatMessage(role = apiRole, content = message.content)
+    }
 }

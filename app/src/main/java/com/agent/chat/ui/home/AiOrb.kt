@@ -31,10 +31,6 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/**
- * 空间感 AI 生命体（非机器人头像）。
- * Canvas 自绘，动画用 InfiniteTransition，目标 60fps。
- */
 @Composable
 fun AiOrb(
     state: AiOrbState,
@@ -56,51 +52,59 @@ fun AiOrb(
         label = "breath",
     )
 
-    val thinkSpin = infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "think_spin",
-    )
+    val thinkSpin = if (state == AiOrbState.Thinking) {
+        infinite.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "think_spin",
+        )
+    } else null
 
-    val speakPulse = infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "speak_pulse",
-    )
+    val speakPulse = if (state == AiOrbState.Speaking) {
+        infinite.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1600, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "speak_pulse",
+        )
+    } else null
 
-    val listenPulse = infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "listen_pulse",
-    )
+    val listenPulse = if (state == AiOrbState.Listening) {
+        infinite.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "listen_pulse",
+        )
+    } else null
 
-    val particlePhase = infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(5200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "particle_phase",
-    )
+    val particlePhase = if (state == AiOrbState.Thinking) {
+        infinite.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(5200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "particle_phase",
+        )
+    } else null
 
     val scale = when (state) {
         AiOrbState.Idle -> breath.value
-        AiOrbState.Listening -> 1f + 0.03f * sin(listenPulse.value * PI.toFloat())
-        AiOrbState.Thinking -> 1f + 0.02f * sin(particlePhase.value * 2f)
-        AiOrbState.Speaking -> 1f + 0.04f * sin(speakPulse.value * PI.toFloat())
+        AiOrbState.Listening -> 1f + 0.03f * sin((listenPulse?.value ?: 0f) * PI.toFloat())
+        AiOrbState.Thinking -> 1f + 0.02f * sin((particlePhase?.value ?: 0f) * 2f)
+        AiOrbState.Speaking -> 1f + 0.04f * sin((speakPulse?.value ?: 0f) * PI.toFloat())
     }
 
     Box(
@@ -141,7 +145,7 @@ fun AiOrb(
             when (state) {
                 AiOrbState.Idle -> drawHaloRings(cx, cy, baseR, alphaScale = 0.55f)
                 AiOrbState.Listening -> {
-                    drawListeningRipples(cx, cy, baseR, listenPulse.value)
+                    drawListeningRipples(cx, cy, baseR, listenPulse?.value ?: 0f)
                     drawHaloRings(cx, cy, baseR, alphaScale = 0.5f)
                 }
                 AiOrbState.Thinking -> {
@@ -149,13 +153,13 @@ fun AiOrb(
                         cx = cx,
                         cy = cy,
                         baseR = baseR,
-                        phase = particlePhase.value,
-                        spinDeg = thinkSpin.value,
+                        phase = particlePhase?.value ?: 0f,
+                        spinDeg = thinkSpin?.value ?: 0f,
                     )
                     drawHaloRings(cx, cy, baseR, alphaScale = 0.4f)
                 }
                 AiOrbState.Speaking -> {
-                    drawSpeakingRings(cx, cy, baseR, speakPulse.value)
+                    drawSpeakingRings(cx, cy, baseR, speakPulse?.value ?: 0f)
                     drawHaloRings(cx, cy, baseR, alphaScale = 0.7f)
                 }
             }
@@ -255,7 +259,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticles(
     phase: Float,
     spinDeg: Float,
 ) {
-    val count = 18
+    val count = 10
     val spinRad = Math.toRadians(spinDeg.toDouble()).toFloat()
     for (i in 0 until count) {
         val angle = (i / count.toFloat()) * (2f * PI.toFloat()) + phase * 0.35f + spinRad

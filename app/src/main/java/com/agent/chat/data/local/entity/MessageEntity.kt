@@ -15,7 +15,10 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index(value = ["conversationId"])],
+    indices = [
+        Index(value = ["conversationId"]),
+        Index(value = ["conversationId", "timestamp"]),
+    ],
 )
 data class MessageEntity(
     @PrimaryKey val id: String,
@@ -23,4 +26,6 @@ data class MessageEntity(
     val role: String,
     val content: String,
     val timestamp: Long,
+    /** 本地图片 URI（视觉功能） */
+    val imageUri: String? = null,
 )

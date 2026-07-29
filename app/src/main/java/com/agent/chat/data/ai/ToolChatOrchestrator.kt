@@ -3,7 +3,7 @@ package com.agent.chat.data.ai
 import com.agent.chat.data.ai.tool.LocalToolRegistry
 import com.agent.chat.data.ai.tool.ToolExecutionContext
 import com.agent.chat.data.ai.tool.ToolResult
-import com.agent.chat.data.provider.AIProvider
+import com.agent.chat.data.provider.AIProviderFactory
 import com.agent.chat.data.provider.AssistantStreamResult
 import com.agent.chat.data.provider.ChatMessage
 import com.agent.chat.data.provider.ChatStreamEvent
@@ -29,7 +29,7 @@ sealed class ToolChatEvent {
 
 @Singleton
 class ToolChatOrchestrator @Inject constructor(
-    private val aiProvider: AIProvider,
+    private val aiProviderFactory: AIProviderFactory,
     private val toolRegistry: LocalToolRegistry,
 ) {
 
@@ -115,7 +115,7 @@ class ToolChatOrchestrator @Inject constructor(
         val builders = LinkedHashMap<Int, ToolCallBuilder>()
         var finishReason: String? = null
 
-        aiProvider.chatStreamEvents(messages, config).collect { event ->
+        aiProviderFactory.providerFor(config.providerType).chatStreamEvents(messages, config).collect { event ->
             when (event) {
                 is ChatStreamEvent.ContentDelta -> content.append(event.text)
                 is ChatStreamEvent.ToolCallDelta -> {

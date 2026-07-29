@@ -14,4 +14,6 @@ data class Message(
     val role: MessageRole,
     val content: String,
     val createdAt: Long,
+    /** 用户附件图片的本地 URI（可选，视觉功能） */
+    val imageUri: String? = null,
 )

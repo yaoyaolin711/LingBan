@@ -17,6 +17,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["personaId"]),
+        Index(value = ["personaId", "importance"]),
         Index(value = ["conversationId"]),
         Index(value = ["category"]),
     ],

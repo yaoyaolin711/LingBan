@@ -6,7 +6,7 @@ import com.agent.chat.data.error.AppErrorMapper
 import com.agent.chat.data.local.dao.ProviderConfigDao
 import com.agent.chat.data.local.mapper.toDomain
 import com.agent.chat.data.local.mapper.toEntity
-import com.agent.chat.data.provider.AIProvider
+import com.agent.chat.data.provider.AIProviderFactory
 import com.agent.chat.data.provider.ChatMessage
 import com.agent.chat.data.provider.ModelConfig
 import com.agent.chat.data.security.ApiKeySecureStore
@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.map
 class ProviderConfigRepository @Inject constructor(
     private val providerConfigDao: ProviderConfigDao,
     private val apiKeySecureStore: ApiKeySecureStore,
-    private val aiProvider: AIProvider,
+    private val aiProviderFactory: AIProviderFactory,
 ) {
 
     fun observeConfigs(): Flow<List<ProviderConfig>> =
@@ -85,13 +85,15 @@ class ProviderConfigRepository @Inject constructor(
             apiKey = config.apiKey,
             modelName = config.modelName,
             temperature = temperature,
+            providerType = config.providerType,
         )
 
     suspend fun testConnection(config: ProviderConfig): Result<String> {
         return try {
             require(config.apiKey.isNotBlank()) { "API Key 不能为空" }
             val modelConfig = toModelConfig(config, temperature = 0f)
-            aiProvider.chatStream(
+            val provider = aiProviderFactory.providerFor(config.providerType)
+            provider.chatStream(
                 messages = listOf(
                     ChatMessage(
                         role = ChatMessage.ROLE_USER,

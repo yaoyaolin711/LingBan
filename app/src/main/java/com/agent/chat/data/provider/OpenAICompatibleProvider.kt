@@ -10,6 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 
@@ -109,7 +110,7 @@ class OpenAICompatibleProvider @Inject constructor(
                 }
             }
             emit(ChatStreamEvent.Finished(lastFinish))
-        }.flowOn(Dispatchers.IO)
+        }.buffer(16).flowOn(Dispatchers.IO)
     }
 
     private fun buildCompletionsUrl(baseUrl: String): String {

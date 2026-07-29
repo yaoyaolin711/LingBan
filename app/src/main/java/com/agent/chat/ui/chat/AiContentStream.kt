@@ -45,9 +45,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.net.Uri
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.agent.chat.domain.error.AppError
 import com.agent.chat.domain.error.userMessage
 import com.agent.chat.domain.model.Message
@@ -101,12 +106,38 @@ fun UserMessageBubble(
                 colors = CardDefaults.cardColors(containerColor = colors.bubbleUser),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
-                Text(
-                    text = message.content,
-                    color = colors.textPrimary,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    // Show attached image if present
+                    val imgUri = message.imageUri
+                    if (imgUri != null) {
+                        AsyncImage(
+                            model = Uri.parse(imgUri),
+                            contentDescription = "附件图片",
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                        )
+                        if (message.content.isNotBlank() &&
+                            message.content != "[图片]"
+                        ) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                    }
+                    // Show text content (strip the [图片] prefix used for storage)
+                    val displayContent = message.content
+                        .removePrefix("[图片] ")
+                        .removePrefix("[图片]")
+                        .trim()
+                    if (displayContent.isNotBlank()) {
+                        Text(
+                            text = displayContent,
+                            color = colors.textPrimary,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
             }
             MessageActionMenu(
                 expanded = menuExpanded,

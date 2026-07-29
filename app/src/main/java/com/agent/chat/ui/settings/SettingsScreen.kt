@@ -513,7 +513,7 @@ private fun ToolSettingsSummaryCard(
         settings.deviceEnabled, settings.calendarEnabled, settings.alarmEnabled,
         settings.locationEnabled, settings.appUsageEnabled, settings.notificationEnabled,
         settings.musicEnabled, settings.smsEnabled, settings.screenStateEnabled,
-        settings.screenContentEnabled,
+        settings.screenContentEnabled, settings.webSearchEnabled,
     ).count { it }
 
     Column(
@@ -694,6 +694,14 @@ private fun ToolSettingsSection(
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
+        }
+        ToolSwitch(
+            title = "网络搜索",
+            subtitle = "AI 可通过 DuckDuckGo 搜索互联网获取最新信息。无需 API Key，需要网络权限。",
+            checked = settings.webSearchEnabled,
+            systemPermGranted = null,
+        ) {
+            onUpdate { it.copy(webSearchEnabled = it.webSearchEnabled.not()) }
         }
         Spacer(modifier = Modifier.height(4.dp))
         TextButton(

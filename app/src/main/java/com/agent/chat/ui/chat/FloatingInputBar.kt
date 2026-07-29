@@ -1,6 +1,7 @@
 package com.agent.chat.ui.chat
 
 import com.agent.chat.ui.theme.AgentThemeColors
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,13 +43,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.agent.chat.ui.motion.scaleClickable
 
 @Composable
@@ -63,10 +67,12 @@ fun FloatingInputBar(
     onAttachClick: () -> Unit,
     onVoiceClick: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
+    pendingImageUri: String? = null,
+    onClearImageAttachment: () -> Unit = {},
 ) {
     val colors = AgentThemeColors
 
-    val canSend = enabled && value.isNotBlank()
+    val canSend = enabled && (value.isNotBlank() || pendingImageUri != null)
     val placeholder = when {
         !enabled -> "正在回复…"
         editing -> "编辑后发送…"
@@ -116,17 +122,44 @@ fun FloatingInputBar(
                 }
             }
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                if (focused) {
+            // Image attachment thumbnail
+            if (pendingImageUri != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp, start = 4.dp),
+                ) {
                     Box(
                         modifier = Modifier
-                            .matchParentSize()
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(Color.White.copy(alpha = 0.4f))
-                            .blur(20.dp),
-                    )
+                            .size(68.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                    ) {
+                        AsyncImage(
+                            model = Uri.parse(pendingImageUri),
+                            contentDescription = "待发送图片",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        IconButton(
+                            onClick = onClearImageAttachment,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .align(Alignment.TopEnd)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f)),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "移除图片",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
                 }
+            }
 
+            Box(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

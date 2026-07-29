@@ -1,6 +1,7 @@
 package com.agent.chat.ui.theme
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.ColorScheme
@@ -120,7 +121,9 @@ fun AgentChatTheme(
     content: @Composable () -> Unit,
 ) {
     val target = if (themeMode == AppThemeMode.Dark) DarkAgentColors else LightAgentColors
-    val animSpec = tween<Color>(durationMillis = 420, easing = FastOutSlowInEasing)
+    // Material Motion "Emphasized" easing for theme switch — feels more physical
+    val emphasizedEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
+    val animSpec = tween<Color>(durationMillis = 380, easing = emphasizedEasing)
 
     val background by animateColorAsState(target.background, animSpec, label = "bg")
     val surface by animateColorAsState(target.surface, animSpec, label = "surface")

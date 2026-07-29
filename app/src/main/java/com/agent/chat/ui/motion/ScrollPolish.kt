@@ -1,5 +1,8 @@
 package com.agent.chat.ui.motion
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -13,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +28,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 /**
  * 左缘滑动返回（配合系统返回手势，提供更强的「可返回」反馈）。
@@ -39,15 +44,20 @@ fun SwipeBackContainer(
     val density = LocalDensity.current
     val edgePx = with(density) { edgeWidth.toPx() }
     val thresholdPx = with(density) { threshold.toPx() }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val springSpec = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium,
+    )
+    val offsetAnim = remember { Animatable(0f) }
     var tracking by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                translationX = dragOffset.coerceAtLeast(0f)
-                alpha = 1f - (dragOffset / (thresholdPx * 2.5f)).coerceIn(0f, 0.25f)
+                translationX = offsetAnim.value.coerceAtLeast(0f)
+                alpha = 1f - (offsetAnim.value / (thresholdPx * 2.5f)).coerceIn(0f, 0.22f)
             },
     ) {
         content()
@@ -63,19 +73,26 @@ fun SwipeBackContainer(
                                 tracking = if (offset.x <= edgePx) 1f else 0f
                             },
                             onDragEnd = {
-                                if (tracking > 0f && dragOffset >= thresholdPx) {
+                                if (tracking > 0f && offsetAnim.value >= thresholdPx) {
                                     onBack()
+                                } else {
+                                    scope.launch {
+                                        offsetAnim.animateTo(0f, springSpec)
+                                    }
                                 }
-                                dragOffset = 0f
                                 tracking = 0f
                             },
                             onDragCancel = {
-                                dragOffset = 0f
+                                scope.launch { offsetAnim.animateTo(0f, springSpec) }
                                 tracking = 0f
                             },
                             onHorizontalDrag = { _, dragAmount ->
                                 if (tracking > 0f) {
-                                    dragOffset = (dragOffset + dragAmount).coerceAtLeast(0f)
+                                    scope.launch {
+                                        offsetAnim.snapTo(
+                                            (offsetAnim.value + dragAmount).coerceAtLeast(0f),
+                                        )
+                                    }
                                 }
                             },
                         )

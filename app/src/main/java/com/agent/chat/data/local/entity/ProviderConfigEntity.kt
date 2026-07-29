@@ -12,4 +12,8 @@ data class ProviderConfigEntity(
     val apiKey: String = "",
     val modelName: String,
     val providerType: String,
+    val isEnabled: Boolean = true,
+    val sortOrder: Int = 0,
+    val supportsVision: Boolean = false,
+    val supportsToolCalling: Boolean = true,
 )

@@ -1,5 +1,7 @@
 package com.agent.chat.data.provider
 
+import com.agent.chat.domain.model.ProviderType
+
 data class ModelConfig(
     val baseUrl: String,
     val apiKey: String,
@@ -11,6 +13,8 @@ data class ModelConfig(
     val tools: List<ChatToolDefinition>? = null,
     /** auto / none / required，默认 auto */
     val toolChoice: String? = null,
+    /** 路由到哪个 Provider 实现 */
+    val providerType: ProviderType = ProviderType.OPENAI_COMPATIBLE,
 )
 
 @com.squareup.moshi.JsonClass(generateAdapter = false)

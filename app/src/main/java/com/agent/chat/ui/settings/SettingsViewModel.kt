@@ -334,6 +334,23 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** 从预设快速创建编辑器（base URL / 模型已预填）*/
+    fun openPresetEditor(preset: com.agent.chat.data.provider.ProviderPreset) {
+        _uiState.update {
+            it.copy(
+                isEditorOpen = true,
+                editingId = null,
+                editorName = preset.name,
+                editorBaseUrl = preset.baseUrl,
+                editorApiKey = "",
+                editorModelName = preset.defaultModel,
+                editorProviderType = preset.providerType,
+                inlineError = null,
+                inlineDebugDetail = null,
+            )
+        }
+    }
+
     fun openEditEditor(config: ProviderConfig) {
         _uiState.update {
             it.copy(

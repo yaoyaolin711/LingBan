@@ -2,4 +2,55 @@
 <resources>
     <string name="app_name">Solace</string>
     <string name="accessibility_service_description">Solace 需要无障碍权限来感知你的手机屏幕内容，让 AI 伴侣更了解你正在做什么，提供贴心关心。</string>
+
+    <!-- Settings -->
+    <string name="settings_model_api_title">模型与 API</string>
+    <string name="settings_model_api_subtitle">配置密钥、接口地址与对话模型</string>
+    <string name="settings_api_key_storage_notice">API Key 使用系统加密存储，仅保存在本机。</string>
+    <string name="settings_my_configs_title">我的配置</string>
+    <string name="settings_add_custom">自定义添加</string>
+    <string name="settings_provider_presets_title">快速添加（选择服务商）</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_save_config">保存配置</string>
+    <string name="settings_test_connection">测试连接</string>
+    <string name="settings_edit_config">编辑配置</string>
+    <string name="settings_add_config">新增配置</string>
+    <string name="settings_provider_type_openai">OpenAI 兼容协议</string>
+    <string name="settings_provider_type_anthropic">Anthropic (Claude) 原生协议</string>
+    <string name="settings_provider_type_gemini">Google Gemini 原生协议</string>
+    <string name="settings_provider_type_label_openai">OpenAI 兼容</string>
+    <string name="settings_provider_type_label_anthropic">Anthropic</string>
+    <string name="settings_provider_type_label_gemini">Google Gemini</string>
+    <string name="settings_provider_saved">已保存</string>
+    <string name="settings_provider_deleted">已删除</string>
+    <string name="settings_provider_vision_badge">视觉</string>
+    <string name="settings_provider_tool_calling_badge">工具调用</string>
+    <string name="settings_provider_protocol_label">协议：%s</string>
+
+    <!-- Chat -->
+    <string name="chat_send">发送</string>
+    <string name="chat_input_hint">说点什么...</string>
+    <string name="chat_stop">停止</string>
+    <string name="chat_copy_code">复制代码</string>
+    <string name="chat_copied">已复制</string>
+    <string name="chat_connection_error">连接出错，请重试</string>
+
+    <!-- Persona -->
+    <string name="persona_new_conversation">开始对话</string>
+    <string name="persona_no_personas">还没有角色，创建一个吧</string>
+
+    <!-- Common -->
+    <string name="action_back">返回</string>
+    <string name="action_delete">删除</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_confirm">确认</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_collapse">收起</string>
+    <string name="action_expand">展开</string>
+    <string name="action_test">测试</string>
+    <string name="label_already_added">已添加</string>
+    <string name="label_vision_support">支持视觉</string>
+    <string name="label_model_name">模型：%s</string>
+    <string name="label_key_masked">Key：%s</string>
+    <string name="label_not_set">未设置</string>
 </resources>

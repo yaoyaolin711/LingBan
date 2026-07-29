@@ -2,6 +2,8 @@ package com.agent.chat.domain.model
 
 enum class ProviderType {
     OPENAI_COMPATIBLE,
+    ANTHROPIC,
+    GOOGLE_GEMINI,
 }
 
 data class ProviderConfig(
@@ -11,6 +13,10 @@ data class ProviderConfig(
     val apiKey: String,
     val modelName: String,
     val providerType: ProviderType = ProviderType.OPENAI_COMPATIBLE,
+    val isEnabled: Boolean = true,
+    val sortOrder: Int = 0,
+    val supportsVision: Boolean = false,
+    val supportsToolCalling: Boolean = true,
 ) {
     fun maskedApiKey(): String {
         if (apiKey.isBlank()) return "未设置"

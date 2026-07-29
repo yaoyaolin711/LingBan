@@ -3,6 +3,8 @@ package com.agent.chat.ui.chat
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -43,9 +45,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -89,6 +91,14 @@ fun SharedTransitionScope.ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.onImageAttached(uri.toString())
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { message ->
@@ -143,8 +153,9 @@ fun SharedTransitionScope.ChatScreen(
                 scope.launch { snackbarHostState.showSnackbar("更多能力即将开放") }
             },
             onAttachClick = {
-                scope.launch { snackbarHostState.showSnackbar("附件即将开放") }
+                imagePickerLauncher.launch("image/*")
             },
+            onClearImageAttachment = viewModel::onImageAttachmentCleared,
             onVoiceClick = {
                 scope.launch { snackbarHostState.showSnackbar("语音输入即将开放") }
             },
@@ -191,14 +202,11 @@ fun SharedTransitionScope.ChatScreenContent(
     onPlusClick: () -> Unit = {},
     onAttachClick: () -> Unit = {},
     onVoiceClick: () -> Unit = {},
+    onClearImageAttachment: () -> Unit = {},
 ) {
     val colors = AgentThemeColors
     val listState = rememberLazyListState()
     val messages = uiState.displayedMessages
-    val lastId = messages.lastOrNull()?.id
-    val lastContentLen by remember(messages) {
-        derivedStateOf { messages.lastOrNull()?.content?.length ?: 0 }
-    }
     var showExportDialog by remember { mutableStateOf(false) }
     var pendingSwitchPersonaId by remember(uiState.persona?.id) {
         mutableStateOf(uiState.persona?.id)
@@ -220,20 +228,27 @@ fun SharedTransitionScope.ChatScreenContent(
     )
     val displayName = uiState.persona?.name?.takeIf { it.isNotBlank() } ?: "Solace"
 
-    LaunchedEffect(
-        messages.size,
-        lastId,
-        lastContentLen,
-        uiState.searchQuery,
-        uiState.showPaceTyping,
-        uiState.toolCalls.size,
-    ) {
-        if (messages.isNotEmpty() && uiState.searchQuery.isBlank()) {
-            listState.animateScrollToItem(messages.lastIndex)
-            inputVisible = true
-        } else if (uiState.showPaceTyping || uiState.toolCalls.isNotEmpty()) {
-            listState.animateScrollToItem(maxOf(messages.size, 0))
+    var lastScrollTime by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        snapshotFlow {
+            Triple(
+                messages.size,
+                uiState.streamingMessageId,
+                uiState.showPaceTyping,
+            )
         }
+            .distinctUntilChanged()
+            .collect {
+                val now = System.currentTimeMillis()
+                if (now - lastScrollTime < 100) return@collect
+                lastScrollTime = now
+                if (messages.isNotEmpty() && uiState.searchQuery.isBlank()) {
+                    listState.animateScrollToItem(messages.lastIndex)
+                    inputVisible = true
+                } else if (uiState.showPaceTyping || uiState.toolCalls.isNotEmpty()) {
+                    listState.animateScrollToItem(maxOf(messages.size, 0))
+                }
+            }
     }
 
     // 上滑阅读时隐藏输入框；回到底部 / 聚焦 / 生成中时显示
@@ -293,6 +308,8 @@ fun SharedTransitionScope.ChatScreenContent(
                     onPlusClick = onPlusClick,
                     onAttachClick = onAttachClick,
                     onVoiceClick = onVoiceClick,
+                    pendingImageUri = uiState.pendingImageUri,
+                    onClearImageAttachment = onClearImageAttachment,
                     onFocusChange = { focused ->
                         inputFocused = focused
                         if (focused) inputVisible = true
