@@ -13,8 +13,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -22,24 +20,23 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.IntOffset
 
 /**
- * Solace motion system — iOS-like smoothness at 60fps.
- * Prefer short tweens over heavy springs; avoid large scale jumps.
+ * Solace motion — 以流畅为主：短淡入淡出 + 轻量位移，去掉缩放/长呼吸等花哨动效。
  */
 @Immutable
 data class SolaceAnimation(
     val easingStandard: Easing = FastOutSlowInEasing,
-    /** Near-iOS cubic: fast start, soft settle. */
     val easingEmphasized: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f),
     val easingDecelerate: Easing = CubicBezierEasing(0f, 0f, 0.2f, 1f),
-    val durationFast: Int = 160,
-    val durationMedium: Int = 240,
-    val durationSlow: Int = 320,
-    /** Soft breath — long period, tiny amplitude (cheap InfiniteTransition). */
+    val durationFast: Int = 120,
+    val durationMedium: Int = 180,
+    val durationSlow: Int = 220,
     val durationBreath: Int = 3200,
     val durationOrbit: Int = 14000,
     val durationAurora: Int = 7000,
-    val pageScale: Float = 0.96f,
-    val pressScale: Float = 0.97f,
+    /** 页面过渡不再缩放，保留字段兼容调用方 */
+    val pageScale: Float = 1f,
+    /** 按压缩放关闭，避免列表/按钮每帧 graphicsLayer */
+    val pressScale: Float = 1f,
 ) {
     fun <T> fastTween(): TweenSpec<T> = tween(durationFast, easing = easingStandard)
     fun <T> mediumTween(): TweenSpec<T> = tween(durationMedium, easing = easingEmphasized)
@@ -47,42 +44,37 @@ data class SolaceAnimation(
 
     fun <T> softSpring() = spring<T>(
         dampingRatio = Spring.DampingRatioNoBouncy,
-        stiffness = Spring.StiffnessMediumLow,
+        stiffness = Spring.StiffnessMedium,
     )
 
     fun offsetTween(duration: Int = durationMedium): FiniteAnimationSpec<IntOffset> =
         tween(duration, easing = easingEmphasized)
 
-    /** Push-forward page transition (fade + soft slide + micro scale). */
+    /** 前进：淡入 + 轻微水平滑入 */
     fun pageForward(): ContentTransform {
         val enter: EnterTransition =
             fadeIn(mediumTween()) +
-                slideInHorizontally(animationSpec = offsetTween()) { it / 5 } +
-                scaleIn(initialScale = pageScale, animationSpec = mediumTween())
+                slideInHorizontally(animationSpec = offsetTween()) { it / 10 }
         val exit: ExitTransition =
             fadeOut(fastTween()) +
-                slideOutHorizontally(animationSpec = offsetTween(durationFast)) { -it / 12 } +
-                scaleOut(targetScale = pageScale, animationSpec = fastTween())
+                slideOutHorizontally(animationSpec = offsetTween(durationFast)) { -it / 16 }
         return enter togetherWith exit
     }
 
-    /** Pop / back transition. */
+    /** 返回 */
     fun pagePop(): ContentTransform {
         val enter: EnterTransition =
             fadeIn(mediumTween()) +
-                slideInHorizontally(animationSpec = offsetTween()) { -it / 12 } +
-                scaleIn(initialScale = pageScale, animationSpec = mediumTween())
+                slideInHorizontally(animationSpec = offsetTween()) { -it / 16 }
         val exit: ExitTransition =
             fadeOut(fastTween()) +
-                slideOutHorizontally(animationSpec = offsetTween(durationFast)) { it / 5 } +
-                scaleOut(targetScale = pageScale, animationSpec = fastTween())
+                slideOutHorizontally(animationSpec = offsetTween(durationFast)) { it / 10 }
         return enter togetherWith exit
     }
 
-    /** Cross-fade for root tabs (Home / Chat shell). */
+    /** Tab / 内容切换：仅淡入淡出 */
     fun pageFade(): ContentTransform =
-        fadeIn(mediumTween()) + scaleIn(initialScale = 0.98f, animationSpec = mediumTween()) togetherWith
-            fadeOut(fastTween()) + scaleOut(targetScale = 0.98f, animationSpec = fastTween())
+        fadeIn(mediumTween()) togetherWith fadeOut(fastTween())
 }
 
 val SolaceAnimationDefault = SolaceAnimation()

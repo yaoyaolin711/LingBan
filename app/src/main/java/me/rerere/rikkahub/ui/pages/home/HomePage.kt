@@ -99,6 +99,8 @@ fun HomePage(vm: HomeVM = koinViewModel()) {
                 avatar = avatar,
                 size = CompanionAvatarSize.Hero,
                 showName = true,
+                showHalo = false,
+                breath = false,
                 statusLabel = stringResource(R.string.home_page_status_online),
                 onClick = { openChat(newChat = false) },
             )

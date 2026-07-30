@@ -32,4 +32,9 @@ sealed class LocalToolOption {
     @Serializable
     @SerialName("calendar")
     data object Calendar : LocalToolOption()
+
+    /** 本机设备关怀: 前台感知、切回 Solace、通知、可选 Shizuku shell */
+    @Serializable
+    @SerialName("device_assist")
+    data object DeviceAssist : LocalToolOption()
 }

@@ -267,6 +267,13 @@ class RouteActivity : ComponentActivity() {
 
         ShareHandler(backStack)
 
+        // 冷启动: 通知 / open_solace 带 conversationId
+        LaunchedEffect(Unit) {
+            intent.getStringExtra("conversationId")?.let { id ->
+                backStack.add(Screen.Chat(id))
+            }
+        }
+
         SharedTransitionLayout {
             CompositionLocalProvider(
                 LocalNavController provides Navigator(backStack),

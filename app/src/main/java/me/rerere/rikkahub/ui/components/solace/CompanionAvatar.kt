@@ -63,7 +63,7 @@ fun CompanionAvatar(
     modifier: Modifier = Modifier,
     size: CompanionAvatarSize = CompanionAvatarSize.Medium,
     showHalo: Boolean = true,
-    breath: Boolean = true,
+    breath: Boolean = false,
     showName: Boolean = false,
     statusLabel: String? = null,
     onClick: (() -> Unit)? = null,
@@ -72,7 +72,7 @@ fun CompanionAvatar(
     val typography = SolaceTheme.typography
     val anim = SolaceTheme.animation
     val dark = LocalDarkMode.current
-    val animatePresence = showHalo || breath || statusLabel != null
+    val animatePresence = breath
 
     val pulse = if (animatePresence) {
         val infinite = rememberInfiniteTransition(label = "companion_avatar")
@@ -90,7 +90,7 @@ fun CompanionAvatar(
         0.5f
     }
 
-    val haloAlpha = if (dark) 0.28f + pulse * 0.20f else 0.38f + pulse * 0.17f
+    val haloAlpha = if (dark) 0.35f else 0.42f
     val breathScale = if (breath) 0.985f + pulse * 0.03f else 1f
 
     Column(
@@ -159,7 +159,7 @@ fun CompanionAvatar(
 
         if (statusLabel != null) {
             Spacer(Modifier.height(10.dp))
-            CompanionOnlineChip(label = statusLabel, pulse = pulse)
+            CompanionOnlineChip(label = statusLabel)
         }
     }
 }
@@ -168,11 +168,9 @@ fun CompanionAvatar(
 fun CompanionOnlineChip(
     label: String,
     modifier: Modifier = Modifier,
-    pulse: Float = 1f,
 ) {
     val colors = SolaceTheme.colorScheme
     val typography = SolaceTheme.typography
-    val dotAlpha = 0.55f + pulse * 0.45f
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -185,7 +183,6 @@ fun CompanionOnlineChip(
         Box(
             modifier = Modifier
                 .size(7.dp)
-                .graphicsLayer { alpha = dotAlpha }
                 .clip(CircleShape)
                 .background(colors.primary),
         )

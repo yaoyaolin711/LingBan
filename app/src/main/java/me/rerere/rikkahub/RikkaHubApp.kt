@@ -30,6 +30,7 @@ import me.rerere.rikkahub.di.repositoryModule
 import me.rerere.rikkahub.di.viewModelModule
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.service.CompanionMonitorService
 import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.DatabaseUtil
@@ -46,6 +47,8 @@ private const val TAG = "RikkaHubApp"
 const val CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID = "chat_completed"
 const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
 const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
+const val COMPANION_MONITOR_NOTIFICATION_CHANNEL_ID = "companion_monitor"
+const val COMPANION_INTERVENTION_NOTIFICATION_CHANNEL_ID = "companion_intervention"
 
 class RikkaHubApp : Application() {
     override fun onCreate() {
@@ -84,6 +87,9 @@ class RikkaHubApp : Application() {
 
         // Start WebServer if enabled in settings
         startWebServerIfEnabled()
+
+        // Start companion usage monitor if enabled
+        startCompanionMonitorIfEnabled()
 
         // Increment launch count
         incrementLaunchCount()
@@ -221,12 +227,44 @@ class RikkaHubApp : Application() {
             .setShowBadge(false)
             .build()
         notificationManager.createNotificationChannel(webServerChannel)
+
+        val companionMonitorChannel = NotificationChannelCompat
+            .Builder(COMPANION_MONITOR_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
+            .setName("Solace 使用关怀监测")
+            .setVibrationEnabled(false)
+            .setShowBadge(false)
+            .build()
+        notificationManager.createNotificationChannel(companionMonitorChannel)
+
+        val companionInterventionChannel = NotificationChannelCompat
+            .Builder(
+                COMPANION_INTERVENTION_NOTIFICATION_CHANNEL_ID,
+                NotificationManagerCompat.IMPORTANCE_HIGH
+            )
+            .setName("Solace 使用关怀提醒")
+            .setVibrationEnabled(true)
+            .build()
+        notificationManager.createNotificationChannel(companionInterventionChannel)
+    }
+
+    private fun startCompanionMonitorIfEnabled() {
+        get<AppScope>().launch {
+            runCatching {
+                val settings = get<SettingsStore>().settingsFlowRaw.first()
+                if (settings.companionAssist.needsForegroundService) {
+                    CompanionMonitorService.start(this@RikkaHubApp)
+                }
+            }.onFailure {
+                Log.e(TAG, "startCompanionMonitorIfEnabled failed", it)
+            }
+        }
     }
 
     override fun onTerminate() {
         super.onTerminate()
         get<AppScope>().cancel()
         stopService(Intent(this, WebServerService::class.java))
+        stopService(Intent(this, CompanionMonitorService::class.java))
     }
 }
 

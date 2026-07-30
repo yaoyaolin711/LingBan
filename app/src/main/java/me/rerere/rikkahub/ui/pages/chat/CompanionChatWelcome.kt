@@ -47,6 +47,8 @@ fun CompanionChatWelcome(
             avatar = avatar,
             size = CompanionAvatarSize.Medium,
             showName = false,
+            showHalo = false,
+            breath = false,
         )
 
         Spacer(Modifier.height(20.dp))

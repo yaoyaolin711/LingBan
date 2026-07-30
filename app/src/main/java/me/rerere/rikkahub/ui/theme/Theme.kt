@@ -143,7 +143,7 @@ fun RikkahubTheme(
             typography = SolaceTypography,
             shapes = SolaceMaterialShapes,
             content = content,
-            motionScheme = MotionScheme.expressive()
+            motionScheme = MotionScheme.standard()
         )
     }
 }

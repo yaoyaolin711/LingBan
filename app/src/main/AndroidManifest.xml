@@ -11,6 +11,7 @@
   <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
   <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
   <uses-permission
     android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -39,6 +40,8 @@
       <action android:name="android.intent.action.MAIN" />
       <category android:name="android.intent.category.HOME" />
     </intent>
+    <!-- Shizuku 包可见性 (高级 device_shell) -->
+    <package android:name="moe.shizuku.privileged.api" />
   </queries>
 
   <application
@@ -133,6 +136,24 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="local web server for LLM chat UI" />
     </service>
+
+    <service
+      android:name=".service.CompanionMonitorService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="digital wellbeing companion usage monitoring" />
+    </service>
+
+    <provider
+      android:name="rikka.shizuku.ShizukuProvider"
+      android:authorities="${applicationId}.shizuku"
+      android:enabled="true"
+      android:exported="true"
+      android:multiprocess="false"
+      android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+      tools:ignore="ExportedContentProvider" />
 
     <provider
       android:name="androidx.core.content.FileProvider"

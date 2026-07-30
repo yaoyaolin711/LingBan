@@ -14,8 +14,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -317,16 +315,7 @@ private fun ChatListNormal(
                 key = { _, item -> item.id },
                 contentType = { _, node -> node.currentMessage.role.name },
             ) { index, node ->
-                val itemModifier = if (loading) {
-                    Modifier
-                } else {
-                    Modifier.animateItem(
-                        fadeInSpec = SolaceAnimationDefault.mediumTween(),
-                        fadeOutSpec = SolaceAnimationDefault.fastTween(),
-                        placementSpec = SolaceAnimationDefault.mediumTween(),
-                    )
-                }
-                Column(modifier = itemModifier) {
+                Column {
                     ListSelectableItem(
                         key = node.id,
                         onSelectChange = {
@@ -400,11 +389,8 @@ private fun ChatListNormal(
                         ThinkingDots()
                         AnimatedVisibility(
                             visible = processingStatus != null,
-                            enter = fadeIn(SolaceAnimationDefault.mediumTween()) +
-                                slideInVertically(SolaceAnimationDefault.offsetTween()) { it / 3 } +
-                                scaleIn(initialScale = 0.96f, animationSpec = SolaceAnimationDefault.mediumTween()),
-                            exit = fadeOut(SolaceAnimationDefault.fastTween()) +
-                                scaleOut(targetScale = 0.96f, animationSpec = SolaceAnimationDefault.fastTween()),
+                            enter = fadeIn(SolaceAnimationDefault.fastTween()),
+                            exit = fadeOut(SolaceAnimationDefault.fastTween()),
                         ) {
                             Text(
                                 text = processingStatus ?: "",
