@@ -4,6 +4,7 @@ data class EmotionContext(
     val emotion: EmotionType = EmotionType.NEUTRAL,
     val intensity: Float = 0f,
     val responseStyle: String = "neutral",
+    val responseTendency: List<String> = emptyList(),
     val keywords: List<String> = emptyList(),
     val confidence: Float = 0f,
     val sourceHash: Int = 0,

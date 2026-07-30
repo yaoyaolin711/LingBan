@@ -7,9 +7,11 @@ import kotlinx.serialization.json.Json
 import me.rerere.highlight.Highlighter
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.companion.CharacterManager
+import me.rerere.rikkahub.data.companion.BehaviorPolicyManager
 import me.rerere.rikkahub.data.companion.CompanionFacade
 import me.rerere.rikkahub.data.companion.MemoryManager
 import me.rerere.rikkahub.data.companion.PersonaManager
+import me.rerere.rikkahub.data.companion.ProactiveTriggerManager
 import me.rerere.rikkahub.data.companion.PromptBuilder
 import me.rerere.rikkahub.data.companion.PromptCache
 import me.rerere.rikkahub.data.companion.RelationshipManager
@@ -58,6 +60,10 @@ val appModule = module {
 
     single { RelationshipManager() }
 
+    single { BehaviorPolicyManager() }
+
+    single { ProactiveTriggerManager() }
+
     single { PromptBuilder() }
 
     single { PromptCache() }
@@ -69,6 +75,8 @@ val appModule = module {
             personaManager = get(),
             memoryManager = get(),
             relationshipManager = get(),
+            behaviorPolicyManager = get(),
+            proactiveTriggerManager = get(),
             promptBuilder = get(),
             promptCache = get(),
         )

@@ -41,6 +41,39 @@ enum class CompanionEmotionState {
 }
 
 @Serializable
+enum class CompanionRelationshipStage {
+    STRANGER,
+    FAMILIAR,
+    CLOSE,
+    INTIMATE,
+}
+
+@Serializable
+data class CompanionRelationshipContext(
+    val tone: String = "polite",
+    val initiative: String = "low",
+    val care: String = "low",
+)
+
+@Serializable
+data class CompanionBehaviorPolicy(
+    val responseTone: String = "neutral",
+    val replyLength: String = "balanced",
+    val initiativeLevel: String = "low",
+    val questionFrequency: String = "low",
+    val affectionLevel: String = "low",
+)
+
+@Serializable
+data class InteractionSuggestion(
+    val type: String,
+    val priority: Float,
+    val messageContext: String,
+    val reason: String,
+    val createdAtEpochMillis: Long,
+)
+
+@Serializable
 enum class CompanionToneStyle {
     GENTLE,
     HUMOROUS,
@@ -68,6 +101,8 @@ data class CompanionRelationshipState(
     val relationshipLevel: Int = 1,
     val interactionCount: Int = 0,
     val lastInteractionEpochMillis: Long = 0L,
+    val relationshipStage: CompanionRelationshipStage = CompanionRelationshipStage.STRANGER,
+    val relationshipContext: CompanionRelationshipContext = CompanionRelationshipContext(),
     val emotionState: CompanionEmotionState = CompanionEmotionState.CALM,
     val affectionScore: Int = 0,
     val trustScore: Int = 0,

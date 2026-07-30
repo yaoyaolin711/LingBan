@@ -67,6 +67,7 @@ class EmotionManager(
             emotion = emotion,
             intensity = if (emotion == EmotionType.NEUTRAL) 0f else intensity,
             responseStyle = styleFor(emotion),
+            responseTendency = tendencyFor(emotion, intensity),
             keywords = hitKeywords.distinct(),
             confidence = confidence,
             sourceHash = sourceHash,
@@ -101,6 +102,21 @@ class EmotionManager(
             EmotionType.HAPPY -> "light_positive"
             EmotionType.EXCITED -> "high_energy_positive"
             EmotionType.NEUTRAL -> "neutral"
+        }
+    }
+
+    private fun tendencyFor(type: EmotionType, intensity: Float): List<String> {
+        return when (type) {
+            EmotionType.SAD -> listOf("prioritize_emotional_ack", "delay_problem_solving", "gentle_followup")
+            EmotionType.TIRED -> listOf("keep_brief", "reduce_information_density", "care_first")
+            EmotionType.HAPPY -> listOf("mirror_positive_affect", "increase_interaction_warmth")
+            EmotionType.EXCITED -> listOf("mirror_positive_affect", "match_energy_level")
+            EmotionType.ANGRY -> listOf("avoid_argument", "validate_emotion_first", "maintain_calm_tone")
+            EmotionType.ANXIOUS -> listOf("stabilize_tone", "avoid_overload", "provide_grounding")
+            EmotionType.LONELY -> listOf("emphasize_presence", "avoid_cold_style", "companionship_first")
+            EmotionType.NEUTRAL -> listOf("default_conversational_mode")
+        }.let { base ->
+            if (intensity >= 0.75f && type != EmotionType.NEUTRAL) base + "high_intensity" else base
         }
     }
 

@@ -2,21 +2,19 @@ package me.rerere.rikkahub.data.companion
 
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
-import me.rerere.rikkahub.data.companion.emotion.EmotionContext
-import me.rerere.rikkahub.data.companion.emotion.EmotionManager
-import me.rerere.rikkahub.data.companion.emotion.EmotionType
 import me.rerere.rikkahub.data.companion.model.CompanionCharacterCard
 import me.rerere.rikkahub.data.companion.model.CompanionPersona
 import me.rerere.rikkahub.data.companion.model.CompanionPromptBlock
 import me.rerere.rikkahub.data.companion.model.CompanionPromptBundle
+import me.rerere.rikkahub.data.companion.model.CompanionBehaviorPolicy
+import me.rerere.rikkahub.data.companion.model.CompanionRelationshipContext
 import me.rerere.rikkahub.data.companion.model.CompanionState
 import me.rerere.rikkahub.data.model.InjectionPosition
 import me.rerere.rikkahub.data.model.Assistant
-import java.util.Locale
 import kotlin.uuid.Uuid
 
 class PromptBuilder {
-    private val emotionManager = EmotionManager()
+    private val stateContextBuilder = StateContextBuilder()
 
     fun buildBundle(
         conversationId: Uuid,
@@ -25,16 +23,30 @@ class PromptBuilder {
         persona: CompanionPersona?,
         state: CompanionState,
         messages: List<UIMessage>,
+        relationshipContext: CompanionRelationshipContext? = null,
+        behaviorPolicy: CompanionBehaviorPolicy? = null,
     ): CompanionPromptBundle {
-        val emotionContext = emotionManager.analyzeLatestUserMessage(messages)
-        val cacheKey = buildCacheKey(conversationId, assistant, character, persona, state, messages)
+        val resolvedPolicy = behaviorPolicy ?: state.toDefaultBehaviorPolicy()
+        val stateContext = stateContextBuilder.build(state, resolvedPolicy)
+        val cacheKey = buildCacheKey(
+            conversationId = conversationId,
+            assistant = assistant,
+            character = character,
+            persona = persona,
+            state = state,
+            messages = messages,
+            relationshipContext = relationshipContext,
+            behaviorPolicy = resolvedPolicy,
+            stateContext = stateContext,
+        )
         val blocks = buildList {
             character?.toCharacterPromptBlock()?.let { addIfEnabled(it) }
             persona?.toPersonaPromptBlock()?.let { addIfEnabled(it) }
-            addIfEnabled(state.toRelationshipPromptBlock())
+            addIfEnabled(state.toRelationshipPromptBlock(relationshipContext))
             addIfEnabled(state.toLongMemoryPromptBlock())
             addIfEnabled(state.toMediumMemoryPromptBlock())
-            addIfEnabled(emotionContext.toEmotionPromptBlock())
+            addIfEnabled(stateContext.toCompanionStateContextPromptBlock())
+            addIfEnabled(resolvedPolicy.toBehaviorPolicyPromptBlock())
             character?.toPostHistoryBlock()?.let { addIfEnabled(it) }
         }.sortedBy { it.order }
         return CompanionPromptBundle(
@@ -50,6 +62,9 @@ class PromptBuilder {
         persona: CompanionPersona?,
         state: CompanionState,
         messages: List<UIMessage>,
+        relationshipContext: CompanionRelationshipContext?,
+        behaviorPolicy: CompanionBehaviorPolicy?,
+        stateContext: String,
     ): String {
         val recentWindowSignature = messages
             .takeLast(4)
@@ -67,6 +82,12 @@ class PromptBuilder {
             append(state.memoryVersion)
             append(':')
             append(state.relationshipVersion)
+            append(':')
+            append((relationshipContext ?: state.relationshipState.relationshipContext).hashCode())
+            append(':')
+            append((behaviorPolicy ?: state.toDefaultBehaviorPolicy()).hashCode())
+            append(':')
+            append(stateContext.hashCode())
             append(':')
             append(messages.size)
             append(':')
@@ -171,16 +192,24 @@ class PromptBuilder {
         )
     }
 
-    private fun CompanionState.toRelationshipPromptBlock(): CompanionPromptBlock {
+    private fun CompanionState.toRelationshipPromptBlock(
+        externalContext: CompanionRelationshipContext?,
+    ): CompanionPromptBlock {
         val style = responseStyle
         val relationship = relationshipState
+        val context = externalContext ?: relationship.relationshipContext
         val content = buildString {
             appendLine("Relationship state:")
-            appendLine("Level ${relationship.relationshipLevel}, interactions ${relationship.interactionCount}.")
+            appendLine(
+                "Stage ${relationship.relationshipStage.name.lowercase()}, " +
+                    "level ${relationship.relationshipLevel}, interactions ${relationship.interactionCount}."
+            )
+            appendLine("Context tone: ${context.tone}, initiative: ${context.initiative}, care: ${context.care}.")
             appendLine("Emotional tone: ${relationship.emotionState.name.lowercase()}.")
             appendLine("Reply length: ${style.lengthStyle.name.lowercase()}.")
             appendLine("Tone style: ${style.toneStyle.name.lowercase()}.")
             appendLine("Reply behavior rules:")
+            appendLine("- Match relationship context: tone=${context.tone}, initiative=${context.initiative}, care=${context.care}.")
             appendLine("- Stay conversational and natural; avoid assistant-like disclaimers unless necessary.")
             appendLine("- Keep emotional continuity with recent context; do not abruptly switch tone.")
             appendLine("- Use concrete, human-like expressions instead of generic templates.")
@@ -193,82 +222,56 @@ class PromptBuilder {
             position = InjectionPosition.AFTER_SYSTEM_PROMPT,
             role = MessageRole.USER,
             order = 30,
-            cacheKey = "relationship:${relationshipVersion}:${relationship.relationshipLevel}",
+            cacheKey = "relationship:${relationshipVersion}:${relationship.relationshipStage.name}:${context.hashCode()}",
             content = content,
         )
     }
 
-    private fun EmotionContext.toEmotionPromptBlock(): CompanionPromptBlock {
-        val content = when (emotion) {
-            EmotionType.SAD -> """
-                User emotional state: sad (intensity ${formatIntensity(intensity)}).
-                Reply strategy: comfort.
-                Constraints:
-                - acknowledge feelings first
-                - avoid jumping into solutions immediately
-                - use warm companion tone
-                - ask at most one gentle follow-up question
-            """.trimIndent()
-
-            EmotionType.TIRED -> """
-                User emotional state: tired (intensity ${formatIntensity(intensity)}).
-                Reply strategy: gentle_brief.
-                Constraints:
-                - express care first
-                - keep response concise and low-pressure
-                - avoid long lists of suggestions
-            """.trimIndent()
-
-            EmotionType.HAPPY, EmotionType.EXCITED -> """
-                User emotional state: ${emotion.name.lowercase()} (intensity ${formatIntensity(intensity)}).
-                Reply strategy: $responseStyle.
-                Constraints:
-                - mirror positive emotion naturally
-                - increase interaction warmth
-                - keep it conversational, not performative
-            """.trimIndent()
-
-            EmotionType.ANGRY -> """
-                User emotional state: angry (intensity ${formatIntensity(intensity)}).
-                Reply strategy: calm_ack.
-                Constraints:
-                - do not argue or invalidate feelings
-                - acknowledge emotion first
-                - keep tone calm and respectful
-            """.trimIndent()
-
-            EmotionType.ANXIOUS -> """
-                User emotional state: anxious (intensity ${formatIntensity(intensity)}).
-                Reply strategy: calm_grounding.
-                Constraints:
-                - provide emotional grounding first
-                - avoid alarming wording
-                - keep guidance simple and stable
-            """.trimIndent()
-
-            EmotionType.LONELY -> """
-                User emotional state: lonely (intensity ${formatIntensity(intensity)}).
-                Reply strategy: warm_presence.
-                Constraints:
-                - emphasize companionship and presence
-                - avoid cold or transactional wording
-                - keep response emotionally available
-            """.trimIndent()
-
-            EmotionType.NEUTRAL -> ""
-        }
+    private fun String.toCompanionStateContextPromptBlock(): CompanionPromptBlock {
         return CompanionPromptBlock(
-            type = "emotion",
+            type = "companion_state",
             position = InjectionPosition.AFTER_SYSTEM_PROMPT,
             role = MessageRole.USER,
-            order = 50,
-            cacheKey = "emotion:${emotion.name}:${intensity.toRawBits()}:${responseStyle.hashCode()}",
-            content = content,
-            enabled = emotion != EmotionType.NEUTRAL && content.isNotBlank(),
+            order = 47,
+            cacheKey = "companion_state:${hashCode()}",
+            content = this,
+            enabled = isNotBlank(),
         )
     }
 
-    private fun formatIntensity(value: Float): String {
-        return String.format(Locale.US, "%.2f", value.coerceIn(0f, 1f))
+    private fun CompanionBehaviorPolicy.toBehaviorPolicyPromptBlock(): CompanionPromptBlock {
+        val content = buildString {
+            appendLine("BehaviorPolicy:")
+            appendLine("- response_tone: $responseTone")
+            appendLine("- reply_length: $replyLength")
+            appendLine("- initiative_level: $initiativeLevel")
+            appendLine("- question_frequency: $questionFrequency")
+            appendLine("- affection_level: $affectionLevel")
+            appendLine("- This policy only constrains style/strategy, not factual content.")
+        }.trim()
+        return CompanionPromptBlock(
+            type = "behavior_policy",
+            position = InjectionPosition.AFTER_SYSTEM_PROMPT,
+            role = MessageRole.USER,
+            order = 35,
+            cacheKey = "behavior_policy:${hashCode()}",
+            content = content,
+            enabled = content.isNotBlank(),
+        )
     }
+
+    private fun CompanionState.toDefaultBehaviorPolicy(): CompanionBehaviorPolicy {
+        return CompanionBehaviorPolicy(
+            responseTone = relationshipState.relationshipContext.tone,
+            initiativeLevel = relationshipState.relationshipContext.initiative,
+            affectionLevel = relationshipState.relationshipContext.care,
+            replyLength = responseStyle.lengthStyle.name.lowercase(),
+            questionFrequency = if (relationshipState.relationshipContext.initiative == "high") {
+                "medium"
+            } else {
+                "low"
+            },
+        )
+    }
+
 }
