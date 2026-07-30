@@ -49,6 +49,13 @@
 - 📝 AI翻译
 - 🌐 自定义HTTP请求头和请求体
 
+## 🖼️ 局域网 OCR（PaddleOCR）
+
+如果你不想额外购买 OCR API，可以用电脑在同一 WiFi 内跑一个免费 OCR 服务给手机调用。
+
+- 新手教程：[`docs/ocr/lan-paddleocr.md`](docs/ocr/lan-paddleocr.md)
+- 一键启动脚本：`tools/paddleocr-lan/start.bat`
+
 ## ✨ 贡献
 
 本项目使用[Android Studio](https://developer.android.com/studio)开发，欢迎提交PR

@@ -1,0 +1,7 @@
+services:
+  paddleocr:
+    image: gethation/paddleocr-infer-api:latest
+    container_name: paddleocr-lan
+    ports:
+      - "8866:8000"
+    restart: unless-stopped
