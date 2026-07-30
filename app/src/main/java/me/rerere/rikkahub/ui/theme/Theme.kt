@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -16,7 +17,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -31,7 +32,40 @@ val LocalExtendColors = compositionLocalOf { ExtendLightColors }
 
 val LocalDarkMode = compositionLocalOf { false }
 
-private val AMOLED_DARK_BACKGROUND = Color(0xFF000000)
+val LocalSolaceColorScheme = staticCompositionLocalOf { lightSolaceColorScheme() }
+val LocalSolaceShapes = staticCompositionLocalOf { SolaceShapesDefault }
+val LocalSolaceAnimation = staticCompositionLocalOf { SolaceAnimationDefault }
+
+/**
+ * Solace global design system entry point.
+ *
+ * Use for all brand UI:
+ * - [colorScheme] — Rose Gold Luxury colors (never hardcode in pages)
+ * - [typography] — Solace type scale
+ * - [shapes] — soft luxury corners
+ * - [animation] — restrained motion
+ */
+object SolaceTheme {
+    val colorScheme: SolaceColorScheme
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalSolaceColorScheme.current
+
+    val typography: Typography
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.typography
+
+    val shapes: SolaceShapes
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalSolaceShapes.current
+
+    val animation: SolaceAnimation
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalSolaceAnimation.current
+}
 
 @Serializable
 enum class ColorMode {
@@ -54,10 +88,18 @@ fun RikkahubTheme(
     }
     val amoledDarkMode by rememberAmoledDarkMode()
 
+    val solaceColors = remember(darkTheme) {
+        if (darkTheme) darkSolaceColorScheme() else lightSolaceColorScheme()
+    }
+
     val colorScheme = when {
         settings.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        settings.themeId == "solace" || settings.themeId.isBlank() -> {
+            // Default Solace brand → Material scheme from the same tokens
+            solaceColors.toMaterialColorScheme(dark = darkTheme)
         }
         else -> {
             val theme = findThemeById(settings.themeId, settings.customThemes)
@@ -65,11 +107,11 @@ fun RikkahubTheme(
             theme.getColorScheme(dark = darkTheme)
         }
     }
-    val colorSchemeConverted = remember(darkTheme, amoledDarkMode, colorScheme) {
+    val colorSchemeConverted = remember(darkTheme, amoledDarkMode, colorScheme, solaceColors) {
         if (darkTheme && amoledDarkMode) {
             colorScheme.copy(
-                background = AMOLED_DARK_BACKGROUND,
-                surface = AMOLED_DARK_BACKGROUND,
+                background = SolacePalette.Scrim,
+                surface = SolacePalette.Scrim,
             )
         } else {
             colorScheme
@@ -77,7 +119,6 @@ fun RikkahubTheme(
     }
     val extendColors = if (darkTheme) ExtendDarkColors else ExtendLightColors
 
-    // 更新状态栏图标颜色
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -92,11 +133,15 @@ fun RikkahubTheme(
     CompositionLocalProvider(
         LocalDarkMode provides darkTheme,
         LocalExtendColors provides extendColors,
-        LocalOverscrollFactory provides null
+        LocalSolaceColorScheme provides solaceColors,
+        LocalSolaceShapes provides SolaceShapesDefault,
+        LocalSolaceAnimation provides SolaceAnimationDefault,
+        LocalOverscrollFactory provides null,
     ) {
         MaterialExpressiveTheme(
             colorScheme = colorSchemeConverted,
-            typography = Typography,
+            typography = SolaceTypography,
+            shapes = SolaceMaterialShapes,
             content = content,
             motionScheme = MotionScheme.expressive()
         )

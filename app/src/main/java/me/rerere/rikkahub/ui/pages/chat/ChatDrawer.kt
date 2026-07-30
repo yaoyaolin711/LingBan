@@ -89,6 +89,7 @@ import me.rerere.rikkahub.ui.hooks.readBooleanPreference
 import me.rerere.rikkahub.ui.hooks.rememberIsPlayStoreVersion
 import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.modifier.onClick
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.utils.navigateToChatPage
 import me.rerere.rikkahub.utils.toDp
 import org.koin.androidx.compose.koinViewModel
@@ -229,7 +230,7 @@ fun ChatDrawerContent(
                         )
                     }
                     Greeting(
-                        style = MaterialTheme.typography.labelMedium,
+                        style = SolaceTheme.typography.labelMedium,
                     )
                 }
             }

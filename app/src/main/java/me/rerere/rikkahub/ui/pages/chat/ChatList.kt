@@ -23,6 +23,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -54,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -68,7 +70,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -82,8 +83,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtLeast
 import androidx.compose.ui.zIndex
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -97,10 +96,12 @@ import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.message.ChatMessage
 import me.rerere.rikkahub.ui.components.ui.ErrorCardsDisplay
 import me.rerere.rikkahub.ui.components.ui.ListSelectableItem
-import me.rerere.rikkahub.ui.components.ui.RabbitLoadingIndicator
+import me.rerere.rikkahub.ui.components.ui.ThinkingDots
 import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
 import me.rerere.rikkahub.ui.theme.ChatFontProvider
+import me.rerere.rikkahub.ui.theme.SolaceAnimationDefault
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.utils.plus
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
@@ -118,7 +119,6 @@ fun ChatList(
     processingStatus: String? = null,
     previewMode: Boolean,
     settings: Settings,
-    hazeState: HazeState,
     errors: List<ChatError> = emptyList(),
     onDismissError: (Uuid) -> Unit = {},
     onClearAllErrors: () -> Unit = {},
@@ -139,16 +139,13 @@ fun ChatList(
     AnimatedContent(
         targetState = previewMode,
         label = "ChatListMode",
-        transitionSpec = {
-            (fadeIn() + scaleIn(initialScale = 0.8f) togetherWith fadeOut() + scaleOut(targetScale = 0.8f))
-        }
+        transitionSpec = { SolaceAnimationDefault.pageFade() },
     ) { target ->
         if (target) {
             ChatListPreview(
                 innerPadding = innerPadding,
                 conversation = conversation,
                 settings = settings,
-                hazeState = hazeState,
                 onJumpToMessage = onJumpToMessage,
                 animatedVisibilityScope = this@AnimatedContent,
             )
@@ -160,7 +157,6 @@ fun ChatList(
                 loading = loading,
                 processingStatus = processingStatus,
                 settings = settings,
-                hazeState = hazeState,
                 errors = errors,
                 onDismissError = onDismissError,
                 onClearAllErrors = onClearAllErrors,
@@ -190,7 +186,6 @@ private fun ChatListNormal(
     loading: Boolean,
     processingStatus: String? = null,
     settings: Settings,
-    hazeState: HazeState,
     errors: List<ChatError>,
     onDismissError: (Uuid) -> Unit,
     onClearAllErrors: () -> Unit,
@@ -309,14 +304,29 @@ private fun ChatListNormal(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
                     .fillMaxSize()
-                    .hazeSource(state = hazeState)
                     .padding(top = innerPadding.calculateTopPadding()),
             ) {
+            if (conversation.messageNodes.isEmpty()) {
+                item(key = "companion_welcome", contentType = "welcome") {
+                    CompanionChatWelcome(assistant = assistant)
+                }
+            }
+
             itemsIndexed(
                 items = conversation.messageNodes,
-                key = { index, item -> item.id },
+                key = { _, item -> item.id },
+                contentType = { _, node -> node.currentMessage.role.name },
             ) { index, node ->
-                Column {
+                val itemModifier = if (loading) {
+                    Modifier
+                } else {
+                    Modifier.animateItem(
+                        fadeInSpec = SolaceAnimationDefault.mediumTween(),
+                        fadeOutSpec = SolaceAnimationDefault.fastTween(),
+                        placementSpec = SolaceAnimationDefault.mediumTween(),
+                    )
+                }
+                Column(modifier = itemModifier) {
                     ListSelectableItem(
                         key = node.id,
                         onSelectChange = {
@@ -379,22 +389,27 @@ private fun ChatListNormal(
             }
 
             if (loading) {
-                item(LoadingIndicatorKey) {
+                item(key = LoadingIndicatorKey, contentType = "loading") {
                     Row(
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        RabbitLoadingIndicator(
-                            modifier = Modifier.size(28.dp)
-                        )
+                        ThinkingDots()
                         AnimatedVisibility(
                             visible = processingStatus != null,
+                            enter = fadeIn(SolaceAnimationDefault.mediumTween()) +
+                                slideInVertically(SolaceAnimationDefault.offsetTween()) { it / 3 } +
+                                scaleIn(initialScale = 0.96f, animationSpec = SolaceAnimationDefault.mediumTween()),
+                            exit = fadeOut(SolaceAnimationDefault.fastTween()) +
+                                scaleOut(targetScale = 0.96f, animationSpec = SolaceAnimationDefault.fastTween()),
                         ) {
                             Text(
                                 text = processingStatus ?: "",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = SolaceTheme.colorScheme.secondaryText,
                             )
                         }
                     }
@@ -558,7 +573,8 @@ private fun extractMatchingSnippet(
 private fun buildHighlightedText(
     text: String,
     query: String,
-    highlightColor: Color
+    highlightColor: Color,
+    highlightTextColor: Color,
 ): AnnotatedString {
     if (query.isBlank()) {
         return AnnotatedString(text)
@@ -576,7 +592,7 @@ private fun buildHighlightedText(
             withStyle(
                 style = SpanStyle(
                     background = highlightColor,
-                    color = Color.Black
+                    color = highlightTextColor,
                 )
             ) {
                 append(text.substring(index, index + query.length))
@@ -598,7 +614,6 @@ private fun ChatListPreview(
     innerPadding: PaddingValues,
     conversation: Conversation,
     settings: Settings,
-    hazeState: HazeState,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onJumpToMessage: (Int) -> Unit
 ) {
@@ -617,8 +632,7 @@ private fun ChatListPreview(
     Column(
         modifier = Modifier
             .padding(top = innerPadding.calculateTopPadding())
-            .fillMaxSize()
-            .hazeSource(state = hazeState),
+            .fillMaxSize(),
     ) {
         // 搜索框
         OutlinedTextField(
@@ -687,7 +701,8 @@ private fun ChatListPreview(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val highlightColor = MaterialTheme.colorScheme.tertiaryContainer
-                            val highlightedText = remember(searchQuery, message) {
+                            val highlightTextColor = SolaceTheme.colorScheme.text
+                            val highlightedText = remember(searchQuery, message, highlightColor, highlightTextColor) {
                                 val fullText = message.toText().trim().ifBlank { "[...]" }
                                 val messageText = extractMatchingSnippet(
                                     text = fullText,
@@ -696,7 +711,8 @@ private fun ChatListPreview(
                                 buildHighlightedText(
                                     text = messageText,
                                     query = searchQuery,
-                                    highlightColor = highlightColor
+                                    highlightColor = highlightColor,
+                                    highlightTextColor = highlightTextColor,
                                 )
                             }
                             Text(

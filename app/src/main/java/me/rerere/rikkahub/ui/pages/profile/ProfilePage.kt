@@ -3,12 +3,13 @@ package me.rerere.rikkahub.ui.pages.profile
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -43,16 +44,19 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
+import me.rerere.rikkahub.ui.components.ui.GlassCard
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.utils.plus
 
 @Composable
 fun ProfilePage() {
     val nav = LocalNavController.current
     val settings = LocalSettings.current
-    val scheme = MaterialTheme.colorScheme
+    val colors = SolaceTheme.colorScheme
+    val typography = SolaceTheme.typography
     val assistantName = settings.getCurrentAssistant().name.ifBlank { "Solace" }
 
     Scaffold(
@@ -63,11 +67,12 @@ fun ProfilePage() {
                         Text(
                             text = stringResource(R.string.profile_page_title),
                             fontWeight = FontWeight.SemiBold,
+                            color = colors.text,
                         )
                         Text(
                             text = stringResource(R.string.profile_page_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant,
+                            style = typography.bodySmall,
+                            color = colors.secondaryText,
                         )
                     }
                 },
@@ -75,13 +80,41 @@ fun ProfilePage() {
                 colors = CustomColors.topBarColors,
             )
         },
-        containerColor = scheme.background,
+        containerColor = colors.background,
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = innerPadding + PaddingValues(horizontal = 8.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            item("hero") {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    contentPadding = 20.dp,
+                ) {
+                    Text(
+                        text = stringResource(R.string.profile_page_hero_label),
+                        style = typography.labelLarge,
+                        color = colors.secondaryText,
+                    )
+                    Text(
+                        text = assistantName,
+                        style = typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.text,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.profile_page_hero_hint),
+                        style = typography.bodySmall,
+                        color = colors.secondaryText,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+
             item("companion") {
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),
@@ -89,29 +122,29 @@ fun ProfilePage() {
                 ) {
                     item(
                         onClick = { nav.navigate(Screen.Assistant) },
-                        leadingContent = { Icon(HugeIcons.LookTop, null) },
+                        leadingContent = { Icon(HugeIcons.LookTop, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_assistant)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_assistant_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Extensions) },
-                        leadingContent = { Icon(HugeIcons.Package, null) },
+                        leadingContent = { Icon(HugeIcons.Package, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Favorite) },
-                        leadingContent = { Icon(HugeIcons.Favourite, null) },
+                        leadingContent = { Icon(HugeIcons.Favourite, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.favorite_page_title)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Translator) },
-                        leadingContent = { Icon(HugeIcons.LanguageCircle, null) },
+                        leadingContent = { Icon(HugeIcons.LanguageCircle, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.translator_page_title)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.ImageGen) },
-                        leadingContent = { Icon(HugeIcons.Image03, null) },
+                        leadingContent = { Icon(HugeIcons.Image03, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.imggen_page_title)) },
                     )
                 }
@@ -124,37 +157,37 @@ fun ProfilePage() {
                 ) {
                     item(
                         onClick = { nav.navigate(Screen.SettingModels) },
-                        leadingContent = { Icon(HugeIcons.AiMagic, null) },
+                        leadingContent = { Icon(HugeIcons.AiMagic, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_default_model)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_default_model_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingProvider) },
-                        leadingContent = { Icon(HugeIcons.Brain02, null) },
+                        leadingContent = { Icon(HugeIcons.Brain02, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_providers)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_providers_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingSearch) },
-                        leadingContent = { Icon(HugeIcons.GlobalSearch, null) },
+                        leadingContent = { Icon(HugeIcons.GlobalSearch, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_search_service)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_search_service_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingSpeech) },
-                        leadingContent = { Icon(HugeIcons.Megaphone01, null) },
+                        leadingContent = { Icon(HugeIcons.Megaphone01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_tts_service)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_tts_service_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingMcp) },
-                        leadingContent = { Icon(HugeIcons.McpServer, null) },
+                        leadingContent = { Icon(HugeIcons.McpServer, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_mcp)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_mcp_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingWeb) },
-                        leadingContent = { Icon(HugeIcons.ServerStack01, null) },
+                        leadingContent = { Icon(HugeIcons.ServerStack01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_web_server)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_web_server_desc)) },
                     )
@@ -168,23 +201,23 @@ fun ProfilePage() {
                 ) {
                     item(
                         onClick = { nav.navigate(Screen.Backup) },
-                        leadingContent = { Icon(HugeIcons.Database02, null) },
+                        leadingContent = { Icon(HugeIcons.Database02, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_data_backup)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_data_backup_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingFiles) },
-                        leadingContent = { Icon(HugeIcons.ImageUpload, null) },
+                        leadingContent = { Icon(HugeIcons.ImageUpload, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_chat_storage)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Stats) },
-                        leadingContent = { Icon(HugeIcons.ChartColumn, null) },
+                        leadingContent = { Icon(HugeIcons.ChartColumn, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.stats_page_title)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Log) },
-                        leadingContent = { Icon(HugeIcons.Bookshelf01, null) },
+                        leadingContent = { Icon(HugeIcons.Bookshelf01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_request_logs)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_request_logs_desc)) },
                     )
@@ -198,44 +231,45 @@ fun ProfilePage() {
                 ) {
                     item(
                         onClick = { nav.navigate(Screen.SettingPreferences) },
-                        leadingContent = { Icon(HugeIcons.Settings03, null) },
+                        leadingContent = { Icon(HugeIcons.Settings03, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_preferences)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_preferences_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingTheme) },
-                        leadingContent = { Icon(HugeIcons.Sun01, null) },
+                        leadingContent = { Icon(HugeIcons.Sun01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_theme_setting)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_theme_setting_desc)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Setting) },
-                        leadingContent = { Icon(HugeIcons.Share04, null) },
+                        leadingContent = { Icon(HugeIcons.Share04, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.settings)) },
                         supportingContent = { Text(stringResource(R.string.profile_page_subtitle)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingAbout) },
-                        leadingContent = { Icon(HugeIcons.Clapping01, null) },
+                        leadingContent = { Icon(HugeIcons.Clapping01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_about)) },
                         supportingContent = { Text("Solace · based on RikkaHub") },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingDonate) },
-                        leadingContent = { Icon(HugeIcons.Book01, null) },
+                        leadingContent = { Icon(HugeIcons.Book01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_donate)) },
                     )
                 }
             }
 
-            item("assistantHint") {
+            item("footer") {
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = assistantName,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.onSurfaceVariant,
+                    text = "Solace",
+                    style = typography.labelMedium,
+                    color = colors.secondaryText.copy(alpha = 0.7f),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
         }

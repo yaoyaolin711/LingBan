@@ -5,9 +5,12 @@ import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
@@ -15,7 +18,6 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -39,20 +41,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.dokar.sonner.ToastType
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
@@ -65,7 +66,6 @@ import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
@@ -77,6 +77,7 @@ import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.components.ai.FilesPicker
 import me.rerere.rikkahub.ui.components.ai.completion.WorkspaceCompletionProvider
 import me.rerere.rikkahub.ui.components.ai.useCropLauncher
+import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionCamera
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
@@ -86,6 +87,7 @@ import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.ui.hooks.EditStateContent
 import me.rerere.rikkahub.ui.hooks.useEditState
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.utils.ImageUtils
 import me.rerere.rikkahub.utils.base64Decode
 import me.rerere.rikkahub.utils.isAllowedFileType
@@ -280,7 +282,6 @@ private fun ChatPageContent(
     val toaster = LocalToaster.current
     val workspaceRepository: WorkspaceRepository = koinInject()
     var previewMode by rememberSaveable { mutableStateOf(false) }
-    val hazeState = rememberHazeState()
     val assistant = setting.getCurrentAssistant()
     var showFilesSheet by remember { mutableStateOf(false) }
 
@@ -299,10 +300,10 @@ private fun ChatPageContent(
     TTSAutoPlay(vm = vm, setting = setting, conversation = conversation)
 
     Surface(
-        color = MaterialTheme.colorScheme.background,
+        color = SolaceTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
     ) {
-        AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
+        AssistantBackground(setting = setting, modifier = Modifier)
         Scaffold(
             topBar = {
                 TopBar(
@@ -327,7 +328,6 @@ private fun ChatPageContent(
                     state = inputState,
                     loading = loadingJob != null,
                     settings = setting,
-                    hazeState = hazeState,
                     completionProviders = completionProviders,
                     onCancelClick = {
                         vm.stopGeneration()
@@ -417,7 +417,6 @@ private fun ChatPageContent(
                 processingStatus = processingStatus,
                 previewMode = previewMode,
                 settings = setting,
-                hazeState = hazeState,
                 errors = errors,
                 onDismissError = onDismissError,
                 onClearAllErrors = onClearAllErrors,
@@ -717,12 +716,20 @@ private fun TopBar(
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
+    val colors = SolaceTheme.colorScheme
+    val typography = SolaceTheme.typography
     val titleState = useEditState<String> {
         onUpdateTitle(it)
     }
+    val assistant = settings.getCurrentAssistant()
 
     TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            titleContentColor = colors.text,
+            navigationIconContentColor = colors.text,
+            actionIconContentColor = colors.secondaryText,
+        ),
         navigationIcon = {
             if (!bigScreen) {
                 IconButton(
@@ -746,25 +753,40 @@ private fun TopBar(
                 },
                 color = Color.Transparent,
             ) {
-                Column {
-                    val assistant = settings.getCurrentAssistant()
-                    val model = settings.getCurrentChatModel()
-                    val provider = model?.findProvider(providers = settings.providers, checkOverwrite = false)
-                    Text(
-                        text = conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },
-                        maxLines = 1,
-                        style = MaterialTheme.typography.bodyMedium,
-                        overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    UIAvatar(
+                        name = assistant.name.ifBlank {
+                            stringResource(R.string.assistant_page_default_assistant)
+                        },
+                        value = assistant.avatar,
+                        modifier = Modifier.size(36.dp),
                     )
-                    if (model != null && provider != null) {
+                    Column {
                         Text(
-                            text = "${assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }} / ${model.displayName} (${provider.name})",
+                            text = conversation.title.ifBlank {
+                                stringResource(R.string.chat_page_new_chat)
+                            },
+                            maxLines = 1,
+                            style = typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.text,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val companionLabel = assistant.name.ifBlank {
+                            stringResource(R.string.assistant_page_default_assistant)
+                        }
+                        Text(
+                            text = stringResource(
+                                R.string.chat_page_companion_status,
+                                companionLabel,
+                            ),
                             overflow = TextOverflow.Ellipsis,
                             maxLines = 1,
-                            color = LocalContentColor.current.copy(0.65f),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 8.sp,
-                            )
+                            color = colors.secondaryText,
+                            style = typography.labelMedium,
                         )
                     }
                 }

@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import me.rerere.rikkahub.ui.theme.SolaceAnimationDefault
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -299,24 +300,19 @@ class RouteActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         onBack = { backStack.removeLastOrNull() },
                         transitionSpec = {
-                            if (backStack.size == 1) fadeIn() togetherWith fadeOut()
-                            else {
-                                slideInHorizontally { it } togetherWith
-                                    slideOutHorizontally { -it / 2 } + scaleOut(targetScale = 0.7f) + fadeOut()
-                            }
+                            if (backStack.size == 1) SolaceAnimationDefault.pageFade()
+                            else SolaceAnimationDefault.pageForward()
                         },
                         popTransitionSpec = {
-                            slideInHorizontally { -it / 2 } + scaleIn(initialScale = 0.7f) + fadeIn() togetherWith
-                                slideOutHorizontally { it }
+                            SolaceAnimationDefault.pagePop()
                         },
                         predictivePopTransitionSpec = {
-                            slideInHorizontally { -it / 2 } + scaleIn(initialScale = 0.7f) + fadeIn() togetherWith
-                                slideOutHorizontally { it }
+                            SolaceAnimationDefault.pagePop()
                         },
                         entryProvider = entryProvider {
                             entry<Screen.Home>(
-                                metadata = NavDisplay.transitionSpec { fadeIn() togetherWith fadeOut() }
-                                    + NavDisplay.popTransitionSpec { fadeIn() togetherWith fadeOut() }
+                                metadata = NavDisplay.transitionSpec { SolaceAnimationDefault.pageFade() }
+                                    + NavDisplay.popTransitionSpec { SolaceAnimationDefault.pageFade() }
                             ) {
                                 HomePage()
                             }
@@ -326,8 +322,8 @@ class RouteActivity : ComponentActivity() {
                             }
 
                             entry<Screen.Chat>(
-                                metadata = NavDisplay.transitionSpec { fadeIn() togetherWith fadeOut() }
-                                    + NavDisplay.popTransitionSpec { fadeIn() togetherWith fadeOut() }
+                                metadata = NavDisplay.transitionSpec { SolaceAnimationDefault.pageFade() }
+                                    + NavDisplay.popTransitionSpec { SolaceAnimationDefault.pageFade() }
                             ) { key ->
                                 ChatPage(
                                     id = Uuid.parse(key.id),

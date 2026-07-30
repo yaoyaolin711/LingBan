@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,6 +90,8 @@ import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.theme.LocalChatFontFamily
+import me.rerere.rikkahub.ui.theme.SolaceShapesDefault
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.ui.theme.rememberChatFontFamily
 import me.rerere.rikkahub.ui.theme.extendColors
 import me.rerere.rikkahub.utils.JsonInstant
@@ -359,42 +362,25 @@ private fun MessagePartsBlock(
                     is UIMessagePart.Text -> {
                         val textContent = @Composable {
                             if (role == MessageRole.USER) {
-                                Surface(
-                                    modifier = Modifier.animateContentSize(),
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = settings.displaySetting.bubbleOpacity),
+                                SolaceUserBubble(
+                                    modifier = if (loading) Modifier else Modifier.animateContentSize(),
+                                    opacity = settings.displaySetting.bubbleOpacity,
                                     onClick = { onUserMessageClick?.invoke() },
                                 ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        MarkdownBlock(
-                                            content = part.text.replaceRegexes(
-                                                assistant = assistant,
-                                                scope = AssistantAffectScope.USER,
-                                                visual = true,
-                                            ),
-                                            onClickCitation = handleClickCitation
-                                        )
-                                    }
+                                    MarkdownBlock(
+                                        content = part.text.replaceRegexes(
+                                            assistant = assistant,
+                                            scope = AssistantAffectScope.USER,
+                                            visual = true,
+                                        ),
+                                        onClickCitation = handleClickCitation
+                                    )
                                 }
                             } else {
-                                if (settings.displaySetting.showAssistantBubble) {
-                                    Surface(
-                                        modifier = Modifier.animateContentSize(),
-                                        shape = RoundedCornerShape(18.dp),
-                                        color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = settings.displaySetting.bubbleOpacity),
-                                    ) {
-                                        Column(modifier = Modifier.padding(8.dp)) {
-                                            MarkdownBlock(
-                                                content = part.text.replaceRegexes(
-                                                    assistant = assistant,
-                                                    scope = AssistantAffectScope.ASSISTANT,
-                                                    visual = true,
-                                                ),
-                                                onClickCitation = handleClickCitation,
-                                            )
-                                        }
-                                    }
-                                } else {
+                                SolaceAssistantBubble(
+                                    modifier = if (loading) Modifier else Modifier.animateContentSize(),
+                                    opacity = settings.displaySetting.bubbleOpacity,
+                                ) {
                                     MarkdownBlock(
                                         content = part.text.replaceRegexes(
                                             assistant = assistant,
@@ -402,8 +388,6 @@ private fun MessagePartsBlock(
                                             visual = true,
                                         ),
                                         onClickCitation = handleClickCitation,
-                                        modifier = Modifier
-                                            .animateContentSize()
                                     )
                                 }
                             }

@@ -46,7 +46,7 @@ Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ov
 
 底层业务语义与 RikkaHub 一致；Kotlin 包名仍为 `me.rerere.rikkahub`，对外品牌与图标为 Solace。
 
-默认主题：**Solace Warm**（暖底 `#FFF7F1` + 主色 `#E8823A`）。
+默认主题：**Solace Rose Gold**（`#FFF9F7` 底 + Rose Gold `#B76E79`）。设计令牌见 `ui/theme/`（`SolaceTheme.colorScheme`）。
 
 ---
 

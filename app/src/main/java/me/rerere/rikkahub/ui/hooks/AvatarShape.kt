@@ -9,21 +9,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Shape
 import kotlin.math.roundToInt
 
+/**
+ * Avatar clip shape. InfiniteTransition only while [loading] to avoid
+ * continuous recomposition of idle avatars across the app.
+ */
 @Composable
 fun rememberAvatarShape(loading: Boolean): Shape {
-    val infiniteTransition = rememberInfiniteTransition()
-    val rotateAngle = infiniteTransition.animateFloat(
+    if (!loading) return CircleShape
+    val infiniteTransition = rememberInfiniteTransition(label = "avatar_shape")
+    val rotateAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = 3000,
-                easing = LinearEasing
-            ),
-        )
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+        ),
+        label = "avatar_angle",
     )
-    return if (loading) MaterialShapes.Cookie6Sided.toShape(rotateAngle.value.roundToInt()) else CircleShape
+    return MaterialShapes.Cookie6Sided.toShape(rotateAngle.roundToInt())
 }

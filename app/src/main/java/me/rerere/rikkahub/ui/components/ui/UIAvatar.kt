@@ -3,7 +3,6 @@ package me.rerere.rikkahub.ui.components.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.TextAutoSize
@@ -40,7 +39,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import java.security.MessageDigest
 import kotlin.math.abs
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Edit03
@@ -58,6 +60,7 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.ui.components.ai.useCropLauncher
 import me.rerere.rikkahub.ui.hooks.rememberAvatarShape
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import org.koin.compose.koinInject
 import java.io.File
 
@@ -154,7 +157,7 @@ fun UIAvatar(
                 if (onUpdate != null) showPickOption = true
             },
             tonalElevation = 4.dp,
-            color = MaterialTheme.colorScheme.secondaryContainer,
+            color = SolaceTheme.colorScheme.surfaceContainerHigh,
         ) {
             Box(
                 contentAlignment = Alignment.Center,
@@ -162,8 +165,17 @@ fun UIAvatar(
             ) {
                 when (value) {
                     is Avatar.Image -> {
+                        val context = LocalContext.current
+                        val density = LocalDensity.current
+                        val px = with(density) { 128.dp.roundToPx() }
+                        val request = remember(value.url, px) {
+                            ImageRequest.Builder(context)
+                                .data(value.url)
+                                .size(px)
+                                .build()
+                        }
                         AsyncImage(
-                            model = value.url,
+                            model = request,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,

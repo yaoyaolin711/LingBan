@@ -1,290 +1,251 @@
 package me.rerere.rikkahub.ui.pages.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Brain02
-import me.rerere.hugeicons.stroke.Clock02
+import me.rerere.hugeicons.stroke.Home01
 import me.rerere.hugeicons.stroke.LookTop
-import me.rerere.hugeicons.stroke.MessageAdd01
+import me.rerere.hugeicons.stroke.Message01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.ui.components.solace.CompanionAvatar
+import me.rerere.rikkahub.ui.components.solace.CompanionAvatarSize
+import me.rerere.rikkahub.ui.components.solace.PremiumBarCenter
+import me.rerere.rikkahub.ui.components.solace.PremiumBarItem
+import me.rerere.rikkahub.ui.components.solace.PremiumBottomBar
+import me.rerere.rikkahub.ui.components.solace.RelationshipCard
+import me.rerere.rikkahub.ui.components.solace.RelationshipMetric
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.pages.chat.MeshGradientBackground
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import org.koin.androidx.compose.koinViewModel
 import java.util.Calendar
-import kotlin.uuid.Uuid
 
 @Composable
 fun HomePage(vm: HomeVM = koinViewModel()) {
     val nav = LocalNavController.current
     val uiState by vm.uiState.collectAsStateWithLifecycle()
-    val scheme = MaterialTheme.colorScheme
+    val colors = SolaceTheme.colorScheme
+    val typography = SolaceTheme.typography
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        scheme.primary.copy(alpha = 0.12f),
-                        scheme.background,
-                        scheme.background,
+    val assistantName = uiState.assistant?.name?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.assistant_page_default_assistant)
+    val avatar = uiState.assistant?.avatar ?: Avatar.Dummy
+
+    fun openChat(newChat: Boolean = false) {
+        val id = when {
+            newChat -> vm.newConversationId()
+            else -> uiState.recentConversation?.id ?: vm.newConversationId()
+        }
+        nav.navigate(Screen.Chat(id = id.toString()))
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        MeshGradientBackground(modifier = Modifier.fillMaxSize())
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            colors.background.copy(alpha = 0.15f),
+                            colors.background.copy(alpha = 0.45f),
+                            colors.background.copy(alpha = 0.78f),
+                        )
                     )
                 )
-            )
-    ) {
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 108.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(
+            Text(
+                text = "Solace",
+                style = typography.labelLarge,
+                color = colors.secondaryText.copy(alpha = 0.7f),
+                letterSpacing = 2.sp,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .align(Alignment.Start)
                     .padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Solace",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = scheme.onBackground,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = { nav.navigate(Screen.Profile) }) {
-                    Icon(
-                        HugeIcons.Settings03,
-                        contentDescription = stringResource(R.string.home_page_profile),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            SolaceOrb(
-                onClick = {
-                    val id = uiState.recentConversation?.id ?: vm.newConversationId()
-                    nav.navigate(Screen.Chat(id = id.toString()))
-                },
-                size = 220.dp,
             )
-
-            Spacer(Modifier.height(20.dp))
-
             Text(
                 text = greetingText(),
-                style = MaterialTheme.typography.titleLarge,
-                color = scheme.onBackground,
+                style = typography.titleMedium,
+                color = colors.text.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(top = 4.dp),
+            )
+
+            Spacer(Modifier.weight(0.35f))
+
+            CompanionAvatar(
+                name = assistantName,
+                avatar = avatar,
+                size = CompanionAvatarSize.Hero,
+                showName = true,
+                statusLabel = stringResource(R.string.home_page_status_online),
+                onClick = { openChat(newChat = false) },
+            )
+
+            Spacer(Modifier.height(36.dp))
+
+            HomeRelationshipCard(
+                levelKey = uiState.relationshipLevelKey(),
+                interactionCount = uiState.interactionCount,
+                companionDays = uiState.companionDays,
+                onClick = { openChat(newChat = false) },
+            )
+
+            Text(
+                text = stringResource(R.string.home_page_tap_to_chat),
+                style = typography.bodySmall,
+                color = colors.secondaryText.copy(alpha = 0.75f),
+                modifier = Modifier.padding(top = 14.dp),
                 textAlign = TextAlign.Center,
             )
-            val assistantName = uiState.assistant?.name?.takeIf { it.isNotBlank() }
-            if (assistantName != null) {
-                Text(
-                    text = assistantName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            Text(
-                text = stringResource(R.string.home_page_tap_orb),
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.weight(1f))
+        }
 
-            Surface(
-                onClick = {
-                    nav.navigate(Screen.Chat(id = Uuid.random().toString()))
-                },
-                shape = RoundedCornerShape(20.dp),
-                color = scheme.primary,
-                contentColor = scheme.onPrimary,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Icon(HugeIcons.MessageAdd01, contentDescription = null)
-                    Spacer(Modifier.size(10.dp))
-                    Text(
-                        text = stringResource(R.string.home_page_new_chat),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
+        HomePremiumBottomBar(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            onHome = { /* already here */ },
+            onCompanions = { nav.navigate(Screen.Assistant) },
+            onChat = { openChat(newChat = uiState.recentConversation == null) },
+            onMemory = {
+                val assistantId = uiState.assistant?.id?.toString()
+                if (assistantId != null) {
+                    nav.navigate(Screen.AssistantMemory(assistantId))
+                } else {
+                    nav.navigate(Screen.Assistant)
                 }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            HomeCard(
-                title = stringResource(R.string.home_page_recent_chat),
-                subtitle = uiState.recentConversation?.title?.takeIf { it.isNotBlank() }
-                    ?: stringResource(R.string.home_page_no_recent),
-                onClick = {
-                    val id = uiState.recentConversation?.id ?: vm.newConversationId()
-                    nav.navigate(Screen.Chat(id = id.toString()))
-                },
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                HomeMiniCard(
-                    title = stringResource(R.string.home_page_agents),
-                    icon = { Icon(HugeIcons.LookTop, null, tint = scheme.primary) },
-                    onClick = { nav.navigate(Screen.Assistant) },
-                    cardModifier = Modifier.weight(1f),
-                )
-                HomeMiniCard(
-                    title = stringResource(R.string.home_page_history),
-                    icon = { Icon(HugeIcons.Clock02, null, tint = scheme.primary) },
-                    onClick = { nav.navigate(Screen.History) },
-                    cardModifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                HomeMiniCard(
-                    title = stringResource(R.string.home_page_memory),
-                    icon = { Icon(HugeIcons.Brain02, null, tint = scheme.primary) },
-                    onClick = {
-                        val assistantId = uiState.assistant?.id?.toString()
-                        if (assistantId != null) {
-                            nav.navigate(Screen.AssistantMemory(assistantId))
-                        } else {
-                            nav.navigate(Screen.Assistant)
-                        }
-                    },
-                    cardModifier = Modifier.weight(1f),
-                    subtitle = if (uiState.memoryCount > 0) "${uiState.memoryCount}" else null,
-                )
-                HomeMiniCard(
-                    title = stringResource(R.string.home_page_profile),
-                    icon = { Icon(HugeIcons.Settings03, null, tint = scheme.primary) },
-                    onClick = { nav.navigate(Screen.Profile) },
-                    cardModifier = Modifier.weight(1f),
-                )
-            }
-        }
+            },
+            onProfile = { nav.navigate(Screen.Profile) },
+        )
     }
 }
 
 @Composable
-private fun HomeCard(
-    title: String,
-    subtitle: String,
+private fun HomeRelationshipCard(
+    levelKey: String,
+    interactionCount: Int,
+    companionDays: Long,
     onClick: () -> Unit,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = scheme.surfaceContainerLowest,
-        tonalElevation = 1.dp,
-        shadowElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = scheme.onSurfaceVariant,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.titleMedium,
-                color = scheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp),
-            )
+    val levelLabel = when (levelKey) {
+        "acquaintance" -> stringResource(R.string.home_page_level_acquaintance)
+        "familiar" -> stringResource(R.string.home_page_level_familiar)
+        "close" -> stringResource(R.string.home_page_level_close)
+        "bonded" -> stringResource(R.string.home_page_level_bonded)
+        else -> stringResource(R.string.home_page_level_new)
+    }
+    val levelRoman = remember(levelKey) {
+        when (levelKey) {
+            "acquaintance" -> "II"
+            "familiar" -> "III"
+            "close" -> "IV"
+            "bonded" -> "V"
+            else -> "I"
         }
     }
+    RelationshipCard(
+        title = stringResource(R.string.home_page_relationship_title),
+        levelLabel = levelLabel,
+        metrics = listOf(
+            RelationshipMetric(levelRoman, stringResource(R.string.home_page_metric_level)),
+            RelationshipMetric("$interactionCount", stringResource(R.string.home_page_metric_interactions)),
+            RelationshipMetric(
+                if (companionDays <= 0) "—" else "$companionDays",
+                stringResource(R.string.home_page_metric_days),
+            ),
+        ),
+        onClick = onClick,
+    )
 }
 
 @Composable
-private fun HomeMiniCard(
-    title: String,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit,
-    cardModifier: Modifier = Modifier,
-    subtitle: String? = null,
+private fun HomePremiumBottomBar(
+    modifier: Modifier = Modifier,
+    onHome: () -> Unit,
+    onCompanions: () -> Unit,
+    onChat: () -> Unit,
+    onMemory: () -> Unit,
+    onProfile: () -> Unit,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        color = scheme.surfaceContainerLow,
-        modifier = cardModifier,
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            icon()
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = scheme.onSurface,
-            )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.onSurfaceVariant,
-                )
-            }
-        }
+    var selectedKey by remember { mutableStateOf("home") }
+    val items = remember {
+        listOf(
+            PremiumBarItem("home", HugeIcons.Home01, ""),
+            PremiumBarItem("companions", HugeIcons.LookTop, ""),
+            PremiumBarItem("memory", HugeIcons.Brain02, ""),
+            PremiumBarItem("profile", HugeIcons.Settings03, ""),
+        )
     }
+    // Labels need composition for stringResource — rebuild items with labels
+    val labeledItems = listOf(
+        items[0].copy(label = stringResource(R.string.home_page_nav_space)),
+        items[1].copy(label = stringResource(R.string.home_page_agents)),
+        items[2].copy(label = stringResource(R.string.home_page_memory)),
+        items[3].copy(label = stringResource(R.string.home_page_profile)),
+    )
+
+    PremiumBottomBar(
+        items = labeledItems,
+        selectedKey = selectedKey,
+        onItemClick = { item ->
+            selectedKey = item.key
+            when (item.key) {
+                "home" -> onHome()
+                "companions" -> onCompanions()
+                "memory" -> onMemory()
+                "profile" -> onProfile()
+            }
+        },
+        modifier = modifier,
+        center = PremiumBarCenter(
+            icon = HugeIcons.Message01,
+            contentDescription = stringResource(R.string.home_page_new_chat),
+        ),
+        centerSelected = selectedKey == "chat",
+        onCenterClick = {
+            selectedKey = "chat"
+            onChat()
+        },
+    )
 }
 
 @Composable

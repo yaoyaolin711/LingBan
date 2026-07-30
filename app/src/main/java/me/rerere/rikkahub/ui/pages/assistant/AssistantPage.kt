@@ -6,6 +6,7 @@ import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Search01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.Cancel01
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -77,6 +78,8 @@ import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.modifier.onClick
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantImporter
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.ui.theme.SolaceTheme
+import me.rerere.rikkahub.ui.theme.SolaceShapesDefault
 import org.koin.androidx.compose.koinViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -401,22 +404,28 @@ private fun AssistantItem(
     Card(
         modifier = modifier.fillMaxWidth(),
         onClick = onEdit,
+        shape = SolaceShapesDefault.large,
         colors = CardDefaults.cardColors(
             containerColor = CustomColors.listItemColors.containerColor
-        )
+        ),
+        border = BorderStroke(
+            1.dp,
+            SolaceTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             UIAvatar(
                 name = assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) },
                 value = assistant.avatar,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(52.dp)
                     .heroAnimation("assistant_${assistant.id}")
             )
 

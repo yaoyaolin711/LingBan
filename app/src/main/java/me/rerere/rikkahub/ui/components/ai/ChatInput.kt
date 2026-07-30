@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.components.ai
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -14,6 +15,8 @@ import androidx.compose.foundation.content.consume
 import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.content.hasMediaType
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -74,10 +78,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.dokar.sonner.ToastType
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.blurEffect
-import dev.chrisbanes.haze.blur.materials.HazeMaterials
-import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import me.rerere.ai.provider.Model
@@ -98,6 +98,9 @@ import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
+import me.rerere.rikkahub.ui.components.solace.FloatingInput
+import me.rerere.rikkahub.ui.theme.SolaceAnimationDefault
+import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionItem
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionList
@@ -119,7 +122,6 @@ fun ChatInput(
     state: ChatInputState,
     loading: Boolean,
     settings: Settings,
-    hazeState: HazeState,
     enableSearch: Boolean,
     onToggleSearch: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -134,22 +136,13 @@ fun ChatInput(
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
-    val hazeTintColor = MaterialTheme.colorScheme.surfaceContainerLow
-    val inputHazeStyle = HazeMaterials.thin(containerColor = hazeTintColor)
+    val colors = SolaceTheme.colorScheme
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
     // 键盘弹出时让底部两角变直角，贴合 IME
     val imeVisible = WindowInsets.isImeVisible
-    val containerShape = if (imeVisible) {
-        MaterialTheme.shapes.largeIncreased.copy(
-            bottomStart = CornerSize(0.dp),
-            bottomEnd = CornerSize(0.dp),
-        )
-    } else {
-        MaterialTheme.shapes.largeIncreased
-    }
 
     fun sendMessage() {
         focusManager.clearFocus(force = true)
@@ -201,33 +194,11 @@ fun ChatInput(
             modifier = modifier
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp)
-                .padding(bottom = if (imeVisible) 0.dp else 8.dp),
+                .padding(horizontal = 14.dp)
+                .padding(bottom = if (imeVisible) 0.dp else 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(containerShape)
-                    .then(
-                        if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                            state = hazeState
-                        ) {
-                            blurEffect {
-                                style = inputHazeStyle
-                            }
-                        }
-                        else Modifier
-                    ),
-                shape = containerShape,
-                tonalElevation = 0.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                color = if (settings.displaySetting.enableBlurEffect) Color.Transparent else hazeTintColor,
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
+            FloatingInput(imeVisible = imeVisible) {
                     if (state.messageContent.isNotEmpty()) {
                         MediaFileInputRow(state = state)
                     }
@@ -241,15 +212,15 @@ fun ChatInput(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
+                            .padding(horizontal = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             // Model Picker
                             ModelSelector(
@@ -300,12 +271,15 @@ fun ChatInput(
 
                         }
 
-                        ActionIconButton(
-                            onClick = onMoreClick
+                        SolaceCircleActionButton(
+                            onClick = onMoreClick,
+                            tint = colors.secondaryText,
                         ) {
                             Icon(
                                 imageVector = HugeIcons.Add01,
-                                contentDescription = stringResource(R.string.more_options)
+                                contentDescription = stringResource(R.string.more_options),
+                                tint = colors.secondaryText,
+                                modifier = Modifier.size(18.dp),
                             )
                         }
 
@@ -339,58 +313,128 @@ fun ChatInput(
                             enter = fadeIn() + scaleIn(),
                             exit = fadeOut() + scaleOut(),
                         ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .testTag("chat_send_button")
-                                    .clip(CircleShape)
-                                    .combinedClickable(
-                                        enabled = loading || !state.isEmpty(),
-                                        onClick = {
-                                            sendMessage()
-                                        }, onLongClick = {
-                                            sendMessageWithoutAnswer()
-                                        }
-                                    )
-                            ) {
-                                val containerColor = when {
-                                    loading -> MaterialTheme.colorScheme.errorContainer
-                                    state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                                val contentColor = when {
-                                    loading -> MaterialTheme.colorScheme.onErrorContainer
-                                    state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                    else -> MaterialTheme.colorScheme.onPrimary
-                                }
-                                Surface(
-                                    modifier = Modifier.fillMaxSize(),
-                                    shape = CircleShape,
-                                    color = containerColor,
-                                    content = {})
-                                if (loading) {
-                                    KeepScreenOn()
-                                    Icon(
-                                        imageVector = HugeIcons.Cancel01,
-                                        contentDescription = stringResource(R.string.stop),
-                                        tint = contentColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = HugeIcons.ArrowUp02,
-                                        contentDescription = stringResource(R.string.send),
-                                        tint = contentColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
+                            SolaceSendButton(
+                                loading = loading,
+                                enabled = loading || !state.isEmpty(),
+                                onClick = { sendMessage() },
+                                onLongClick = { sendMessageWithoutAnswer() },
+                            )
                         }
                     }
-                }
             }
 
+        }
+    }
+}
+
+@Composable
+private fun SolaceCircleActionButton(
+    onClick: () -> Unit,
+    tint: Color,
+    content: @Composable () -> Unit,
+) {
+    val colors = SolaceTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) SolaceAnimationDefault.pressScale else 1f,
+        animationSpec = SolaceAnimationDefault.fastTween(),
+        label = "circle_btn_press",
+    )
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = Modifier
+            .size(36.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        shape = CircleShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        color = colors.champagne.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.35f)),
+        contentColor = tint,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SolaceSendButton(
+    loading: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val colors = SolaceTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = when {
+            pressed -> SolaceAnimationDefault.pressScale
+            enabled && !loading -> 1f
+            else -> 1f
+        },
+        animationSpec = SolaceAnimationDefault.fastTween(),
+        label = "send_btn_press",
+    )
+    val containerColor = when {
+        loading -> colors.accent.copy(alpha = 0.85f)
+        !enabled -> colors.champagne.copy(alpha = 0.45f)
+        else -> colors.primary
+    }
+    val contentColor = when {
+        loading -> colors.onPrimary
+        !enabled -> colors.secondaryText.copy(alpha = 0.45f)
+        else -> colors.onPrimary
+    }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(40.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .testTag("chat_send_button")
+            .clip(CircleShape)
+            .combinedClickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = CircleShape,
+            color = containerColor,
+            shadowElevation = if (enabled && !loading) 6.dp else 0.dp,
+            content = {},
+        )
+        if (loading) {
+            KeepScreenOn()
+            Icon(
+                imageVector = HugeIcons.Cancel01,
+                contentDescription = stringResource(R.string.stop),
+                tint = contentColor,
+                modifier = Modifier.size(18.dp),
+            )
+        } else {
+            Icon(
+                imageVector = HugeIcons.ArrowUp02,
+                contentDescription = stringResource(R.string.send),
+                tint = contentColor,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -400,19 +444,11 @@ private fun ActionIconButton(
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    Surface(
+    SolaceCircleActionButton(
         onClick = onClick,
-        modifier = Modifier.size(30.dp),
-        shape = CircleShape,
-        tonalElevation = 0.dp,
-        color = Color.Transparent,
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
-        ) {
-            content()
-        }
-    }
+        tint = SolaceTheme.colorScheme.secondaryText,
+        content = content,
+    )
 }
 
 @Composable

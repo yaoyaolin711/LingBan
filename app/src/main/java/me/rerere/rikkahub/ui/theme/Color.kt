@@ -2,13 +2,237 @@ package me.rerere.rikkahub.ui.theme
 
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+
+/**
+ * Solace Rose Gold Luxury — brand palette (single source of truth).
+ *
+ * Jewelry / perfume / luxury-app tone. Never hardcode these in pages;
+ * consume via [SolaceTheme.colorScheme].
+ */
+object SolacePalette {
+    // —— Brand tokens (spec) ——
+    val RoseGold = Color(0xFFB76E79)
+    val LightRose = Color(0xFFE8B4B8)
+    val Champagne = Color(0xFFF6E3DC)
+    val Background = Color(0xFFFFF9F7)
+    val Surface = Color(0xFFFFFFFF)
+    val Text = Color(0xFF3A3030)
+    val SecondaryText = Color(0xFF8F7777)
+    val Accent = Color(0xFFD9A0A7)
+
+    // —— Derived neutrals (from brand family only) ——
+    val OnPrimary = Color(0xFFFFFFFF)
+    val Outline = Color(0xFFD4B8B8)
+    val OutlineVariant = Color(0xFFEEDFDF)
+    val SurfaceDim = Color(0xFFEDE0E0)
+    val SurfaceContainerLow = Color(0xFFFFF4F2)
+    val SurfaceContainer = Color(0xFFFCEEEC)
+    val SurfaceContainerHigh = Color(0xFFF8E6E4)
+    val SurfaceContainerHighest = Color(0xFFF3DDDB)
+    val ChampagneDeep = Color(0xFFE8D0C8)
+    val RoseGoldDeep = Color(0xFF8A4A55)
+    val TextMuted = Color(0xFF5C4A4A)
+    val Scrim = Color(0xFF000000)
+
+    // —— Dark velvet counterparts (same hue family) ——
+    val DarkBackground = Color(0xFF161211)
+    val DarkSurface = Color(0xFF1C1716)
+    val DarkSurfaceLowest = Color(0xFF100D0C)
+    val DarkSurfaceLow = Color(0xFF1E1918)
+    val DarkSurfaceContainer = Color(0xFF221D1C)
+    val DarkSurfaceHigh = Color(0xFF2C2423)
+    val DarkSurfaceHighest = Color(0xFF372E2C)
+    val DarkText = Color(0xFFF0E6E4)
+    val DarkSecondaryText = Color(0xFFC4B0AE)
+    val DarkPrimary = Color(0xFFE8B4B8)
+    val DarkAccent = Color(0xFFD9A0A7)
+    val DarkChampagne = Color(0xFF4A3C38)
+    val DarkOutline = Color(0xFF8F7777)
+    val DarkOutlineVariant = Color(0xFF3D342F)
+    val DarkOnPrimary = Color(0xFF3A2024)
+    val DarkRoseGoldDeep = Color(0xFF6B3A42)
+    val DarkChampagneBlob = Color(0xFF9A7A70)
+}
+
+/**
+ * Semantic Solace color scheme for UI consumption.
+ * Prefer this over raw [SolacePalette] in composables.
+ */
+@Immutable
+data class SolaceColorScheme(
+    val primary: Color,
+    val lightRose: Color,
+    val champagne: Color,
+    val background: Color,
+    val surface: Color,
+    val text: Color,
+    val secondaryText: Color,
+    val accent: Color,
+    val onPrimary: Color,
+    val outline: Color,
+    val outlineVariant: Color,
+    val surfaceContainerLowest: Color,
+    val surfaceContainerLow: Color,
+    val surfaceContainer: Color,
+    val surfaceContainerHigh: Color,
+    val surfaceContainerHighest: Color,
+    val glassFill: Color,
+    val glassBorder: Color,
+    val orbCore: Color,
+    val auroraTop: Color,
+    val auroraMid: Color,
+    val auroraBottom: Color,
+    val auroraBlobPrimary: Color,
+    val auroraBlobSecondary: Color,
+    val auroraBlobChampagne: Color,
+    val auroraBlobPearl: Color,
+    val scrim: Color,
+)
+
+fun lightSolaceColorScheme(): SolaceColorScheme = SolaceColorScheme(
+    primary = SolacePalette.RoseGold,
+    lightRose = SolacePalette.LightRose,
+    champagne = SolacePalette.Champagne,
+    background = SolacePalette.Background,
+    surface = SolacePalette.Surface,
+    text = SolacePalette.Text,
+    secondaryText = SolacePalette.SecondaryText,
+    accent = SolacePalette.Accent,
+    onPrimary = SolacePalette.OnPrimary,
+    outline = SolacePalette.Outline,
+    outlineVariant = SolacePalette.OutlineVariant,
+    surfaceContainerLowest = SolacePalette.Surface,
+    surfaceContainerLow = SolacePalette.SurfaceContainerLow,
+    surfaceContainer = SolacePalette.SurfaceContainer,
+    surfaceContainerHigh = SolacePalette.SurfaceContainerHigh,
+    surfaceContainerHighest = SolacePalette.SurfaceContainerHighest,
+    glassFill = SolacePalette.Surface.copy(alpha = 0.78f),
+    glassBorder = SolacePalette.OutlineVariant.copy(alpha = 0.55f),
+    orbCore = SolacePalette.Surface,
+    auroraTop = SolacePalette.LightRose.copy(alpha = 0.55f),
+    auroraMid = SolacePalette.Champagne,
+    auroraBottom = SolacePalette.Background,
+    auroraBlobPrimary = SolacePalette.LightRose,
+    auroraBlobSecondary = SolacePalette.Accent,
+    auroraBlobChampagne = SolacePalette.ChampagneDeep,
+    auroraBlobPearl = SolacePalette.Champagne,
+    scrim = SolacePalette.Scrim,
+)
+
+fun darkSolaceColorScheme(): SolaceColorScheme = SolaceColorScheme(
+    primary = SolacePalette.DarkPrimary,
+    lightRose = SolacePalette.LightRose,
+    champagne = SolacePalette.DarkChampagne,
+    background = SolacePalette.DarkBackground,
+    surface = SolacePalette.DarkSurface,
+    text = SolacePalette.DarkText,
+    secondaryText = SolacePalette.DarkSecondaryText,
+    accent = SolacePalette.DarkAccent,
+    onPrimary = SolacePalette.DarkOnPrimary,
+    outline = SolacePalette.DarkOutline,
+    outlineVariant = SolacePalette.DarkOutlineVariant,
+    surfaceContainerLowest = SolacePalette.DarkSurfaceLowest,
+    surfaceContainerLow = SolacePalette.DarkSurfaceLow,
+    surfaceContainer = SolacePalette.DarkSurfaceContainer,
+    surfaceContainerHigh = SolacePalette.DarkSurfaceHigh,
+    surfaceContainerHighest = SolacePalette.DarkSurfaceHighest,
+    glassFill = SolacePalette.DarkSurface.copy(alpha = 0.78f),
+    glassBorder = SolacePalette.DarkOutlineVariant.copy(alpha = 0.55f),
+    orbCore = SolacePalette.DarkSurfaceHighest,
+    auroraTop = SolacePalette.DarkRoseGoldDeep,
+    auroraMid = SolacePalette.DarkSurface,
+    auroraBottom = SolacePalette.DarkBackground,
+    auroraBlobPrimary = SolacePalette.RoseGold,
+    auroraBlobSecondary = SolacePalette.DarkAccent,
+    auroraBlobChampagne = SolacePalette.DarkChampagneBlob,
+    auroraBlobPearl = SolacePalette.DarkOutline,
+    scrim = SolacePalette.Scrim,
+)
+
+/** Maps Solace tokens → Material3 [ColorScheme] (for Material components). */
+fun SolaceColorScheme.toMaterialColorScheme(dark: Boolean): ColorScheme {
+    return if (dark) {
+        darkColorScheme(
+            primary = primary,
+            onPrimary = onPrimary,
+            primaryContainer = SolacePalette.DarkRoseGoldDeep,
+            onPrimaryContainer = lightRose,
+            secondary = secondaryText,
+            onSecondary = onPrimary,
+            secondaryContainer = champagne,
+            onSecondaryContainer = text,
+            tertiary = accent,
+            onTertiary = onPrimary,
+            tertiaryContainer = SolacePalette.DarkRoseGoldDeep,
+            onTertiaryContainer = lightRose,
+            background = background,
+            onBackground = text,
+            surface = surface,
+            onSurface = text,
+            surfaceVariant = surfaceContainerHigh,
+            onSurfaceVariant = secondaryText,
+            outline = outline,
+            outlineVariant = outlineVariant,
+            scrim = scrim,
+            inverseSurface = text,
+            inverseOnSurface = background,
+            inversePrimary = SolacePalette.RoseGold,
+            surfaceDim = background,
+            surfaceBright = surfaceContainerHighest,
+            surfaceContainerLowest = surfaceContainerLowest,
+            surfaceContainerLow = surfaceContainerLow,
+            surfaceContainer = surfaceContainer,
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHighest,
+        )
+    } else {
+        lightColorScheme(
+            primary = primary,
+            onPrimary = onPrimary,
+            primaryContainer = lightRose,
+            onPrimaryContainer = SolacePalette.RoseGoldDeep,
+            secondary = secondaryText,
+            onSecondary = onPrimary,
+            secondaryContainer = champagne,
+            onSecondaryContainer = text,
+            tertiary = accent,
+            onTertiary = onPrimary,
+            tertiaryContainer = champagne,
+            onTertiaryContainer = SolacePalette.TextMuted,
+            background = background,
+            onBackground = text,
+            surface = surface,
+            onSurface = text,
+            surfaceVariant = champagne,
+            onSurfaceVariant = secondaryText,
+            outline = outline,
+            outlineVariant = outlineVariant,
+            scrim = scrim,
+            inverseSurface = text,
+            inverseOnSurface = background,
+            inversePrimary = lightRose,
+            surfaceDim = SolacePalette.SurfaceDim,
+            surfaceBright = background,
+            surfaceContainerLowest = surfaceContainerLowest,
+            surfaceContainerLow = surfaceContainerLow,
+            surfaceContainer = surfaceContainer,
+            surfaceContainerHigh = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHighest,
+        )
+    }
+}
+
+// region ExtendColors (semantic utility scales — still centralized here)
 
 data class ExtendColors(
     val red1: Color,
@@ -169,23 +393,29 @@ fun darkExtendColors(): ExtendColors = ExtendColors(
     gray10 = Color(246, 246, 246),
 )
 
+// endregion
+
 object CustomColors {
     var black = false
 
     val topBarColors: TopAppBarColors
         @Composable get() {
+            val colors = SolaceTheme.colorScheme
             return if (!LocalDarkMode.current) TopAppBarDefaults.topAppBarColors(
-                containerColor = colorScheme.surfaceContainer,
-                scrolledContainerColor = colorScheme.surfaceContainer
+                containerColor = colors.background,
+                scrolledContainerColor = colors.surfaceContainerLow.copy(alpha = 0.92f),
+                titleContentColor = colors.text,
+                navigationIconContentColor = colors.text,
+                actionIconContentColor = colors.secondaryText,
             ) else TopAppBarDefaults.topAppBarColors()
         }
 
     val cardColors: CardColors
-        @Composable get() = CardDefaults.cardColors(containerColor = colorScheme.surfaceContainer)
+        @Composable get() = CardDefaults.cardColors(containerColor = SolaceTheme.colorScheme.surfaceContainerLow)
 
     val cardColorsOnSurfaceContainer: CardColors
-        @Composable get() = CardDefaults.cardColors(containerColor = colorScheme.surfaceBright)
+        @Composable get() = CardDefaults.cardColors(containerColor = SolaceTheme.colorScheme.surfaceContainerLowest)
 
     val listItemColors: ListItemColors
-        @Composable get() = ListItemDefaults.colors(containerColor = colorScheme.surfaceBright)
+        @Composable get() = ListItemDefaults.colors(containerColor = SolaceTheme.colorScheme.surfaceContainerLowest)
 }
