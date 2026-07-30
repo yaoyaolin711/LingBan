@@ -185,11 +185,12 @@ fun ChatInput(
 
     Surface(
         color = Color.Transparent,
+        // 外部传入的 align / onSizeChanged 必须挂在根节点上，
+        // 否则叠在 Box 里时会落到默认 TopStart（输入框飞到顶部）。
+        modifier = modifier,
     ) {
         Column(
-            // 由 ChatPage 把输入框叠在 Scaffold 外；这里用 imePadding 抬起输入区，
-            // 不会改 Scaffold bottomBar 测量高度，因此列表不卡，输入框也不会被键盘挡住。
-            modifier = modifier
+            modifier = Modifier
                 .navigationBarsPadding()
                 .imePadding()
                 .padding(horizontal = 14.dp)
