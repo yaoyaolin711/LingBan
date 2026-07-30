@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -64,7 +65,7 @@ private const val ASK_USER_TOOL_NAME = "ask_user"
 fun ChainOfThoughtScope.ChatMessageToolStep(
     tool: UIMessagePart.Tool,
     loading: Boolean = false,
-    onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
+    onToolApproval: ((toolCallId: String, approved: Boolean, reason: String, alwaysAllow: Boolean) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
 ) {
     // ask_user 是交互式问答流程, 不走注册式渲染框架
@@ -132,6 +133,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FilledTonalIconButton(
                         onClick = { showDenyDialog = true },
@@ -144,7 +146,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                         )
                     }
                     FilledTonalIconButton(
-                        onClick = { onToolApproval(tool.toolCallId, true, "") },
+                        onClick = { onToolApproval(tool.toolCallId, true, "", false) },
                         modifier = Modifier.size(28.dp),
                     ) {
                         Icon(
@@ -152,6 +154,13 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                             contentDescription = stringResource(R.string.chat_message_tool_approve),
                             modifier = Modifier.size(14.dp)
                         )
+                    }
+                    TextButton(
+                        onClick = { onToolApproval(tool.toolCallId, true, "", true) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(28.dp),
+                    ) {
+                        Text("始终允许", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -204,7 +213,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             onDismiss = { showDenyDialog = false },
             onConfirm = { reason ->
                 showDenyDialog = false
-                onToolApproval(tool.toolCallId, false, reason)
+                onToolApproval(tool.toolCallId, false, reason, false)
             }
         )
     }

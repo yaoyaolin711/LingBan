@@ -51,6 +51,7 @@ import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
 import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
+import me.rerere.rikkahub.data.ai.tools.withAutoApprovalBypass
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
@@ -407,6 +408,7 @@ class ChatService(
         approved: Boolean,
         reason: String = "",
         answer: String? = null,
+        alwaysAllow: Boolean = false,
     ) {
         val session = getOrCreateSession(conversationId)
         session.getJob()?.cancel()
@@ -414,6 +416,20 @@ class ChatService(
         val job = appScope.launch {
             try {
                 val conversation = session.state.value
+                val toolName = conversation.messageNodes
+                    .asSequence()
+                    .flatMap { it.messages.asSequence() }
+                    .flatMap { it.parts.asSequence() }
+                    .filterIsInstance<UIMessagePart.Tool>()
+                    .firstOrNull { it.toolCallId == toolCallId }
+                    ?.toolName
+
+                if (approved && alwaysAllow && !toolName.isNullOrBlank()) {
+                    settingsStore.update { settings ->
+                        settings.copy(autoApprovedTools = settings.autoApprovedTools + toolName)
+                    }
+                }
+
                 val newApprovalState = when {
                     answer != null -> ToolApprovalState.Answered(answer)
                     approved -> ToolApprovalState.Approved
@@ -576,7 +592,7 @@ class ChatService(
                             )
                         )
                     }
-                },
+                }.withAutoApprovalBypass(settings.autoApprovedTools),
             ).onCompletion {
                 // 可能被取消了，或者意外结束，兜底更新
                 val updatedConversation = getConversationFlow(conversationId).value.copy(

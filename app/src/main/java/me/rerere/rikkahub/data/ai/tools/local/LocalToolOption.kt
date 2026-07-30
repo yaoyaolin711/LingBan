@@ -42,4 +42,9 @@ sealed class LocalToolOption {
     @Serializable
     @SerialName("phone_control")
     data object PhoneControl : LocalToolOption()
+
+    /** 设备信息: 机型/系统、电量、定位（日历请用 Calendar 工具） */
+    @Serializable
+    @SerialName("device_info")
+    data object DeviceInfo : LocalToolOption()
 }

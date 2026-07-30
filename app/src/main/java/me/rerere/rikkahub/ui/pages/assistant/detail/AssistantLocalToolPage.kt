@@ -86,10 +86,18 @@ fun AssistantLocalToolPage(id: String) {
             innerPadding = innerPadding,
             assistant = assistant,
             companionAssist = settings.companionAssist,
+            autoApprovedTools = settings.autoApprovedTools,
             onUpdate = { vm.update(it) },
             onUpdateCompanion = { next ->
                 scope.launch {
                     settingsStore.update { it.copy(companionAssist = next) }
+                }
+            },
+            onUpdateAutoApprovedTools = { transform ->
+                scope.launch {
+                    settingsStore.update { settings ->
+                        settings.copy(autoApprovedTools = transform(settings.autoApprovedTools))
+                    }
                 }
             },
         )
@@ -101,8 +109,10 @@ private fun AssistantLocalToolContent(
     innerPadding: PaddingValues,
     assistant: Assistant,
     companionAssist: CompanionAssistSetting,
+    autoApprovedTools: Set<String>,
     onUpdate: (Assistant) -> Unit,
     onUpdateCompanion: (CompanionAssistSetting) -> Unit,
+    onUpdateAutoApprovedTools: ((Set<String>) -> Set<String>) -> Unit,
 ) {
     val context = LocalContext.current
     val toaster = LocalToaster.current
@@ -128,6 +138,24 @@ private fun AssistantLocalToolContent(
     )
     PermissionManager(permissionState = calendarPermissionState)
 
+    val locationPermissionState = rememberPermissionState(
+        permissions = setOf(
+            PermissionInfo(
+                permission = Manifest.permission.ACCESS_COARSE_LOCATION,
+                displayName = { Text("粗略定位") },
+                usage = { Text("用于获取大致位置，供助手回答「我在哪」等问题") },
+                required = true
+            ),
+            PermissionInfo(
+                permission = Manifest.permission.ACCESS_FINE_LOCATION,
+                displayName = { Text("精确定位") },
+                usage = { Text("用于获取更准确的经纬度") },
+                required = false
+            ),
+        )
+    )
+    PermissionManager(permissionState = locationPermissionState)
+
     fun toggleLocalTool(option: LocalToolOption, enabled: Boolean) {
         if (enabled && (option == LocalToolOption.ScreenTime || option == LocalToolOption.DeviceAssist) &&
             !context.hasUsageStatsPermission()
@@ -145,6 +173,9 @@ private fun AssistantLocalToolContent(
         if (enabled && option == LocalToolOption.Calendar && !calendarPermissionState.allPermissionsGranted) {
             calendarPermissionState.requestPermissions()
             return
+        }
+        if (enabled && option == LocalToolOption.DeviceInfo && !locationPermissionState.allPermissionsGranted) {
+            locationPermissionState.requestPermissions()
         }
         val newLocalTools = if (enabled) {
             assistant.localTools + option
@@ -306,6 +337,59 @@ private fun AssistantLocalToolContent(
                     Switch(
                         checked = assistant.localTools.contains(LocalToolOption.PhoneControl),
                         onCheckedChange = { toggleLocalTool(LocalToolOption.PhoneControl, it) }
+                    )
+                }
+            )
+            if (assistant.localTools.contains(LocalToolOption.PhoneControl)) {
+                item(
+                    headlineContent = {
+                        Text("打开应用无需确认")
+                    },
+                    supportingContent = {
+                        Text("开启后 open_app 自动执行；也可在聊天里点「始终允许」")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = autoApprovedTools.contains("open_app"),
+                            onCheckedChange = { enabled ->
+                                onUpdateAutoApprovedTools { current ->
+                                    if (enabled) current + "open_app" else current - "open_app"
+                                }
+                            }
+                        )
+                    }
+                )
+                item(
+                    headlineContent = {
+                        Text("界面操作无需确认")
+                    },
+                    supportingContent = {
+                        Text("自动允许 ui_click / ui_swipe / ui_type / ui_global")
+                    },
+                    trailingContent = {
+                        val uiTools = setOf("ui_click", "ui_swipe", "ui_type", "ui_global")
+                        Switch(
+                            checked = uiTools.all { it in autoApprovedTools },
+                            onCheckedChange = { enabled ->
+                                onUpdateAutoApprovedTools { current ->
+                                    if (enabled) current + uiTools else current - uiTools
+                                }
+                            }
+                        )
+                    }
+                )
+            }
+            item(
+                headlineContent = {
+                    Text("Device Info")
+                },
+                supportingContent = {
+                    Text("机型/系统、电量、定位；日历请单独开启上方 Calendar")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = assistant.localTools.contains(LocalToolOption.DeviceInfo),
+                        onCheckedChange = { toggleLocalTool(LocalToolOption.DeviceInfo, it) }
                     )
                 }
             )

@@ -227,10 +227,17 @@ class ChatVM(
     fun handleToolApproval(
         toolCallId: String,
         approved: Boolean,
-        reason: String = ""
+        reason: String = "",
+        alwaysAllow: Boolean = false,
     ) {
         analytics.logEvent("ai_tool_approval", null)
-        chatService.handleToolApproval(_conversationId, toolCallId, approved, reason)
+        chatService.handleToolApproval(
+            conversationId = _conversationId,
+            toolCallId = toolCallId,
+            approved = approved,
+            reason = reason,
+            alwaysAllow = alwaysAllow,
+        )
     }
 
     fun handleToolAnswer(

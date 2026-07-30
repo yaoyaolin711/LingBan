@@ -140,6 +140,9 @@ class SettingsStore(
         // 伴侣使用关怀 / 本机设备控制
         val COMPANION_ASSIST = stringPreferencesKey("companion_assist")
 
+        // 用户勾选「始终允许」的工具名（之后不再弹审批）
+        val AUTO_APPROVED_TOOLS = stringPreferencesKey("auto_approved_tools")
+
         // 提示词注入
         val MODE_INJECTIONS = stringPreferencesKey("mode_injections")
         val LOREBOOKS = stringPreferencesKey("lorebooks")
@@ -243,6 +246,9 @@ class SettingsStore(
                 companionAssist = preferences[COMPANION_ASSIST]?.let {
                     runCatching { JsonInstant.decodeFromString<CompanionAssistSetting>(it) }.getOrNull()
                 } ?: CompanionAssistSetting(),
+                autoApprovedTools = preferences[AUTO_APPROVED_TOOLS]?.let {
+                    runCatching { JsonInstant.decodeFromString<List<String>>(it).toSet() }.getOrNull()
+                } ?: emptySet(),
                 backupReminderConfig = preferences[BACKUP_REMINDER_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: BackupReminderConfig(),
@@ -413,6 +419,7 @@ class SettingsStore(
             preferences[WEB_SERVER_ACCESS_PASSWORD] = settings.webServerAccessPassword
             preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
             preferences[COMPANION_ASSIST] = JsonInstant.encodeToString(settings.companionAssist)
+            preferences[AUTO_APPROVED_TOOLS] = JsonInstant.encodeToString(settings.autoApprovedTools.toList())
             preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
             preferences[SPONSOR_ALERT_DISMISSED_AT] = settings.sponsorAlertDismissedAt
@@ -557,6 +564,8 @@ data class Settings(
     val webServerAccessPassword: String = "",
     val webServerLocalhostOnly: Boolean = false,
     val companionAssist: CompanionAssistSetting = CompanionAssistSetting(),
+    /** Tool names the user permanently auto-approved (skip needsApproval). */
+    val autoApprovedTools: Set<String> = emptySet(),
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val launchCount: Int = 0,
     val sponsorAlertDismissedAt: Int = 0,

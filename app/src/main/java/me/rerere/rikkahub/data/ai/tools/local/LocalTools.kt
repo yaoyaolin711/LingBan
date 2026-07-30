@@ -42,6 +42,8 @@ class LocalTools(
 
     val phoneControlTools by lazy { buildPhoneControlTools(context) }
 
+    val deviceInfoTools by lazy { buildDeviceInfoTools(context) }
+
     fun getTools(options: List<LocalToolOption>): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
@@ -77,6 +79,9 @@ class LocalTools(
         }
         if (options.contains(LocalToolOption.PhoneControl)) {
             tools.addAll(phoneControlTools)
+        }
+        if (options.contains(LocalToolOption.DeviceInfo)) {
+            tools.addAll(deviceInfoTools)
         }
         return tools
     }

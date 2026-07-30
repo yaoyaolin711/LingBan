@@ -6,10 +6,15 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -36,6 +41,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,7 +50,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -304,6 +312,11 @@ private fun ChatPageContent(
         modifier = Modifier.fillMaxSize()
     ) {
         AssistantBackground(setting = setting, modifier = Modifier)
+        // 输入框叠在 Scaffold 外：imePadding 只抬起输入层，列表用固定占位高度，避免键盘遮挡且不卡顿
+        var inputBarHeightPx by remember { mutableIntStateOf(0) }
+        val density = LocalDensity.current
+        val imeInsets = WindowInsets.ime
+        Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
                 TopBar(
@@ -324,87 +337,13 @@ private fun ChatPageContent(
                 )
             },
             bottomBar = {
-                ChatInput(
-                    state = inputState,
-                    loading = loadingJob != null,
-                    settings = setting,
-                    completionProviders = completionProviders,
-                    onCancelClick = {
-                        vm.stopGeneration()
-                    },
-                    enableSearch = enableWebSearch,
-                    onToggleSearch = {
-                        val current = setting.getCurrentAssistant()
-                        vm.updateSettings(
-                            setting.copy(
-                                assistants = setting.assistants.map { assistant ->
-                                    if (assistant.id == current.id) {
-                                        assistant.copy(enableWebSearch = !enableWebSearch)
-                                    } else {
-                                        assistant
-                                    }
-                                }
-                            )
-                        )
-                    },
-                    onSendClick = {
-                        if (currentChatModel == null) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
-                            return@ChatInput
-                        }
-                        if (inputState.isEditing()) {
-                            vm.handleMessageEdit(
-                                parts = inputState.getContents(),
-                                messageId = inputState.editingMessage!!,
-                            )
-                        } else {
-                            vm.handleMessageSend(inputState.getContents())
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                            }
-                        }
-                        inputState.clearInput()
-                    },
-                    onLongSendClick = {
-                        if (inputState.isEditing()) {
-                            vm.handleMessageEdit(
-                                parts = inputState.getContents(),
-                                messageId = inputState.editingMessage!!,
-                            )
-                        } else {
-                            vm.handleMessageSend(content = inputState.getContents(), answer = false)
-                            scope.launch {
-                                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                            }
-                        }
-                        inputState.clearInput()
-                    },
-                    onUpdateChatModel = {
-                        vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
-                    },
-                    onUpdateAssistant = {
-                        vm.updateSettings(
-                            setting.copy(
-                                assistants = setting.assistants.map { assistant ->
-                                    if (assistant.id == it.id) {
-                                        it
-                                    } else {
-                                        assistant
-                                    }
-                                }
-                            )
-                        )
-                    },
-                    onUpdateSearchService = { index ->
-                        vm.updateSettings(
-                            setting.copy(
-                                searchServiceSelected = index
-                            )
-                        )
-                    },
-                    onMoreClick = {
-                        showFilesSheet = true
-                    },
+                val reserveDp = with(density) {
+                    if (inputBarHeightPx > 0) inputBarHeightPx.toDp() else 96.dp
+                }
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(reserveDp)
                 )
             },
             containerColor = Color.Transparent,
@@ -469,8 +408,8 @@ private fun ChatPageContent(
                         chatListState.requestScrollToItem(index)
                     }
                 },
-                onToolApproval = { toolCallId, approved, reason ->
-                    vm.handleToolApproval(toolCallId, approved, reason)
+                onToolApproval = { toolCallId, approved, reason, alwaysAllow ->
+                    vm.handleToolApproval(toolCallId, approved, reason, alwaysAllow)
                 },
                 onToolAnswer = { toolCallId, answer ->
                     vm.handleToolAnswer(toolCallId, answer)
@@ -484,6 +423,100 @@ private fun ChatPageContent(
                 },
             )
         }
+
+        ChatInput(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { size ->
+                    val ime = imeInsets.getBottom(density)
+                    val reserved = (size.height - ime).coerceAtLeast(0)
+                    if (reserved > 0 && reserved != inputBarHeightPx) {
+                        inputBarHeightPx = reserved
+                    }
+                },
+            state = inputState,
+            loading = loadingJob != null,
+            settings = setting,
+            completionProviders = completionProviders,
+            onCancelClick = {
+                vm.stopGeneration()
+            },
+            enableSearch = enableWebSearch,
+            onToggleSearch = {
+                val current = setting.getCurrentAssistant()
+                vm.updateSettings(
+                    setting.copy(
+                        assistants = setting.assistants.map { assistant ->
+                            if (assistant.id == current.id) {
+                                assistant.copy(enableWebSearch = !enableWebSearch)
+                            } else {
+                                assistant
+                            }
+                        }
+                    )
+                )
+            },
+            onSendClick = {
+                if (currentChatModel == null) {
+                    toaster.show("请先选择模型", type = ToastType.Error)
+                    return@ChatInput
+                }
+                if (inputState.isEditing()) {
+                    vm.handleMessageEdit(
+                        parts = inputState.getContents(),
+                        messageId = inputState.editingMessage!!,
+                    )
+                } else {
+                    vm.handleMessageSend(inputState.getContents())
+                    scope.launch {
+                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+                    }
+                }
+                inputState.clearInput()
+            },
+            onLongSendClick = {
+                if (inputState.isEditing()) {
+                    vm.handleMessageEdit(
+                        parts = inputState.getContents(),
+                        messageId = inputState.editingMessage!!,
+                    )
+                } else {
+                    vm.handleMessageSend(content = inputState.getContents(), answer = false)
+                    scope.launch {
+                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
+                    }
+                }
+                inputState.clearInput()
+            },
+            onUpdateChatModel = {
+                vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
+            },
+            onUpdateAssistant = {
+                vm.updateSettings(
+                    setting.copy(
+                        assistants = setting.assistants.map { assistant ->
+                            if (assistant.id == it.id) {
+                                it
+                            } else {
+                                assistant
+                            }
+                        }
+                    )
+                )
+            },
+            onUpdateSearchService = { index ->
+                vm.updateSettings(
+                    setting.copy(
+                        searchServiceSelected = index
+                    )
+                )
+            },
+            onMoreClick = {
+                showFilesSheet = true
+            },
+        )
+        } // Box
 
         if (showFilesSheet) {
             ChatFilesPickerSheet(

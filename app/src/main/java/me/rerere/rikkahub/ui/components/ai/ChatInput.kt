@@ -22,15 +22,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -76,7 +73,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.dokar.sonner.ToastType
@@ -190,19 +186,12 @@ fun ChatInput(
     Surface(
         color = Color.Transparent,
     ) {
-        // 在 composition 取得 WindowInsets 引用；在 offset 里读 getBottom，跟随 IME 动画且不改测量高度
-        val imeInsets = WindowInsets.ime
-        val navInsets = WindowInsets.navigationBars
         Column(
-            // 不用 imePadding：它会每帧改变 bottomBar 测量高度，拖着整页 LazyColumn 重测，键盘体感很“肉”。
-            // 改为 placement offset 跟随 IME，Scaffold 布局高度保持稳定。
+            // 由 ChatPage 把输入框叠在 Scaffold 外；这里用 imePadding 抬起输入区，
+            // 不会改 Scaffold bottomBar 测量高度，因此列表不卡，输入框也不会被键盘挡住。
             modifier = modifier
                 .navigationBarsPadding()
-                .offset {
-                    val ime = imeInsets.getBottom(this)
-                    val nav = navInsets.getBottom(this)
-                    IntOffset(x = 0, y = -(ime - nav).coerceAtLeast(0))
-                }
+                .imePadding()
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -785,18 +774,12 @@ private fun FullScreenEditor(
             usePlatformDefaultWidth = false, decorFitsSystemWindows = false
         ),
     ) {
-        val imeInsets = WindowInsets.ime
-        val navInsets = WindowInsets.navigationBars
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
                 .navigationBarsPadding()
-                .offset {
-                    val ime = imeInsets.getBottom(this)
-                    val nav = navInsets.getBottom(this)
-                    IntOffset(x = 0, y = -(ime - nav).coerceAtLeast(0))
-                },
+                .imePadding(),
             verticalArrangement = Arrangement.Bottom
         ) {
             Surface(
