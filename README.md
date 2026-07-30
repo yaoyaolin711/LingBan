@@ -1,10 +1,8 @@
 # Solace
 
-Android 原生 **AI 伴侣客户端**：Home 中枢、人设 Agent、场景化主动关怀、长期记忆、口语化短气泡节奏，以及可选的手机感知工具。
+Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ovo/rikkahub) 二次开发**：保留 RikkaHub 完整底层能力（多 Provider、MCP、Workspace、搜索、备份、Web、消息分支等），并以 Solace 伴侣向信息架构与暖色视觉重新包装操作界面。
 
-支持 **OpenAI 兼容**、**Anthropic（Claude）原生**、**Google Gemini 原生** 三类协议；内置多 Provider 预设（自定义 Base URL / Key / 模型）。
-
-> **原创声明**：本仓库代码与 UI 均为独立实现。产品体验上可参考常见伴侣客户端的交互直觉，**不包含、不派生** 橘瓣 / RikkaHub 等第三方 AGPL 源码。推送与署名仅属于仓库所有者本人。
+> **致谢与许可**：核心实现来自 [RikkaHub](https://github.com/re-ovo/rikkahub)（作者 re-ovo / RikkaHub 社区）。本项目以 **GNU Affero General Public License v3.0 (AGPL-3.0)** 发布，完整条款见 [LICENSE](LICENSE)。使用、修改与分发须遵守 AGPL-3.0。
 
 ---
 
@@ -12,172 +10,65 @@ Android 原生 **AI 伴侣客户端**：Home 中枢、人设 Agent、场景化�
 
 | 层级 | 技术 |
 |------|------|
-| 语言 | Kotlin 2.0 / JVM 17 |
+| 语言 | Kotlin |
 | UI | Jetpack Compose + Material 3 |
-| 架构组件 | Navigation Compose、ViewModel、Lifecycle |
-| DI | Hilt |
-| 本地存储 | Room、SharedPreferences、EncryptedSharedPreferences（API Key） |
-| 网络 | Retrofit + OkHttp + Moshi（SSE 流式；含自定义消息 / Map 适配器） |
-| 图片 | Coil（头像 / Markdown 图片） |
-| 后台任务 | WorkManager（场景化主动关心） |
-| 最低系统 | Android 8.0（API 26），compile/target SDK 36 |
+| 导航 | Navigation 3 |
+| DI | Koin |
+| 本地存储 | Room、DataStore |
+| 网络 | OkHttp + kotlinx.serialization |
+| 图片 | Coil |
+| 最低系统 | Android 8.0（API 26），compile/target SDK 37 |
 | 版本 | 1.0.0（`applicationId`: `com.agent.chat`） |
 
----
+### 模块
 
-## 架构概览
-
-采用经典分层，业务以「对话编排 + 工具循环」为中心；UI 以 Home 为入口串联各模块：
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  ui/                                                    │
-│  home / chat / memory / agent / profile                 │
-│  conversation / persona / settings / motion / components│
-└───────────────────────────┬─────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────┐
-│  data/                                                  │
-│  ├── ai/           编排、提示词、本地工具注册表           │
-│  ├── provider/     OpenAI / Anthropic / Gemini + 网络层  │
-│  ├── repository/   会话 / 人设 / 记忆 / Provider          │
-│  ├── local/        Room Entity + DAO + Migrations       │
-│  ├── memory/       异步增量摘要                          │
-│  ├── care/         生活感知 / 情绪 / 待跟进               │
-│  ├── proactive/    场景化主动关心 Worker                 │
-│  ├── screen|notification/  无障碍读屏 / 通知监听         │
-│  └── settings/     伴侣感 / 工具 / 权限相关开关           │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────┐
-│  domain/        Message / Persona / Memory / AppError   │
-│  di/            Hilt Module                             │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 对话与工具循环
-
-```mermaid
-sequenceDiagram
-  participant UI as ChatUI
-  participant VM as ChatViewModel
-  participant Orch as ToolChatOrchestrator
-  participant API as AIProvider
-  participant Tools as LocalToolRegistry
-
-  UI->>VM: sendMessage (text / image)
-  VM->>Orch: run(messages + system + tools)
-  loop until_no_tool_calls
-    Orch->>API: chatStreamEvents
-    API-->>Orch: content / tool_calls
-    Orch->>Tools: execute
-    Tools-->>Orch: JSON result
-    Orch-->>UI: tool_status_chip
-  end
-  Orch-->>VM: final_assistant_text
-  VM->>UI: 换行/句号拆气泡 + 输入节奏
-```
-
-核心类：
-
-- `ToolChatOrchestrator` — 多轮 tool 调用（上限 8 步）
-- `AIProviderFactory` — 按 `ProviderType` 分发到 OpenAI 兼容 / Anthropic / Gemini
-- `OpenAICompatibleProvider` / `AnthropicProvider` / `GoogleGeminiProvider` — 流式；产出 `ContentDelta` / `ToolCallDelta` / `Finished`
-- `ChatMessageJsonAdapter` — 统一文本与多模态 `content` / `contentParts` 序列化
-- `LocalToolRegistry` — 按设置开关组装工具定义
-- `PromptContextInjector` — 人设占位符、世界书、预设对话、口语风格、记忆块、时间提醒
-- `CareContextBuilder` — 时段关怀、情绪自适应、日程窥探、待跟进线索
-- `ProactiveContextCollector` — 主动关心前汇总已开工具上下文
-- `OutputRegexApplier` — 助手输出正则改写
-- `CharacterCardImporter` — SillyTavern 角色卡 → 人设草稿
-- `ReplySegmenter` — 优先按换行拆气泡，回退按句号
+| 模块 | 说明 |
+|------|------|
+| `app` | 主应用、Solace UI 皮囊、业务编排 |
+| `ai` | Provider 抽象（OpenAI / Google / Anthropic 兼容） |
+| `search` | 联网搜索（Exa、Tavily、Zhipu、Brave 等） |
+| `speech` | TTS / ASR |
+| `document` | PDF / DOCX 等文档解析 |
+| `workspace` | proot Linux 工作区与工具 |
+| `web` / `web-ui` | 内嵌 Web 服务与前端 |
+| `highlight` / `common` / `material3` | 高亮、公共工具、配色工具 |
 
 ---
 
-## 功能一览
+## Solace 皮囊（信息架构）
 
-### 导航与伴侣 UX
+启动页为 **Home 中枢**（暖色 Orb），不再默认落在纯聊天页：
 
-- **Home**：AiOrb 中枢；「开始探索」/ 最近会话进聊；记忆卡、推荐 Agent 卡；顶栏进 Profile
-- **Chat**：流式对话、挂图视觉消息、分段气泡、「正在输入」、工具过程条
-- **Memory**：记忆时间线与管理
-- **Agent Center / Detail**：伙伴浏览与详情；可种示例伙伴（`StarterAgentSeeder`）
-- **Profile**：模型与 API、AI 能力授权、记忆 / 人设入口、主题与关于
-- 会话列表支持 **按人设过滤**
+- **Home**：新对话 / 最近会话 / 伙伴 / 历史 / 记忆 / 个人中心
+- **Chat**：完整 RikkaHub 对话（流式、分支、附件、工具、搜索、MCP、Workspace…）
+- **Agent Center**：助手（Assistant）列表与详情全套配置
+- **Profile**：聚合 Provider、模型、搜索、语音、MCP、备份、主题、扩展、统计、翻译、生图、收藏、关于等入口
 
-### 模型与 Provider
+底层业务语义与 RikkaHub 一致；Kotlin 包名仍为 `me.rerere.rikkahub`，对外品牌与图标为 Solace。
 
-- 三类协议：OpenAI 兼容、Anthropic 原生、Gemini 原生
-- **14 个内置预设**（填 Key 即可测连）：OpenAI、Claude、Gemini、DeepSeek、通义千问、Kimi、豆包、Groq、xAI、SiliconFlow、智谱、Ollama（本地可无 Key）、Together、OpenRouter
-- DeepSeek 默认：`https://api.deepseek.com` + `deepseek-v4-flash`（亦建议 `deepseek-v4-pro` 等）
-- 视觉能力：OpenAI / Claude / Gemini / xAI / OpenRouter 等预设标记支持 vision；聊天可附带图片
-- API Key 加密存储；`ModelApiScreen` 支持预设 / 自定义与连接测试
-
-### 聊天与人设
-
-- 人设：System Prompt、Temperature、开场白；智能导入 / JSON 导入导出
-- **预设对话（few-shot）**：示范语气，插在 system 与真实历史之间
-- **世界书**：关键词触发注入相关设定
-- **输出正则**：对助手回复做正则替换（可仅视觉）
-- **SillyTavern 角色卡**：JSON / PNG（`chara` 元数据）导入
-- 口语伴侣风格层（可关）：短句、少列表、即时通讯式换行
-- **生活感知 / 情绪自适应 / 待跟进 / 场景化主动关心**
-- Markdown：标题、列表、引用、围栏代码（高亮 / 复制）、链接、删除线、图片；流式增量解析
-- 会话导出（文本 / 图片）；头像支持 URL / 本地 / Coil
-
-### 记忆
-
-- **工具记忆**：模型通过 `memory` 增删改查，事实注入 System Prompt
-- **增量摘要**：对话达阈值后异步滚动摘要（失败不影响主对话）
-- 人设维度隔离；记忆管理弹窗可手动删除
-
-### 本地工具（模型可调用）
-
-| 工具 | 说明 | 默认 |
-|------|------|------|
-| `memory` | 长期记忆 CRUD | 开 |
-| `get_current_time` | 本地时间 / 星期 / 时段 | 开 |
-| `get_battery` | 电量与充电状态 | 开 |
-| `get_device_info` | 品牌型号 / Android 版本 | 开 |
-| `calendar_events` | 读近期日程 / 写简单事件 | 开（需日历权限） |
-| `set_alarm` | 调起系统闹钟 | 开 |
-| `get_location` | 粗略定位 | 关 |
-| `get_app_usage` | 今日 App 使用时长 | 关（需「使用情况访问」） |
-| `get_recent_notifications` | 近期通知摘要 | 关（需通知监听） |
-| `music_control` | 媒体播放控制相关 | 关（需通知访问） |
-| `get_recent_sms` | 近期短信摘要 | 关（需短信权限） |
-| `get_screen_state` | 亮屏 / 锁屏 | 关 |
-| `get_screen_content` | 屏幕内容感知 | 关（需无障碍服务） |
-| `web_search` | 联网检索（DuckDuckGo Instant Answer） | 关 |
-
-聊天时间线展示轻量工具过程条（可展开结果摘要）。敏感能力集中在 **AI 能力授权**（`PermissionScreen`）与设置中的工具开关。
-
-### 主动关心
-
-开启后，WorkManager 周期性检查：结合闲置时长、时段 / 日历场景，以及已开启的手机感知上下文，用当前人设生成一句短关心并通知；点击进入对应会话。同类问候有冷却，避免刷屏。
+默认主题：**Solace Warm**（暖底 `#FFF7F1` + 主色 `#E8823A`）。
 
 ---
 
-## 目录结构
+## 功能一览（RikkaHub 全集）
 
-```
-app/src/main/java/com/agent/chat/
-├── AgentChatApp.kt / MainActivity.kt
-├── di/
-├── domain/model|error/
-├── data/
-│   ├── ai/                     # Orchestrator、prompt/、tool(+impl)
-│   ├── provider/               # OpenAI / Anthropic / Gemini + network adapters
-│   ├── repository/
-│   ├── local/                  # Room + Migrations
-│   ├── memory|persona|proactive|care|settings|security/
-│   ├── screen|notification/    # 无障碍 / 通知监听
-│   └── error/
-└── ui/
-    ├── home|chat|memory|agent|profile/
-    ├── conversation|persona|settings/
-    ├── components|motion|theme|export|navigation/
-```
+- Material You / 多主题（含 Solace 暖橘）与深色模式
+- Workspace：基于 proot 的 Linux Agent 环境
+- 多 AI Provider：自定义 API / URL / 模型（OpenAI、Google、Anthropic 兼容）
+- 多模态输入（图片、文档、PDF、Docx 等）
+- Web 访问（多端）
+- MCP 支持
+- Markdown（代码高亮、LaTeX、表格、Mermaid）
+- 消息分支
+- 联网搜索（Exa、Tavily、Zhipu、LinkUp、Brave、Perplexity 等）
+- Prompt 变量、助手自定义、记忆、AI 翻译
+- 二维码导入导出 Provider、自定义 HTTP 头/体
+- SillyTavern 角色卡导入
+- 备份（本地 / WebDAV / S3）、TTS / ASR、统计与收藏
+
+### 后续计划（本轮未做）
+
+旧 Solace 独有能力将作为增量：场景化主动关心、无障碍读屏、短信/通知感知、口语拆气泡节奏、关系/表达档位等。
 
 ---
 
@@ -185,28 +76,32 @@ app/src/main/java/com/agent/chat/
 
 环境：Android Studio、JDK 17+、Android SDK。
 
+1. 在 `app/` 放置 `google-services.json`（Firebase；仓库可提供本地占位，正式分发请换成自有配置）。
+2. （可选）完整 Web UI：在 `web-ui/` 执行 `pnpm install && pnpm run build`。若未安装 pnpm，构建会跳过并使用占位静态页。
+3. **路径注意（Windows）**：若工程路径含非 ASCII 字符（如中文目录），`workspace` 模块的 CMake/NDK 会自动跳过；完整 Workspace 原生能力请将工程放在纯英文路径下再构建。另需 `git submodule update --init --recursive` 拉取 `material3/material-color-utilities`。
+4. 构建：
+
 ```bash
-./gradlew assembleDebug     # Debug APK
-./gradlew assembleRelease   # Release APK
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
 ```
 
-用 Android Studio 打开本目录，Sync Gradle 后运行 `app` 模块。
+用 Android Studio 打开本仓库根目录，Sync Gradle 后运行 `app` 模块。
 
-首次使用建议：
-
-1. Home 顶栏进入 **Profile** → **模型与 API**，选择预设并填写 API Key，测连通过
-2. （可选）**AI 能力授权** 开启日历 / 通知 / 无障碍 / 联网搜索等
-3. 在 Agent Center 选伙伴，或 Home「开始探索」进入聊天
-
-敏感工具与主动关心可在设置中随时开关；无障碍与通知监听需在系统设置中手动授权。
+首次使用建议：Home → Profile → 服务商 / 默认模型，配置 API 后回到 Home 开启对话。
 
 ---
 
-## 设计取舍（简要）
+## 相对上游的主要改动
 
-- **体验优先**：人设与记忆注入上限放宽；风格层与工具结果由模型用口语消化，避免「根据工具返回」腔。
-- **人设管道**：自由文本 System Prompt + 预设对话定调 + 世界书按需注入 + 正则修口吻。
-- **关怀落地**：时段 / 情绪 / 待跟进 / 日程与可选手机感知，让关心有由头。
-- **协议务实**：主流 OpenAI 兼容端点一套实现；Claude / Gemini 走原生协议以对齐官方能力。
-- **工具自研**：对齐常见伴侣客户端的 tools 能力，代码独立实现，不拷贝第三方 AGPL 源码。
-- **UI 自研**：暖色伴侣视觉 + Home 中枢 + IM 气泡节奏；实现与资源均为本仓库原创。
+- 工程以 RikkaHub 多模块为根；旧单模块 Solace 归档于 `_legacy_solace/`（仅供参考，不参与编译）
+- `applicationId` → `com.agent.chat`；应用名与启动图标 → Solace
+- 新增 Home / Profile 导航皮囊；默认主题 Solace Warm
+- 关于页与 README 标明基于 RikkaHub 与 AGPL-3.0
+- `gradle.properties` 增加 `android.overridePathCheck=true`（支持中文路径下的 AGP 检查豁免）
+
+---
+
+## License
+
+[AGPL-3.0](LICENSE) — Copyright 归 RikkaHub 原作者及本仓库贡献者。二次分发须开源相应修改并保留本声明。
