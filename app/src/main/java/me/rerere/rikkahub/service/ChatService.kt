@@ -52,8 +52,10 @@ import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
 import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
 import me.rerere.rikkahub.data.ai.tools.withAutoApprovalBypass
+import me.rerere.rikkahub.data.companion.CompanionFacade
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
+import me.rerere.rikkahub.data.ai.transformers.CompanionPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
@@ -119,6 +121,7 @@ private val inputTransformers by lazy {
     listOf(
         TimeReminderTransformer,
         PromptInjectionTransformer,
+        CompanionPromptTransformer,
         PlaceholderTransformer,
         DocumentAsPromptTransformer,
         OcrTransformer,
@@ -149,6 +152,7 @@ class ChatService(
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
+    private val companionFacade: CompanionFacade,
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
@@ -489,6 +493,18 @@ class ChatService(
         val assistant = settings.getAssistantById(initialConversation.assistantId)
             ?: settings.getCurrentAssistant()
         val model = settings.findModelById(assistant.chatModelId ?: settings.chatModelId) ?: return
+        val companionPromptBundle = companionFacade.preparePromptBundle(
+            conversationId = conversationId,
+            assistant = assistant,
+            settings = settings,
+            messages = initialConversation.currentMessages.let {
+                if (messageRange != null) {
+                    it.subList(messageRange.start, messageRange.endInclusive + 1)
+                } else {
+                    it
+                }
+            },
+        )
 
         val senderName = if (assistant.useAssistantAvatar) {
             assistant.name.ifEmpty { context.getString(R.string.assistant_page_default_assistant) }
@@ -533,6 +549,7 @@ class ChatService(
                 conversationSystemPrompt = conversation.customSystemPrompt,
                 conversationModeInjectionIds = conversation.modeInjectionIds,
                 conversationLorebookIds = conversation.lorebookIds,
+                companionPromptBundle = companionPromptBundle,
                 workspaceCwd = conversation.workspaceCwd,
                 memories = if (assistant.useGlobalMemory) {
                     memoryRepository.getGlobalMemories()
@@ -641,6 +658,14 @@ class ChatService(
             val finalConversation = getConversationFlow(conversationId).value
             saveConversation(conversationId, finalConversation)
 
+            launchWithConversationReference(conversationId) {
+                companionFacade.onGenerationCompleted(
+                    conversationId = conversationId,
+                    assistant = assistant,
+                    settings = settings,
+                    conversation = finalConversation,
+                )
+            }
             launchWithConversationReference(conversationId) {
                 generateTitle(conversationId, finalConversation)
             }

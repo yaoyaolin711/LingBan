@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
+import me.rerere.rikkahub.data.companion.model.CompanionPromptBlock
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
 import kotlin.uuid.Uuid
@@ -15,6 +16,7 @@ class TransformerContext(
     val settings: Settings,
     val conversationModeInjectionIds: Set<Uuid> = emptySet(),
     val conversationLorebookIds: Set<Uuid> = emptySet(),
+    val companionPromptBlocks: List<CompanionPromptBlock> = emptyList(),
     val processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
     val workspaceCwd: String? = null,
 )
@@ -69,6 +71,7 @@ suspend fun List<UIMessage>.transforms(
     settings: Settings,
     conversationModeInjectionIds: Set<Uuid> = emptySet(),
     conversationLorebookIds: Set<Uuid> = emptySet(),
+    companionPromptBlocks: List<CompanionPromptBlock> = emptyList(),
     processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
     workspaceCwd: String? = null,
 ): List<UIMessage> {
@@ -79,6 +82,7 @@ suspend fun List<UIMessage>.transforms(
         settings = settings,
         conversationModeInjectionIds = conversationModeInjectionIds,
         conversationLorebookIds = conversationLorebookIds,
+        companionPromptBlocks = companionPromptBlocks,
         processingStatus = processingStatus,
         workspaceCwd = workspaceCwd,
     )

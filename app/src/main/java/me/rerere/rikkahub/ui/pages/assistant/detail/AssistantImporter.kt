@@ -36,6 +36,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.ui.UIMessage
+import me.rerere.rikkahub.data.companion.model.CompanionCharacterCard
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
@@ -165,6 +166,8 @@ private class CharaCardV2Parser : TavernCardParser {
         val description = data["description"]?.jsonPrimitiveOrNull?.contentOrNull
         val personality = data["personality"]?.jsonPrimitiveOrNull?.contentOrNull
         val scenario = data["scenario"]?.jsonPrimitiveOrNull?.contentOrNull
+        val exampleDialogue = data["mes_example"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty()
+        val postHistoryInstructions = data["post_history_instructions"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty()
 
         val prompt = buildString {
             appendLine("You are roleplaying as $name.")
@@ -187,7 +190,19 @@ private class CharaCardV2Parser : TavernCardParser {
             name = name,
             presetMessages = if (firstMessage != null) listOf(UIMessage.assistant(firstMessage)) else emptyList(),
             systemPrompt = prompt,
-            background = background
+            background = background,
+            enableCompanion = true,
+            companionCharacter = CompanionCharacterCard(
+                name = name,
+                avatar = background,
+                description = description.orEmpty(),
+                personality = personality.orEmpty(),
+                scenario = scenario.orEmpty(),
+                systemPrompt = system.orEmpty(),
+                firstMessage = firstMessage.orEmpty(),
+                postHistoryInstructions = postHistoryInstructions,
+                exampleDialogue = exampleDialogue,
+            ),
         )
     }
 }
@@ -203,6 +218,9 @@ private class CharaCardV3Parser : TavernCardParser {
         val system = data["system_prompt"]?.jsonPrimitiveOrNull?.contentOrNull
         val personality = data["personality"]?.jsonPrimitiveOrNull?.contentOrNull
         val scenario = data["scenario"]?.jsonPrimitiveOrNull?.contentOrNull
+        val speakingStyle = data["creator_notes"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty()
+        val exampleDialogue = data["mes_example"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty()
+        val postHistoryInstructions = data["post_history_instructions"]?.jsonPrimitiveOrNull?.contentOrNull.orEmpty()
 
         val prompt = buildString {
             appendLine("You are roleplaying as $name.")
@@ -225,7 +243,20 @@ private class CharaCardV3Parser : TavernCardParser {
             name = name,
             presetMessages = if (firstMessage != null) listOf(UIMessage.assistant(firstMessage)) else emptyList(),
             systemPrompt = prompt,
-            background = background
+            background = background,
+            enableCompanion = true,
+            companionCharacter = CompanionCharacterCard(
+                name = name,
+                avatar = background,
+                description = description.orEmpty(),
+                personality = personality.orEmpty(),
+                speakingStyle = speakingStyle,
+                scenario = scenario.orEmpty(),
+                systemPrompt = system.orEmpty(),
+                firstMessage = firstMessage.orEmpty(),
+                postHistoryInstructions = postHistoryInstructions,
+                exampleDialogue = exampleDialogue,
+            ),
         )
     }
 }

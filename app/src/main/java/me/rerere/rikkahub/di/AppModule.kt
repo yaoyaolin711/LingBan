@@ -6,6 +6,13 @@ import com.google.firebase.crashlytics.crashlytics
 import kotlinx.serialization.json.Json
 import me.rerere.highlight.Highlighter
 import me.rerere.rikkahub.AppScope
+import me.rerere.rikkahub.data.companion.CharacterManager
+import me.rerere.rikkahub.data.companion.CompanionFacade
+import me.rerere.rikkahub.data.companion.MemoryManager
+import me.rerere.rikkahub.data.companion.PersonaManager
+import me.rerere.rikkahub.data.companion.PromptBuilder
+import me.rerere.rikkahub.data.companion.PromptCache
+import me.rerere.rikkahub.data.companion.RelationshipManager
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.device.CompanionIntervention
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -41,6 +48,30 @@ val appModule = module {
 
     single {
         LocalTools(get(), get(), get(), get(), get())
+    }
+
+    single { CharacterManager() }
+
+    single { PersonaManager() }
+
+    single { MemoryManager() }
+
+    single { RelationshipManager() }
+
+    single { PromptBuilder() }
+
+    single { PromptCache() }
+
+    single {
+        CompanionFacade(
+            stateStore = get(),
+            characterManager = get(),
+            personaManager = get(),
+            memoryManager = get(),
+            relationshipManager = get(),
+            promptBuilder = get(),
+            promptCache = get(),
+        )
     }
 
     single {
@@ -94,7 +125,8 @@ val appModule = module {
             filesManager = get(),
             skillManager = get(),
             workspaceRepository = get(),
-            folderRepository = get()
+            folderRepository = get(),
+            companionFacade = get(),
         )
     }
 

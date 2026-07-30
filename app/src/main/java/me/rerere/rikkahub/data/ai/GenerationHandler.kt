@@ -31,6 +31,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.handleMessageChunk
 import me.rerere.ai.ui.limitContext
+import me.rerere.rikkahub.data.companion.model.CompanionPromptBundle
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
@@ -82,6 +83,7 @@ class GenerationHandler(
         conversationSystemPrompt: String? = null,
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
         conversationLorebookIds: Set<Uuid> = emptySet(),
+        companionPromptBundle: CompanionPromptBundle? = null,
         workspaceCwd: String? = null,
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
@@ -160,6 +162,7 @@ class GenerationHandler(
                     conversationSystemPrompt = conversationSystemPrompt,
                     conversationModeInjectionIds = conversationModeInjectionIds,
                     conversationLorebookIds = conversationLorebookIds,
+                    companionPromptBundle = companionPromptBundle,
                     workspaceCwd = workspaceCwd,
                 )
                 messages = messages.visualTransforms(
@@ -359,6 +362,7 @@ class GenerationHandler(
         conversationSystemPrompt: String? = null,
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
         conversationLorebookIds: Set<Uuid> = emptySet(),
+        companionPromptBundle: CompanionPromptBundle? = null,
         workspaceCwd: String? = null,
     ) {
         val internalMessages = buildList {
@@ -394,6 +398,7 @@ class GenerationHandler(
             settings = settings,
             conversationModeInjectionIds = conversationModeInjectionIds,
             conversationLorebookIds = conversationLorebookIds,
+                companionPromptBlocks = companionPromptBundle?.blocks.orEmpty(),
             processingStatus = processingStatus,
             workspaceCwd = workspaceCwd,
         )
