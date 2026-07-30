@@ -249,16 +249,31 @@ private fun ChatListNormal(
     }
     val lastMessageIndex = conversation.messageNodes.lastIndex
     val isAtBottom by remember(state) { derivedStateOf { !state.canScrollForward } }
+    val lastMessageScrollKey = remember(conversation.messageNodes.lastOrNull()) {
+        conversation.messageNodes.lastOrNull()?.let { node ->
+            node.id to node.currentMessage.summaryAsText(maxLength = 256).hashCode()
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize(),
     ) {
-        // 自动滚动到底部
+        // 自动滚动到底部：新消息、开始生成、流式输出时跟随
         if (settings.displaySetting.enableAutoScroll) {
-            LaunchedEffect(loadingState, conversationUpdated.messageNodes.size, isAtBottom) {
+            LaunchedEffect(conversationUpdated.messageNodes.size) {
+                if (conversationUpdated.messageNodes.isNotEmpty()) {
+                    state.scrollChatToBottom(animated = true)
+                }
+            }
+            LaunchedEffect(loadingState) {
+                if (loadingState) {
+                    state.scrollChatToBottom(animated = true)
+                }
+            }
+            LaunchedEffect(loadingState, lastMessageScrollKey, isAtBottom) {
                 if (loadingState && isAtBottom) {
-                    state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
+                    state.scrollChatToBottom(animated = false)
                 }
             }
         }
@@ -727,6 +742,21 @@ private fun ChatSuggestionsRow(
                 )
             }
         }
+    }
+}
+
+private suspend fun LazyListState.scrollChatToBottom(animated: Boolean) {
+    repeat(4) {
+        val target = layoutInfo.totalItemsCount - 1
+        if (target >= 0) {
+            if (animated) {
+                animateScrollToItem(target)
+            } else {
+                scrollToItem(target)
+            }
+            return
+        }
+        delay(16)
     }
 }
 

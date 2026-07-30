@@ -469,9 +469,6 @@ private fun ChatPageContent(
                     )
                 } else {
                     vm.handleMessageSend(inputState.getContents())
-                    scope.launch {
-                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                    }
                 }
                 inputState.clearInput()
             },
@@ -483,9 +480,6 @@ private fun ChatPageContent(
                     )
                 } else {
                     vm.handleMessageSend(content = inputState.getContents(), answer = false)
-                    scope.launch {
-                        chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-                    }
                 }
                 inputState.clearInput()
             },
