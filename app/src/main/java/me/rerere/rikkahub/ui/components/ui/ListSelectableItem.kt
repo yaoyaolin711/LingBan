@@ -10,10 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ListSelectableItem(
-    key: Any,
-    selectedKeys: List<Any>,
-    onSelectChange: (Any) -> Unit,
+fun <T> ListSelectableItem(
+    key: T,
+    selectedKeys: Set<T>,
+    onSelectChange: (T) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     content: @Composable () -> Unit

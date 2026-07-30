@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -55,19 +54,17 @@ import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -101,10 +98,8 @@ import me.rerere.rikkahub.ui.theme.ChatFontProvider
 import me.rerere.rikkahub.ui.theme.SolaceAnimationDefault
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.utils.plus
-import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 
-private const val TAG = "ChatList"
 private const val LoadingIndicatorKey = "LoadingIndicator"
 private const val ScrollBottomKey = "ScrollBottomKey"
 
@@ -226,17 +221,8 @@ private fun ChatListNormal(
         }
     }
 
-    fun List<LazyListItemInfo>.isAtBottom(): Boolean {
-        val lastItem = lastOrNull() ?: return false
-        val inputBarHeight = with(density) { innerPadding.calculateBottomPadding().toPx() }
-        val lastPos = lastItem.offset + lastItem.size
-        val inputPos = (state.layoutInfo.viewportEndOffset - inputBarHeight.roundToInt())
-        // println("lastPos = $lastPos, inputPos = $inputPos  | ${lastPos <= inputPos - 8}")
-        return lastPos <= inputPos - 8
-    }
-
     // 聊天选择
-    val selectedItems = remember { mutableStateListOf<Uuid>() }
+    var selectedItems by remember { mutableStateOf(emptySet<Uuid>()) }
     var selecting by remember { mutableStateOf(false) }
     var showExportSheet by remember { mutableStateOf(false) }
 
@@ -262,6 +248,7 @@ private fun ChatListNormal(
             .associateBy { it.id }
     }
     val lastMessageIndex = conversation.messageNodes.lastIndex
+    val isAtBottom by remember(state) { derivedStateOf { !state.canScrollForward } }
 
     Box(
         modifier = Modifier
@@ -269,15 +256,9 @@ private fun ChatListNormal(
     ) {
         // 自动滚动到底部
         if (settings.displaySetting.enableAutoScroll) {
-            LaunchedEffect(state) {
-                snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { visibleItemsInfo ->
-                    // println("is bottom = ${visibleItemsInfo.isAtBottom()}, scroll = ${state.isScrollInProgress}, can_scroll = ${state.canScrollForward}, loading = $loading")
-                    if (!state.isScrollInProgress && loadingState) {
-                        if (visibleItemsInfo.isAtBottom()) {
-                            state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
-                            // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
-                        }
-                    }
+            LaunchedEffect(loadingState, conversationUpdated.messageNodes.size, isAtBottom) {
+                if (loadingState && isAtBottom) {
+                    state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
                 }
             }
         }
@@ -319,10 +300,10 @@ private fun ChatListNormal(
                     ListSelectableItem(
                         key = node.id,
                         onSelectChange = {
-                            if (!selectedItems.contains(node.id)) {
-                                selectedItems.add(node.id)
+                            if (it !in selectedItems) {
+                                selectedItems = selectedItems + it
                             } else {
-                                selectedItems.remove(node.id)
+                                selectedItems = selectedItems - it
                             }
                         },
                         selectedKeys = selectedItems,
@@ -347,9 +328,11 @@ private fun ChatListNormal(
                             },
                             onShare = {
                                 selecting = true  // 使用 CoroutineScope 延迟状态更新
-                                selectedItems.clear()
-                                selectedItems.addAll(conversation.messageNodes.map { it.id }
-                                    .subList(0, conversation.messageNodes.indexOf(node) + 1))
+                                selectedItems = conversation.messageNodes
+                                    .asSequence()
+                                    .take(conversation.messageNodes.indexOf(node) + 1)
+                                    .map { it.id }
+                                    .toSet()
                             },
                             onUpdate = {
                                 onUpdateMessage(it)
@@ -452,7 +435,7 @@ private fun ChatListNormal(
                         IconButton(
                             onClick = {
                                 selecting = false
-                                selectedItems.clear()
+                                selectedItems = emptySet()
                             }
                         ) {
                             Icon(HugeIcons.Cancel01, null)
@@ -466,9 +449,9 @@ private fun ChatListNormal(
                         IconButton(
                             onClick = {
                                 if (selectedItems.isNotEmpty()) {
-                                    selectedItems.clear()
+                                    selectedItems = emptySet()
                                 } else {
-                                    selectedItems.addAll(conversation.messageNodes.map { it.id })
+                                    selectedItems = conversation.messageNodes.map { it.id }.toSet()
                                 }
                             }
                         ) {
@@ -500,7 +483,7 @@ private fun ChatListNormal(
                 visible = showExportSheet,
                 onDismissRequest = {
                     showExportSheet = false
-                    selectedItems.clear()
+                    selectedItems = emptySet()
                 },
                 conversation = conversation,
                 selectedMessages = conversation.messageNodes.filter { it.id in selectedItems }
