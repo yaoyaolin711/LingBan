@@ -66,8 +66,8 @@ fun PremiumBottomBar(
     GlassContainer(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
-        elevation = 10.dp,
-        color = colors.surface.copy(alpha = if (dark) 0.82f else 0.78f),
+        elevation = 0.dp,
+        color = colors.champagne.copy(alpha = if (dark) 0.50f else 0.58f),
         contentPadding = 0.dp,
     ) {
         Row(

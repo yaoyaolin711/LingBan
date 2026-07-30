@@ -20,8 +20,9 @@ import me.rerere.rikkahub.ui.theme.SolaceShapesDefault
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 
 /**
- * Glassmorphism container — translucent fill + hairline border.
- * No realtime blur (keeps 60fps). Theme / dark mode via [SolaceTheme].
+ * Glassmorphism container — translucent champagne fill + hairline border.
+ * Material elevation shadows are disabled: under translucent fills they show
+ * up as rectangular white flares ("方块光斑").
  */
 @Composable
 fun GlassContainer(
@@ -29,17 +30,17 @@ fun GlassContainer(
     onClick: (() -> Unit)? = null,
     shape: Shape = SolaceShapesDefault.glass,
     contentPadding: Dp = 0.dp,
-    elevation: Dp? = null,
+    @Suppress("UNUSED_PARAMETER") elevation: Dp? = null,
     color: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = SolaceTheme.colorScheme
     val dark = LocalDarkMode.current
-    val fill = color ?: colors.glassFill.copy(alpha = if (dark) 0.72f else 0.78f)
+    val fill = color ?: colors.champagne.copy(alpha = if (dark) 0.48f else 0.58f)
     val stroke = BorderStroke(1.dp, colors.glassBorder)
 
     if (onClick != null) {
-        val press = rememberSolacePressState()
+        val press = rememberSolacePressState(restingElevation = 0.dp)
         Surface(
             onClick = onClick,
             modifier = modifier.solacePressTransform(press),
@@ -47,7 +48,7 @@ fun GlassContainer(
             color = fill,
             border = stroke,
             tonalElevation = 0.dp,
-            shadowElevation = elevation ?: press.elevation,
+            shadowElevation = 0.dp,
             interactionSource = press.interactionSource,
         ) {
             Box(modifier = Modifier.padding(contentPadding), content = content)
@@ -59,16 +60,13 @@ fun GlassContainer(
             color = fill,
             border = stroke,
             tonalElevation = 0.dp,
-            shadowElevation = elevation ?: 0.dp,
+            shadowElevation = 0.dp,
         ) {
             Box(modifier = Modifier.padding(contentPadding), content = content)
         }
     }
 }
 
-/**
- * Column-scoped glass container for form / card layouts.
- */
 @Composable
 fun GlassContainerColumn(
     modifier: Modifier = Modifier,

@@ -1,6 +1,6 @@
 # Solace
 
-Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ovo/rikkahub) 二次开发**：保留 RikkaHub 完整底层能力（多 Provider、MCP、Workspace、搜索、备份、Web、消息分支等），并以 Solace 伴侣向信息架构与暖色视觉重新包装操作界面。
+Android 原生 AI 伴侣客户端。基于 [RikkaHub](https://github.com/re-ovo/rikkahub) 二次开发：保留多 Provider、MCP、Workspace、搜索、备份、Web、消息分支等完整能力，并提供 Solace 伴侣向界面与 Rose Gold 视觉设计。
 
 > **致谢与许可**：核心实现来自 [RikkaHub](https://github.com/re-ovo/rikkahub)（作者 re-ovo / RikkaHub 社区）。本项目以 **GNU Affero General Public License v3.0 (AGPL-3.0)** 发布，完整条款见 [LICENSE](LICENSE)。使用、修改与分发须遵守 AGPL-3.0。
 
@@ -24,7 +24,7 @@ Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ov
 
 | 模块 | 说明 |
 |------|------|
-| `app` | 主应用、Solace UI 皮囊、业务编排 |
+| `app` | 主应用 UI、业务编排 |
 | `ai` | Provider 抽象（OpenAI / Google / Anthropic 兼容） |
 | `search` | 联网搜索（Exa、Tavily、Zhipu、Brave 等） |
 | `speech` | TTS / ASR |
@@ -35,24 +35,24 @@ Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ov
 
 ---
 
-## Solace 皮囊（信息架构）
+## 信息架构
 
-启动页为 **Home 中枢**（暖色 Orb），不再默认落在纯聊天页：
+启动页为 **Home**：
 
-- **Home**：新对话 / 最近会话 / 伙伴 / 历史 / 记忆 / 个人中心
-- **Chat**：完整 RikkaHub 对话（流式、分支、附件、工具、搜索、MCP、Workspace…）
-- **Agent Center**：助手（Assistant）列表与详情全套配置
-- **Profile**：聚合 Provider、模型、搜索、语音、MCP、备份、主题、扩展、统计、翻译、生图、收藏、关于等入口
+- **Home**：伴侣空间入口（对话、伙伴、记忆、个人中心）
+- **Chat**：完整对话（流式、分支、附件、工具、搜索、MCP、Workspace 等）
+- **Agent Center**：助手列表与详情配置
+- **Profile**：Provider、模型、搜索、语音、MCP、备份、主题、扩展、统计、翻译、生图、收藏、关于等
 
-底层业务语义与 RikkaHub 一致；Kotlin 包名仍为 `me.rerere.rikkahub`，对外品牌与图标为 Solace。
+底层业务语义与 RikkaHub 一致；Kotlin 包名仍为 `me.rerere.rikkahub`，对外品牌为 Solace。
 
-默认主题：**Solace Rose Gold**（`#FFF9F7` 底 + Rose Gold `#B76E79`）。设计令牌见 `ui/theme/`（`SolaceTheme.colorScheme`）。
+默认主题：**Solace Rose Gold**（背景 `#FFF9F7`，主色 `#B76E79`）。设计令牌见 `ui/theme/`（通过 `SolaceTheme.colorScheme` 使用）。
 
 ---
 
-## 功能一览（RikkaHub 全集）
+## 功能一览
 
-- Material You / 多主题（含 Solace 暖橘）与深色模式
+- Material You / 多主题（含 Solace Rose Gold）与深色模式
 - Workspace：基于 proot 的 Linux Agent 环境
 - 多 AI Provider：自定义 API / URL / 模型（OpenAI、Google、Anthropic 兼容）
 - 多模态输入（图片、文档、PDF、Docx 等）
@@ -66,17 +66,13 @@ Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ov
 - SillyTavern 角色卡导入
 - 备份（本地 / WebDAV / S3）、TTS / ASR、统计与收藏
 
-### 后续计划（本轮未做）
-
-旧 Solace 独有能力将作为增量：场景化主动关心、无障碍读屏、短信/通知感知、口语拆气泡节奏、关系/表达档位等。
-
 ---
 
 ## 构建与运行
 
 环境：Android Studio、JDK 17+、Android SDK。
 
-1. 在 `app/` 放置 `google-services.json`（Firebase；仓库可提供本地占位，正式分发请换成自有配置）。
+1. 在 `app/` 放置 `google-services.json`（Firebase）。
 2. （可选）完整 Web UI：在 `web-ui/` 执行 `pnpm install && pnpm run build`。若未安装 pnpm，构建会跳过并使用占位静态页。
 3. **路径注意（Windows）**：若工程路径含非 ASCII 字符（如中文目录），`workspace` 模块的 CMake/NDK 会自动跳过；完整 Workspace 原生能力请将工程放在纯英文路径下再构建。另需 `git submodule update --init --recursive` 拉取 `material3/material-color-utilities`。
 4. 构建：
@@ -88,15 +84,15 @@ Android 原生 AI 伴侣客户端。**基于 [RikkaHub](https://github.com/re-ov
 
 用 Android Studio 打开本仓库根目录，Sync Gradle 后运行 `app` 模块。
 
-首次使用建议：Home → Profile → 服务商 / 默认模型，配置 API 后回到 Home 开启对话。
+首次使用建议：Home → 个人中心 → 服务商 / 默认模型，配置 API 后回到 Home 开启对话。
 
 ---
 
 ## 相对上游的主要改动
 
-- 工程以 RikkaHub 多模块为根；旧单模块 Solace 归档于 `_legacy_solace/`（仅供参考，不参与编译）
+- 工程以 RikkaHub 多模块为根
 - `applicationId` → `com.agent.chat`；应用名与启动图标 → Solace
-- 新增 Home / Profile 导航皮囊；默认主题 Solace Warm
+- 新增 Home / Profile 等伴侣向导航与 Rose Gold 设计系统
 - 关于页与 README 标明基于 RikkaHub 与 AGPL-3.0
 - `gradle.properties` 增加 `android.overridePathCheck=true`（支持中文路径下的 AGP 检查豁免）
 

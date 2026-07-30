@@ -1,6 +1,5 @@
 package me.rerere.rikkahub.ui.pages.home
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,7 +38,7 @@ import me.rerere.rikkahub.ui.components.solace.PremiumBottomBar
 import me.rerere.rikkahub.ui.components.solace.RelationshipCard
 import me.rerere.rikkahub.ui.components.solace.RelationshipMetric
 import me.rerere.rikkahub.ui.context.LocalNavController
-import me.rerere.rikkahub.ui.pages.chat.MeshGradientBackground
+import me.rerere.rikkahub.ui.pages.chat.SolaceAmbientBackground
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 import org.koin.androidx.compose.koinViewModel
 import java.util.Calendar
@@ -65,21 +63,8 @@ fun HomePage(vm: HomeVM = koinViewModel()) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        MeshGradientBackground(modifier = Modifier.fillMaxSize())
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            colors.background.copy(alpha = 0.15f),
-                            colors.background.copy(alpha = 0.45f),
-                            colors.background.copy(alpha = 0.78f),
-                        )
-                    )
-                )
-        )
+        // Smooth wash only — Mesh blobs + Material elevation caused square flares
+        SolaceAmbientBackground(modifier = Modifier.fillMaxSize())
 
         Column(
             modifier = Modifier

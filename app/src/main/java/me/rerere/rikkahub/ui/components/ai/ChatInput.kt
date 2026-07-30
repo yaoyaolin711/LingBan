@@ -100,6 +100,7 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.ui.components.solace.FloatingInput
 import me.rerere.rikkahub.ui.theme.SolaceAnimationDefault
+import me.rerere.rikkahub.ui.theme.SolaceInputShape
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionItem
@@ -588,7 +589,7 @@ private fun TextInputRow(
                 .onFocusChanged {
                     isFocused = it.isFocused
                 },
-            shape = MaterialTheme.shapes.largeIncreased,
+            shape = SolaceInputShape,
             placeholder = {
                 Text(stringResource(R.string.chat_input_placeholder))
             },
@@ -601,11 +602,15 @@ private fun TextInputRow(
                     onSendMessage()
                 }
             },
-            colors = TextFieldDefaults.colors().copy(
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
+            colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                errorContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                errorIndicatorColor = Color.Transparent,
             ),
             trailingIcon = {
                 if (isFocused) {
@@ -809,11 +814,15 @@ private fun FullScreenEditor(
                         placeholder = {
                             Text(stringResource(R.string.chat_input_placeholder))
                         },
-                        colors = TextFieldDefaults.colors().copy(
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
+                        colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            errorContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                            errorIndicatorColor = Color.Transparent,
                         ),
                     )
                 }

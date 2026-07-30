@@ -72,7 +72,7 @@ fun SolacePrimaryButton(
         shape = shape,
         color = colors.primary,
         contentColor = colors.onPrimary,
-        shadowElevation = press.elevation,
+        shadowElevation = 0.dp,
         tonalElevation = 0.dp,
         interactionSource = press.interactionSource,
     ) {

@@ -19,7 +19,7 @@ import me.rerere.rikkahub.ui.theme.SolaceTheme
 @Composable
 fun rememberSolacePressState(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    restingElevation: Dp = 6.dp,
+    restingElevation: Dp = 0.dp,
 ): SolacePressState {
     val pressed by interactionSource.collectIsPressedAsState()
     val anim = SolaceTheme.animation

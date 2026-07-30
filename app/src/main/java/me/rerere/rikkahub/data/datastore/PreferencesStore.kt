@@ -585,7 +585,7 @@ data class DisplaySetting(
     val showTokenUsage: Boolean = true,
     val showThinkingContent: Boolean = true,
     val autoCloseThinking: Boolean = true,
-    val showUpdates: Boolean = true,
+    val showUpdates: Boolean = false,
     val showMessageJumper: Boolean = true,
     val messageJumperOnLeft: Boolean = false,
     val fontSizeRatio: Float = 1.0f,

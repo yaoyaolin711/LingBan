@@ -21,8 +21,9 @@ import me.rerere.rikkahub.ui.theme.SolaceTheme
 @Composable
 fun AssistantBackground(setting: Settings, modifier: Modifier) {
     val assistant = setting.getCurrentAssistant()
+    // Prefer smooth ambient wash — animated mesh blobs read as square flares on many devices
     if (assistant.useGradientBackground) {
-        MeshGradientBackground(modifier = modifier)
+        SolaceAmbientBackground(modifier = modifier)
         return
     }
     if (assistant.background != null) {
@@ -30,7 +31,6 @@ fun AssistantBackground(setting: Settings, modifier: Modifier) {
         val backgroundOpacity = assistant.backgroundOpacity.coerceIn(0f, 1f)
         val context = LocalContext.current
         val density = LocalDensity.current
-        // Decode near screen width — avoids full-res bitmap on low-end devices
         val targetPx = with(density) { 1080.dp.roundToPx() }
         val imageRequest = remember(assistant.background, targetPx) {
             ImageRequest.Builder(context)
@@ -68,7 +68,7 @@ fun AssistantBackground(setting: Settings, modifier: Modifier) {
 }
 
 /**
- * Soft immersive chat wash — rose → pearl → champagne.
+ * Soft immersive chat wash — continuous rose → pearl → champagne (no mesh tiles).
  */
 @Composable
 fun SolaceAmbientBackground(modifier: Modifier = Modifier) {
@@ -79,10 +79,11 @@ fun SolaceAmbientBackground(modifier: Modifier = Modifier) {
             .background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.0f to colors.lightRose.copy(alpha = 0.42f),
-                        0.28f to colors.champagne.copy(alpha = 0.55f),
-                        0.62f to colors.background,
-                        1.0f to colors.champagne.copy(alpha = 0.35f),
+                        0.0f to colors.lightRose.copy(alpha = 0.38f),
+                        0.28f to colors.champagne.copy(alpha = 0.48f),
+                        0.55f to colors.background,
+                        0.82f to colors.champagne.copy(alpha = 0.32f),
+                        1.0f to colors.lightRose.copy(alpha = 0.22f),
                     )
                 )
             )

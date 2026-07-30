@@ -179,7 +179,7 @@ fun CompanionOnlineChip(
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(colors.surface.copy(alpha = 0.55f))
+            .background(colors.champagne.copy(alpha = 0.45f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Box(

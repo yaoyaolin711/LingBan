@@ -21,8 +21,8 @@ import me.rerere.rikkahub.ui.theme.SolaceShapesDefault
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 
 /**
- * Premium rose-gold card — soft corners, champagne/rose gradient, animated press shadow.
- * Colors come from [SolaceTheme]; adapts for dark mode via [LocalDarkMode].
+ * Premium rose-gold card — soft corners + champagne/rose wash.
+ * No Material shadowElevation (avoids rectangular white flare on translucent fills).
  */
 @Composable
 fun RoseGoldCard(
@@ -34,13 +34,14 @@ fun RoseGoldCard(
 ) {
     val colors = SolaceTheme.colorScheme
     val dark = LocalDarkMode.current
-    val press = if (onClick != null) rememberSolacePressState() else null
-    val fillAlpha = if (dark) 0.55f else 0.72f
+    val press = if (onClick != null) rememberSolacePressState(restingElevation = 0.dp) else null
+    // Soft tinted fill — not opaque white
+    val fillAlpha = if (dark) 0.48f else 0.58f
     val gradient = Brush.linearGradient(
         colors = listOf(
-            colors.surface.copy(alpha = if (dark) 0.4f else 0.55f),
-            colors.champagne.copy(alpha = if (dark) 0.28f else 0.42f),
-            colors.lightRose.copy(alpha = if (dark) 0.18f else 0.28f),
+            colors.champagne.copy(alpha = if (dark) 0.35f else 0.50f),
+            colors.lightRose.copy(alpha = if (dark) 0.22f else 0.32f),
+            colors.surface.copy(alpha = if (dark) 0.35f else 0.45f),
         )
     )
 
@@ -50,14 +51,16 @@ fun RoseGoldCard(
         modifier.fillMaxWidth()
     }
 
+    val surfaceColor = colors.champagne.copy(alpha = fillAlpha)
+
     if (onClick != null && press != null) {
         Surface(
             onClick = onClick,
             modifier = surfaceModifier,
             shape = shape,
-            color = colors.surface.copy(alpha = fillAlpha),
+            color = surfaceColor,
             border = BorderStroke(1.dp, colors.glassBorder),
-            shadowElevation = press.elevation,
+            shadowElevation = 0.dp,
             tonalElevation = 0.dp,
             interactionSource = press.interactionSource,
         ) {
@@ -73,9 +76,9 @@ fun RoseGoldCard(
         Surface(
             modifier = surfaceModifier,
             shape = shape,
-            color = colors.surface.copy(alpha = fillAlpha),
+            color = surfaceColor,
             border = BorderStroke(1.dp, colors.glassBorder),
-            shadowElevation = 6.dp,
+            shadowElevation = 0.dp,
             tonalElevation = 0.dp,
         ) {
             Box(
