@@ -37,4 +37,9 @@ sealed class LocalToolOption {
     @Serializable
     @SerialName("device_assist")
     data object DeviceAssist : LocalToolOption()
+
+    /** 本机 UI 操控: 无障碍读树 / 点击 / 滑动 / 输入 / 开 App */
+    @Serializable
+    @SerialName("phone_control")
+    data object PhoneControl : LocalToolOption()
 }

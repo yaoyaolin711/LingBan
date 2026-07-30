@@ -13,16 +13,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.ui.theme.SolaceInputShape
-import me.rerere.rikkahub.ui.theme.SolaceInputShapeIme
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 
 /**
  * Floating chat input shell — rounded glass, no Material elevation shadow.
+ * Shape stays fixed (no IME morph) so keyboard show/hide does not recompose clip geometry.
  */
 @Composable
 fun FloatingInput(
     modifier: Modifier = Modifier,
-    imeVisible: Boolean = false,
+    @Suppress("UNUSED_PARAMETER") imeVisible: Boolean = false,
     contentPaddingHorizontal: Dp = 12.dp,
     contentPaddingVertical: Dp = 8.dp,
     @Suppress("UNUSED_PARAMETER") elevation: Dp = 0.dp,
@@ -30,7 +30,7 @@ fun FloatingInput(
 ) {
     val colors = SolaceTheme.colorScheme
     val dark = LocalDarkMode.current
-    val shape = if (imeVisible) SolaceInputShapeIme else SolaceInputShape
+    val shape = SolaceInputShape
     // Soft champagne glass — pure white + elevation caused the square flare
     val fill = colors.champagne.copy(alpha = if (dark) 0.55f else 0.62f)
 

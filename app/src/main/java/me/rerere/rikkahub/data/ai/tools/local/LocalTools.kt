@@ -40,6 +40,8 @@ class LocalTools(
 
     val deviceShellTool by lazy { buildDeviceShellTool(settingsStore) }
 
+    val phoneControlTools by lazy { buildPhoneControlTools(context) }
+
     fun getTools(options: List<LocalToolOption>): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
@@ -72,6 +74,9 @@ class LocalTools(
             if (settingsStore.settingsFlow.value.companionAssist.enableAdvancedShell) {
                 tools.add(deviceShellTool)
             }
+        }
+        if (options.contains(LocalToolOption.PhoneControl)) {
+            tools.addAll(phoneControlTools)
         }
         return tools
     }

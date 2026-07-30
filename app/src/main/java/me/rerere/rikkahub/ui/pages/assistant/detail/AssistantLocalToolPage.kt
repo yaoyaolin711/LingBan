@@ -44,11 +44,14 @@ import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.hasUsageStatsPermission
+import me.rerere.rikkahub.utils.isSolaceAccessibilityEnabled
+import me.rerere.rikkahub.utils.openAccessibilitySettings
 import me.rerere.rikkahub.utils.openUsageAccessSettings
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import rikka.shizuku.Shizuku
+import me.rerere.rikkahub.service.SolaceAccessibilityService
 
 @Composable
 fun AssistantLocalToolPage(id: String) {
@@ -131,6 +134,13 @@ private fun AssistantLocalToolContent(
         ) {
             toaster.show(message = permissionRequiredText, type = ToastType.Warning)
             context.openUsageAccessSettings()
+        }
+        if (enabled && option == LocalToolOption.PhoneControl && !SolaceAccessibilityService.isRunning()) {
+            toaster.show(
+                message = "请在系统无障碍设置中开启 Solace，才能操控手机界面",
+                type = ToastType.Warning,
+            )
+            context.openAccessibilitySettings()
         }
         if (enabled && option == LocalToolOption.Calendar && !calendarPermissionState.allPermissionsGranted) {
             calendarPermissionState.requestPermissions()
@@ -275,6 +285,27 @@ private fun AssistantLocalToolContent(
                     Switch(
                         checked = assistant.localTools.contains(LocalToolOption.DeviceAssist),
                         onCheckedChange = { toggleLocalTool(LocalToolOption.DeviceAssist, it) }
+                    )
+                }
+            )
+            item(
+                headlineContent = {
+                    Text("Phone Control")
+                },
+                supportingContent = {
+                    val a11yOn = context.isSolaceAccessibilityEnabled()
+                    Text(
+                        if (a11yOn) {
+                            "无障碍已开启：dump_ui / ui_click / ui_swipe / ui_type / open_app"
+                        } else {
+                            "需开启系统无障碍中的 Solace，才能读界面并点击/滑动/输入"
+                        }
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = assistant.localTools.contains(LocalToolOption.PhoneControl),
+                        onCheckedChange = { toggleLocalTool(LocalToolOption.PhoneControl, it) }
                     )
                 }
             )

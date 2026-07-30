@@ -112,6 +112,20 @@ fun Context.openUsageAccessSettings() {
     }
 }
 
+fun Context.isSolaceAccessibilityEnabled(): Boolean {
+    return me.rerere.rikkahub.service.SolaceAccessibilityService.isRunning()
+}
+
+fun Context.openAccessibilitySettings() {
+    runCatching {
+        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }.onFailure {
+        Log.e(TAG, "openAccessibilitySettings failed", it)
+    }
+}
+
 /**
  * Open a url
  */
