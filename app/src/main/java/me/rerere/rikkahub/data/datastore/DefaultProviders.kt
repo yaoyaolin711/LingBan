@@ -46,7 +46,26 @@ val DEFAULT_PROVIDERS = listOf(
         name = "OpenAI",
         baseUrl = "https://api.openai.com/v1",
         apiKey = "",
-        builtIn = true
+        builtIn = true,
+        description = {
+            Text(
+                text = buildAnnotatedString {
+                    append("官方 OpenAI API。填写 API Key 即可使用 ChatGPT 等模型。")
+                    appendLine()
+                    append("大陆用户可将 Base URL 改为 OpenAI 兼容中转地址。")
+                    appendLine()
+                    append("官网：")
+                    withLink(LinkAnnotation.Url("https://platform.openai.com")) {
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
+                            append("https://platform.openai.com")
+                        }
+                    }
+                }
+            )
+        },
+        shortDescription = {
+            Text("官方 ChatGPT；可用兼容中转改 Base URL")
+        },
     ),
     ProviderSetting.Google(
         id = Uuid.parse("6ab18148-c138-4394-a46f-1cd8c8ceaa6d"),
@@ -54,6 +73,32 @@ val DEFAULT_PROVIDERS = listOf(
         apiKey = "",
         enabled = true,
         builtIn = true
+    ),
+    ProviderSetting.Claude(
+        id = Uuid.parse("c4a8e291-7b3f-4d6a-9e12-5f8a0c3b1d47"),
+        name = "Claude",
+        baseUrl = "https://api.anthropic.com/v1",
+        apiKey = "",
+        builtIn = true,
+        description = {
+            Text(
+                text = buildAnnotatedString {
+                    append("官方 Anthropic Claude API。填写 API Key 即可使用。")
+                    appendLine()
+                    append("大陆用户可将 Base URL 改为 Anthropic 兼容中转地址，或改用下方 OpenAI 兼容中转（如 OpenRouter、AiHubMix）。")
+                    appendLine()
+                    append("官网：")
+                    withLink(LinkAnnotation.Url("https://console.anthropic.com")) {
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
+                            append("https://console.anthropic.com")
+                        }
+                    }
+                }
+            )
+        },
+        shortDescription = {
+            Text("官方 Claude；可用 Anthropic 兼容中转改 Base URL")
+        },
     ),
     ProviderSetting.OpenAI(
         id = Uuid.parse("1b1395ed-b702-4aeb-8bc1-b681c4456953"),
@@ -140,6 +185,23 @@ val DEFAULT_PROVIDERS = listOf(
         baseUrl = "https://openrouter.ai/api/v1",
         apiKey = "",
         builtIn = true,
+        description = {
+            Text(
+                text = buildAnnotatedString {
+                    append("聚合路由，可访问 Claude、GPT、Gemini 等多种模型。填写 API Key 即可，OpenAI 兼容协议。")
+                    appendLine()
+                    append("官网：")
+                    withLink(LinkAnnotation.Url("https://openrouter.ai")) {
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
+                            append("https://openrouter.ai")
+                        }
+                    }
+                }
+            )
+        },
+        shortDescription = {
+            Text("聚合 Claude / GPT / Gemini 等模型")
+        },
         balanceOption = BalanceOption(
             enabled = true,
             apiPath = "/credits",

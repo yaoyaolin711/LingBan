@@ -7,8 +7,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import me.rerere.ai.provider.BalanceOption
 import me.rerere.ai.provider.ProviderSetting
-import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import kotlin.uuid.Uuid
 
 /**
@@ -42,6 +42,35 @@ val RECOMMENDED_PROVIDERS: List<ProviderSetting> = listOf(
                 }
             )
         },
+    ),
+    ProviderSetting.OpenAI(
+        id = Uuid.parse("d5734028-d39b-4d41-9841-fd648d65440e"),
+        name = "OpenRouter",
+        baseUrl = "https://openrouter.ai/api/v1",
+        apiKey = "",
+        enabled = true,
+        description = {
+            Text(
+                text = buildAnnotatedString {
+                    append("聚合路由，可访问 Claude、GPT、Gemini 等多种模型。填写 API Key 即可，OpenAI 兼容协议。")
+                    appendLine()
+                    append("官网：")
+                    withLink(LinkAnnotation.Url("https://openrouter.ai")) {
+                        withStyle(SpanStyle(MaterialTheme.colorScheme.primary)) {
+                            append("https://openrouter.ai")
+                        }
+                    }
+                }
+            )
+        },
+        shortDescription = {
+            Text("聚合 Claude / GPT / Gemini 等模型")
+        },
+        balanceOption = BalanceOption(
+            enabled = true,
+            apiPath = "/credits",
+            resultPath = "data.total_credits - data.total_usage",
+        ),
     ),
     ProviderSetting.OpenAI(
         id = Uuid.parse("aecf04fd-cb5c-4582-aed2-e8bf393923fd"),

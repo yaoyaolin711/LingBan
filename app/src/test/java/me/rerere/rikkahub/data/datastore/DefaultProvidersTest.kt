@@ -23,4 +23,17 @@ class DefaultProvidersTest {
         assertEquals("/credits", provider.balanceOption.apiPath)
         assertEquals("balance", provider.balanceOption.resultPath)
     }
+
+    @Test
+    fun `default providers should include official Claude preset`() {
+        val claudeProviders = DEFAULT_PROVIDERS
+            .filterIsInstance<ProviderSetting.Claude>()
+            .filter { it.name == "Claude" }
+
+        assertEquals(1, claudeProviders.size)
+
+        val provider = claudeProviders.single()
+        assertEquals("https://api.anthropic.com/v1", provider.baseUrl)
+        assertTrue(provider.builtIn)
+    }
 }

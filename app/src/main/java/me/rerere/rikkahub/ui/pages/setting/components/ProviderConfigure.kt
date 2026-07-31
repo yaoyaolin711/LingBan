@@ -227,6 +227,9 @@ private fun ProviderConfigureOpenAI(
                 Icon(if (keyVisible) HugeIcons.ViewOff else HugeIcons.View, contentDescription = null)
             }
         },
+        supportingText = {
+            Text("向官网或中转站申请，Key 仅保存在本机")
+        },
     )
 
     OutlinedTextField(
@@ -235,6 +238,9 @@ private fun ProviderConfigureOpenAI(
         label = { Text(stringResource(R.string.setting_provider_page_api_base_url)) },
         modifier = Modifier.fillMaxWidth(),
         isError = provider.baseUrl.isNotBlank() && !provider.baseUrl.isValidBaseUrl(),
+        supportingText = {
+            Text("官方默认即可；国内中转请改为对方文档中的地址（多为 /v1）")
+        },
     )
 
     if (!provider.useResponseApi) {
@@ -318,6 +324,9 @@ private fun ProviderConfigureClaude(
                 Icon(if (keyVisible) HugeIcons.ViewOff else HugeIcons.View, contentDescription = null)
             }
         },
+        supportingText = {
+            Text("向官网或中转站申请，Key 仅保存在本机")
+        },
     )
 
     OutlinedTextField(
@@ -326,6 +335,9 @@ private fun ProviderConfigureClaude(
         label = { Text(stringResource(R.string.setting_provider_page_api_base_url)) },
         modifier = Modifier.fillMaxWidth(),
         isError = provider.baseUrl.isNotBlank() && !provider.baseUrl.isValidBaseUrl(),
+        supportingText = {
+            Text("官方默认即可；国内 Anthropic 兼容中转请改为对方文档地址")
+        },
     )
 
     Row(

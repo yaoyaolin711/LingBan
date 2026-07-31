@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.AiMagic
+import me.rerere.hugeicons.stroke.Agreement01
 import me.rerere.hugeicons.stroke.Book01
 import me.rerere.hugeicons.stroke.Bookshelf01
 import me.rerere.hugeicons.stroke.Brain02
@@ -257,6 +258,20 @@ fun ProfilePage() {
                         onClick = { nav.navigate(Screen.SettingDonate) },
                         leadingContent = { Icon(HugeIcons.Book01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_donate)) },
+                    )
+                }
+            }
+
+            item("legal") {
+                CardGroup(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    title = { Text("法律信息") },
+                ) {
+                    item(
+                        onClick = { nav.navigate(Screen.SettingDisclaimer) },
+                        leadingContent = { Icon(HugeIcons.Agreement01, null, tint = colors.primary) },
+                        headlineContent = { Text("免责声明") },
+                        supportingContent = { Text("使用本应用即视为同意相关条款") },
                     )
                 }
             }
