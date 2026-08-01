@@ -4,12 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.buffer
@@ -26,7 +26,9 @@ fun rememberSharedPreferenceString(
     }
     val stateFlow =
         remember(keyForString, defaultValue) { prefs.getStringFlowForKey(keyForString, defaultValue) }
-    val state by stateFlow.collectAsStateWithLifecycle(prefs.getString(keyForString, defaultValue))
+    val initial = prefs.getString(keyForString, defaultValue)
+    // collectAsState: safe in Application overlay ComposeViews without LifecycleOwner.
+    val state by stateFlow.collectAsState(initial)
     val currentState = rememberUpdatedState(state)
     return remember {
         object : MutableState<String?> {
@@ -53,7 +55,8 @@ fun rememberSharedPreferenceBoolean(
     }
     val stateFlow =
         remember(keyForBoolean, defaultValue) { prefs.getBooleanFlowForKey(keyForBoolean, defaultValue) }
-    val state by stateFlow.collectAsStateWithLifecycle(prefs.getBoolean(keyForBoolean, defaultValue))
+    val initial = prefs.getBoolean(keyForBoolean, defaultValue)
+    val state by stateFlow.collectAsState(initial)
     val currentState = rememberUpdatedState(state)
     return remember {
         object : MutableState<Boolean> {

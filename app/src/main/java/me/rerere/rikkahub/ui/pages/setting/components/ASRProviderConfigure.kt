@@ -32,6 +32,7 @@ fun ASRProviderConfigure(
         ) {
             OutlinedTextField(
                 value = when (setting) {
+                    is ASRProviderSetting.System -> "System"
                     is ASRProviderSetting.OpenAIRealtime -> "OpenAI Realtime"
                     is ASRProviderSetting.DashScope -> "DashScope"
                     is ASRProviderSetting.Volcengine -> "Volcengine"
@@ -52,17 +53,46 @@ fun ASRProviderConfigure(
                 value = setting.name,
                 onValueChange = { onValueChange(setting.copyProvider(name = it)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("OpenAI Realtime") }
+                placeholder = { Text("System ASR") }
             )
         }
 
         when (setting) {
+            is ASRProviderSetting.System -> SystemASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.OpenAIRealtime -> OpenAIRealtimeASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.DashScope -> DashScopeASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.Volcengine -> VolcengineASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.MiMo -> MiMoASRConfiguration(setting, onValueChange)
             is ASRProviderSetting.Step -> StepASRConfiguration(setting, onValueChange)
         }
+    }
+}
+
+@Composable
+private fun SystemASRConfiguration(
+    setting: ASRProviderSetting.System,
+    onValueChange: (ASRProviderSetting) -> Unit
+) {
+    FormItem(
+        label = { Text(stringResource(R.string.setting_asr_configure_language)) },
+        description = { Text("BCP-47 language tag, e.g. zh-CN / en-US. Leave empty to follow system.") }
+    ) {
+        OutlinedTextField(
+            value = setting.language,
+            onValueChange = { onValueChange(setting.copy(language = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("zh-CN") }
+        )
+    }
+
+    FormItem(
+        label = { Text("Prefer offline") },
+        description = { Text("Prefer on-device speech packs when available. May fail if offline pack is missing.") }
+    ) {
+        androidx.compose.material3.Switch(
+            checked = setting.preferOffline,
+            onCheckedChange = { onValueChange(setting.copy(preferOffline = it)) }
+        )
     }
 }
 

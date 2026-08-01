@@ -300,7 +300,7 @@ private fun AssistantTagsFilterRow(
                                 )
                             },
                             label = {
-                                Text(tag.name)
+                                Text(tag.name, maxLines = 1, softWrap = false)
                             },
                             selected = tag.id in selectedTagIds,
                             shape = RoundedCornerShape(50),

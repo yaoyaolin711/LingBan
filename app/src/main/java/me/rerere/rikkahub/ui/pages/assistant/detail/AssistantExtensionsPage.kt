@@ -29,6 +29,7 @@ import me.rerere.rikkahub.ui.components.ai.LorebooksContent
 import me.rerere.rikkahub.ui.components.ai.ModeInjectionsContent
 import me.rerere.rikkahub.ui.components.ai.QuickMessagesContent
 import me.rerere.rikkahub.ui.components.ai.SkillsContent
+import me.rerere.rikkahub.ui.components.ai.WorkflowsContent
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
@@ -41,10 +42,11 @@ fun AssistantExtensionsPage(id: String) {
     val assistant by vm.assistant.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val skills by vm.skills.collectAsStateWithLifecycle()
+    val workflows by vm.workflows.collectAsStateWithLifecycle()
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 4 }
+    val pagerState = rememberPagerState { 5 }
 
     Scaffold(
         topBar = {
@@ -86,6 +88,11 @@ fun AssistantExtensionsPage(id: String) {
                     selected = pagerState.currentPage == 3,
                     onClick = { scope.launch { pagerState.animateScrollToPage(3) } },
                     text = { Text(stringResource(R.string.assistant_extensions_page_tab_skills)) }
+                )
+                Tab(
+                    selected = pagerState.currentPage == 4,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(4) } },
+                    text = { Text("工作流") }
                 )
             }
 
@@ -204,6 +211,39 @@ fun AssistantExtensionsPage(id: String) {
                                 )
                                 TextButton(
                                     onClick = { navController.navigate(Screen.Skills) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.assistant_extensions_page_goto_extensions))
+                                }
+                            }
+                        }
+                    }
+
+                    4 -> {
+                        if (workflows.isEmpty()) {
+                            ExtensionEmptyState(
+                                message = "还没有工作流。请先到扩展中心创建或导入。",
+                                buttonText = stringResource(R.string.assistant_extensions_page_goto_extensions),
+                                onAction = { navController.navigate(Screen.Workflows) },
+                            )
+                        } else {
+                            Column {
+                                WorkflowsContent(
+                                    modifier = Modifier.weight(1f),
+                                    workflows = workflows,
+                                    enabledWorkflowIds = assistant.enabledWorkflowIds,
+                                    workflowPriority = assistant.workflowPriority,
+                                    onToggle = { wfId, checked ->
+                                        val newIds = if (checked) assistant.enabledWorkflowIds + wfId
+                                        else assistant.enabledWorkflowIds - wfId
+                                        vm.update(assistant.copy(enabledWorkflowIds = newIds))
+                                    },
+                                    onPriorityChange = { priority ->
+                                        vm.update(assistant.copy(workflowPriority = priority))
+                                    },
+                                )
+                                TextButton(
+                                    onClick = { navController.navigate(Screen.Workflows) },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text(stringResource(R.string.assistant_extensions_page_goto_extensions))

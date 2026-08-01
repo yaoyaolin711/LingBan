@@ -30,6 +30,7 @@ import me.rerere.rikkahub.di.repositoryModule
 import me.rerere.rikkahub.di.viewModelModule
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.needsCompanionForegroundService
 import me.rerere.rikkahub.service.CompanionMonitorService
 import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
@@ -49,26 +50,35 @@ const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
 const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
 const val COMPANION_MONITOR_NOTIFICATION_CHANNEL_ID = "companion_monitor"
 const val COMPANION_INTERVENTION_NOTIFICATION_CHANNEL_ID = "companion_intervention"
+const val ACCESSIBILITY_GUARD_NOTIFICATION_CHANNEL_ID = "accessibility_guard"
 
 class RikkaHubApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        startKoin {
-            androidLogger()
-            androidContext(this@RikkaHubApp)
-            workManagerFactory()
-            modules(appModule, viewModelModule, dataSourceModule, repositoryModule)
+        // Install first so Application/Koin/native crashes still reach SafeMode.
+        CrashHandler.install(this)
+
+        runCatching {
+            startKoin {
+                androidLogger()
+                androidContext(this@RikkaHubApp)
+                workManagerFactory()
+                modules(appModule, viewModelModule, dataSourceModule, repositoryModule)
+            }
+        }.onFailure {
+            Log.e(TAG, "startKoin failed", it)
+            CrashHandler.markCrashedForStartup(this, it)
+            return
         }
+
         this.createNotificationChannel()
 
         // set cursor window size to 32MB
         DatabaseUtil.setCursorWindowSize(32 * 1024 * 1024)
 
-        // install crash handler
-        CrashHandler.install(this)
-
-        // Init QuickJS native library
-        QuickJSLoader.init()
+        // Init QuickJS native library (must not crash cold start if .so fails to load)
+        runCatching { QuickJSLoader.init() }
+            .onFailure { Log.e(TAG, "QuickJSLoader.init failed", it) }
 
         // delete temp files
         deleteTempFiles()
@@ -90,6 +100,13 @@ class RikkaHubApp : Application() {
 
         // Start companion usage monitor if enabled
         startCompanionMonitorIfEnabled()
+
+        // Eagerly create companion floating avatar host (observes enableCompanion)
+        runCatching { get<me.rerere.rikkahub.overlay.pet.CompanionPetHost>() }
+            .onFailure { Log.e(TAG, "CompanionPetHost init failed", it) }
+
+        // If Phone Control is on but OEM stripped accessibility, notify user
+        checkAccessibilityKeepAlive()
 
         // Increment launch count
         incrementLaunchCount()
@@ -245,13 +262,44 @@ class RikkaHubApp : Application() {
             .setVibrationEnabled(true)
             .build()
         notificationManager.createNotificationChannel(companionInterventionChannel)
+
+        val accessibilityGuardChannel = NotificationChannelCompat
+            .Builder(
+                ACCESSIBILITY_GUARD_NOTIFICATION_CHANNEL_ID,
+                NotificationManagerCompat.IMPORTANCE_HIGH
+            )
+            .setName("无障碍保活提醒")
+            .setVibrationEnabled(true)
+            .build()
+        notificationManager.createNotificationChannel(accessibilityGuardChannel)
+    }
+
+    private fun checkAccessibilityKeepAlive() {
+        get<AppScope>().launch {
+            runCatching {
+                val settings = get<SettingsStore>().settingsFlowRaw.first()
+                me.rerere.rikkahub.data.accessibility.AccessibilityKeepAlive
+                    .notifyIfAccessibilityStripped(this@RikkaHubApp, settings)
+            }.onFailure {
+                Log.e(TAG, "checkAccessibilityKeepAlive failed", it)
+            }
+        }
     }
 
     private fun startCompanionMonitorIfEnabled() {
         get<AppScope>().launch {
             runCatching {
-                val settings = get<SettingsStore>().settingsFlowRaw.first()
-                if (settings.companionAssist.needsForegroundService) {
+                val settingsStore = get<SettingsStore>()
+                // One-time migrate legacy global proactive switch → per-assistant flags.
+                settingsStore.update { settings ->
+                    if (!settings.companionAssist.proactiveChatEnabled) return@update settings
+                    settings.copy(
+                        assistants = settings.assistants.map { it.copy(proactiveChatEnabled = true) },
+                        companionAssist = settings.companionAssist.copy(proactiveChatEnabled = false),
+                    )
+                }
+                val settings = settingsStore.settingsFlowRaw.first()
+                if (settings.needsCompanionForegroundService()) {
                     CompanionMonitorService.start(this@RikkaHubApp)
                 }
             }.onFailure {

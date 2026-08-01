@@ -15,12 +15,10 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +36,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import me.rerere.rikkahub.ui.components.ui.ChipScrollRow
+import me.rerere.rikkahub.ui.components.ui.chipUnshrinkable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,7 +69,9 @@ fun SettingFilesPage(
     val gridState = rememberLazyStaggeredGridState()
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
-    val folders = remember { listOf(FileFolders.UPLOAD) }
+    val folders = remember {
+        listOf(FileFolders.UPLOAD, FileFolders.AVATARS, FileFolders.BACKGROUNDS)
+    }
 
     // 预先获取字符串资源
     val deletedToast = stringResource(R.string.setting_files_page_deleted_toast)
@@ -219,18 +221,15 @@ private fun FolderRow(
     selectedFolder: String,
     onFolderSelected: (String) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ChipScrollRow(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         folders.forEach { folder ->
             FilterChip(
                 selected = selectedFolder == folder,
                 onClick = { onFolderSelected(folder) },
-                label = { Text(folderDisplayName(folder)) }
+                modifier = Modifier.chipUnshrinkable(),
+                label = { Text(folderDisplayName(folder), maxLines = 1, softWrap = false) }
             )
         }
     }
@@ -239,6 +238,8 @@ private fun FolderRow(
 @Composable
 private fun folderDisplayName(folder: String): String = when (folder) {
     FileFolders.UPLOAD -> stringResource(R.string.setting_files_page_folder_upload)
+    FileFolders.AVATARS -> stringResource(R.string.setting_files_page_folder_avatars)
+    FileFolders.BACKGROUNDS -> stringResource(R.string.setting_files_page_folder_backgrounds)
     else -> folder
 }
 

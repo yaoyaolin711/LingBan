@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +29,7 @@ import me.rerere.rikkahub.ui.theme.SolaceTheme
 fun CompanionChatWelcome(
     assistant: Assistant?,
     modifier: Modifier = Modifier,
+    onVoiceCall: (() -> Unit)? = null,
 ) {
     val colors = SolaceTheme.colorScheme
     val typography = SolaceTheme.typography
@@ -67,5 +69,12 @@ fun CompanionChatWelcome(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp),
         )
+
+        if (onVoiceCall != null) {
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = onVoiceCall) {
+                Text("打电话")
+            }
+        }
     }
 }

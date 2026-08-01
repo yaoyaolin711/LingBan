@@ -113,7 +113,30 @@ fun Context.openUsageAccessSettings() {
 }
 
 fun Context.isSolaceAccessibilityEnabled(): Boolean {
-    return me.rerere.rikkahub.service.SolaceAccessibilityService.isRunning()
+    // Prefer live service instance; fall back to system toggle so we don't re-prompt
+    // after process death while the user already enabled Solace in Settings.
+    if (me.rerere.rikkahub.service.SolaceAccessibilityService.isRunning()) return true
+    return isSolaceAccessibilityEnabledInSystemSettings()
+}
+
+fun Context.isSolaceAccessibilityEnabledInSystemSettings(): Boolean {
+    return runCatching {
+        val expected = android.content.ComponentName(
+            this,
+            me.rerere.rikkahub.service.SolaceAccessibilityService::class.java,
+        ).flattenToString()
+        val enabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        enabled.split(':', ';')
+            .map { it.trim() }
+            .any { entry ->
+                entry.equals(expected, ignoreCase = true) ||
+                    (entry.contains(packageName, ignoreCase = true) &&
+                        entry.contains("SolaceAccessibilityService", ignoreCase = true))
+            }
+    }.getOrDefault(false)
 }
 
 fun Context.openAccessibilitySettings() {
@@ -123,6 +146,25 @@ fun Context.openAccessibilitySettings() {
         })
     }.onFailure {
         Log.e(TAG, "openAccessibilitySettings failed", it)
+    }
+}
+
+fun Context.canDrawOverlays(): Boolean {
+    return Settings.canDrawOverlays(this)
+}
+
+fun Context.openOverlayPermissionSettings() {
+    runCatching {
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                "package:$packageName".toUri()
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }.onFailure {
+        Log.e(TAG, "openOverlayPermissionSettings failed", it)
     }
 }
 

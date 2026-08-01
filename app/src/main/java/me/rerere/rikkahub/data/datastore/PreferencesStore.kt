@@ -37,6 +37,7 @@ import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV3Migration
 import me.rerere.rikkahub.data.device.CompanionAssistSetting
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.data.model.CustomVoiceProfile
 import me.rerere.rikkahub.data.model.InjectionPosition
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
@@ -128,6 +129,7 @@ class SettingsStore(
         // TTS
         val TTS_PROVIDERS = stringPreferencesKey("tts_providers")
         val SELECTED_TTS_PROVIDER = stringPreferencesKey("selected_tts_provider")
+        val CUSTOM_VOICES = stringPreferencesKey("custom_voices")
 
         // ASR
         val ASR_PROVIDERS = stringPreferencesKey("asr_providers")
@@ -231,6 +233,9 @@ class SettingsStore(
                 } ?: emptyList(),
                 selectedTTSProviderId = preferences[SELECTED_TTS_PROVIDER]?.let { Uuid.parse(it) }
                     ?: DEFAULT_SYSTEM_TTS_ID,
+                customVoices = preferences[CUSTOM_VOICES]?.let {
+                    runCatching { JsonInstant.decodeFromString<List<CustomVoiceProfile>>(it) }.getOrNull()
+                } ?: emptyList(),
                 asrProviders = preferences[ASR_PROVIDERS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
@@ -291,10 +296,19 @@ class SettingsStore(
                     ttsProviders.add(defaultTTSProvider.copyProvider())
                 }
             }
+            val asrProviders = it.asrProviders.ifEmpty { DEFAULT_ASR_PROVIDERS }.toMutableList()
+            DEFAULT_ASR_PROVIDERS.forEach { defaultASRProvider ->
+                if (asrProviders.none { provider -> provider.id == defaultASRProvider.id }) {
+                    asrProviders.add(defaultASRProvider.copyProvider())
+                }
+            }
             it.copy(
                 providers = providers,
                 assistants = assistants,
                 ttsProviders = ttsProviders,
+                asrProviders = asrProviders,
+                selectedASRProviderId = it.selectedASRProviderId
+                    ?: asrProviders.firstOrNull()?.id,
             )
         }
         .map { settings ->
@@ -415,6 +429,7 @@ class SettingsStore(
             settings.selectedTTSProviderId?.let {
                 preferences[SELECTED_TTS_PROVIDER] = it.toString()
             } ?: preferences.remove(SELECTED_TTS_PROVIDER)
+            preferences[CUSTOM_VOICES] = JsonInstant.encodeToString(settings.customVoices)
             preferences[ASR_PROVIDERS] = JsonInstant.encodeToString(settings.asrProviders)
             settings.selectedASRProviderId?.let {
                 preferences[SELECTED_ASR_PROVIDER] = it.toString()
@@ -565,8 +580,10 @@ data class Settings(
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,
     val selectedTTSProviderId: Uuid = DEFAULT_SYSTEM_TTS_ID,
-    val asrProviders: List<ASRProviderSetting> = emptyList(),
-    val selectedASRProviderId: Uuid? = null,
+    /** User-defined custom voices for voice call, grouped by [CustomVoiceProfile.backend]. */
+    val customVoices: List<CustomVoiceProfile> = emptyList(),
+    val asrProviders: List<ASRProviderSetting> = DEFAULT_ASR_PROVIDERS,
+    val selectedASRProviderId: Uuid? = DEFAULT_SYSTEM_ASR_ID,
     val modeInjections: List<PromptInjection.ModeInjection> = DEFAULT_MODE_INJECTIONS,
     val lorebooks: List<Lorebook> = emptyList(),
     val quickMessages: List<QuickMessage> = emptyList(),
@@ -609,6 +626,12 @@ data class DisplaySetting(
     val showUserAvatar: Boolean = true,
     val showAssistantBubble: Boolean = false,
     val bubbleOpacity: Float = 1.0f,
+    /** 磨砂半透明气泡（降低填充透明度并加高光描边） */
+    val frostedBubble: Boolean = false,
+    /** 用户气泡自定义 ARGB；null 表示跟随主题 */
+    val userBubbleColorArgb: Long? = null,
+    /** 助手气泡自定义 ARGB；null 表示跟随主题渐变 */
+    val assistantBubbleColorArgb: Long? = null,
     val showModelIcon: Boolean = true,
     val showModelName: Boolean = true,
     val showDateTimeInMessage: Boolean = false,
@@ -689,6 +712,12 @@ fun List<ProviderSetting>.findModelById(uuid: Uuid): Model? {
 fun Settings.getCurrentChatModel(): Model? {
     return findModelById(this.getCurrentAssistant().chatModelId ?: this.chatModelId)
 }
+
+/** 使用关怀监测或任一助手开启「主动找我聊天」时需要前台服务 */
+fun Settings.needsCompanionForegroundService(): Boolean =
+    companionAssist.monitorEnabled ||
+        companionAssist.proactiveChatEnabled || // 迁移完成前的遗留全局开关
+        assistants.any { it.proactiveChatEnabled }
 
 fun Settings.getCurrentAssistant(): Assistant {
     return this.assistants.find { it.id == assistantId } ?: this.assistants.first()
@@ -773,6 +802,16 @@ private val DEFAULT_TTS_PROVIDERS = listOf(
         baseUrl = "https://aihubmix.com/v1",
         model = "gpt-4o-mini-tts",
         voice = "alloy",
+    )
+)
+
+val DEFAULT_SYSTEM_ASR_ID = Uuid.parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+private val DEFAULT_ASR_PROVIDERS = listOf(
+    ASRProviderSetting.System(
+        id = DEFAULT_SYSTEM_ASR_ID,
+        name = "System ASR",
+        language = "",
+        preferOffline = false,
     )
 )
 

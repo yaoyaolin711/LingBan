@@ -19,6 +19,7 @@ import me.rerere.asr.providers.DashScopeASRController
 import me.rerere.asr.providers.MiMoASRController
 import me.rerere.asr.providers.OpenAIRealtimeASRController
 import me.rerere.asr.providers.StepASRController
+import me.rerere.asr.providers.SystemASRController
 import me.rerere.asr.providers.VolcengineASRController
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getSelectedASRProvider
@@ -106,6 +107,10 @@ private class CustomAsrStateImpl(
 
     private fun createController(provider: ASRProviderSetting): ASRController? {
         return when (provider) {
+            is ASRProviderSetting.System -> {
+                SystemASRController(context, provider)
+            }
+
             is ASRProviderSetting.OpenAIRealtime -> {
                 if (provider.apiKey.isBlank()) return null
                 OpenAIRealtimeASRController(context, httpClient, provider)

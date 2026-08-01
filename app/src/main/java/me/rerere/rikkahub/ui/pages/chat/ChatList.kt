@@ -85,6 +85,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.data.ai.isCarryoverOffer
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.service.ChatError
@@ -128,6 +129,9 @@ fun ChatList(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
+    onVoiceCall: (() -> Unit)? = null,
+    onAcceptCarryoverOffer: ((Uuid) -> Unit)? = null,
+    onDeclineCarryoverOffer: ((Uuid) -> Unit)? = null,
 ) {
     AnimatedContent(
         targetState = previewMode,
@@ -166,6 +170,9 @@ fun ChatList(
                 onToolAnswer = onToolAnswer,
                 onToggleFavorite = onToggleFavorite,
                 onConversationSystemPromptChange = onConversationSystemPromptChange,
+                onVoiceCall = onVoiceCall,
+                onAcceptCarryoverOffer = onAcceptCarryoverOffer,
+                onDeclineCarryoverOffer = onDeclineCarryoverOffer,
             )
         }
     }
@@ -195,6 +202,9 @@ private fun ChatListNormal(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
+    onVoiceCall: (() -> Unit)? = null,
+    onAcceptCarryoverOffer: ((Uuid) -> Unit)? = null,
+    onDeclineCarryoverOffer: ((Uuid) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val loadingState by rememberUpdatedState(loading)
@@ -302,7 +312,10 @@ private fun ChatListNormal(
             ) {
             if (conversation.messageNodes.isEmpty()) {
                 item(key = "companion_welcome", contentType = "welcome") {
-                    CompanionChatWelcome(assistant = assistant)
+                    CompanionChatWelcome(
+                        assistant = assistant,
+                        onVoiceCall = onVoiceCall,
+                    )
                 }
             }
 
@@ -324,6 +337,14 @@ private fun ChatListNormal(
                         selectedKeys = selectedItems,
                         enabled = selecting,
                     ) {
+                        val message = node.currentMessage
+                        if (message.isCarryoverOffer()) {
+                            CarryoverOfferCard(
+                                message = message,
+                                onAccept = { onAcceptCarryoverOffer?.invoke(message.id) },
+                                onDecline = { onDeclineCarryoverOffer?.invoke(message.id) },
+                            )
+                        } else {
                         ChatMessage(
                             node = node,
                             model = node.currentMessage.modelId?.let(modelById::get),
@@ -362,6 +383,7 @@ private fun ChatListNormal(
                             onToolAnswer = onToolAnswer,
                             lastMessage = index == lastMessageIndex,
                         )
+                        }
                     }
                 }
             }

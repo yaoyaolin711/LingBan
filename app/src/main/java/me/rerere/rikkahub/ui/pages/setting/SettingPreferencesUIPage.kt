@@ -5,18 +5,25 @@ import android.graphics.Typeface
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -30,6 +37,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -171,6 +180,40 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                                 Text(text = "${(displaySetting.bubbleOpacity * 100).toInt()}%")
                             }
                         }
+                    )
+                    item(
+                        headlineContent = { Text("磨砂气泡") },
+                        supportingContent = { Text("半透明填充 + 高光描边，接近毛玻璃观感") },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.frostedBubble,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(frostedBubble = it))
+                                }
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text("用户气泡颜色") },
+                        supportingContent = {
+                            BubbleColorPresetsRow(
+                                selectedArgb = displaySetting.userBubbleColorArgb,
+                                onSelect = {
+                                    updateDisplaySetting(displaySetting.copy(userBubbleColorArgb = it))
+                                },
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text("助手气泡颜色") },
+                        supportingContent = {
+                            BubbleColorPresetsRow(
+                                selectedArgb = displaySetting.assistantBubbleColorArgb,
+                                onSelect = {
+                                    updateDisplaySetting(displaySetting.copy(assistantBubbleColorArgb = it))
+                                },
+                            )
+                        },
                     )
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_chat_list_model_icon_title)) },
@@ -506,5 +549,55 @@ private fun deleteCustomChatFontInternal(context: Context, relativePath: String)
     val fontFile = runCatching { File(filesDir, relativePath).canonicalFile }.getOrNull() ?: return
     if (fontFile.path.startsWith("${filesDir.path}${File.separator}")) {
         fontFile.delete()
+    }
+}
+
+private val BubbleColorPresets: List<Pair<String, Long?>> = listOf(
+    "默认" to null,
+    "香槟" to 0xFFE8D5B7,
+    "玫瑰" to 0xFFE8B4B8,
+    "天蓝" to 0xFF90CAF9,
+    "薄荷" to 0xFFA5D6A7,
+    "淡紫" to 0xFFCE93D8,
+    "暖灰" to 0xFFB0BEC5,
+)
+
+@Composable
+private fun BubbleColorPresetsRow(
+    selectedArgb: Long?,
+    onSelect: (Long?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BubbleColorPresets.forEach { (label, argb) ->
+            val selected = selectedArgb == argb
+            val swatch = argb?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.surfaceVariant
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(swatch)
+                        .border(
+                            width = if (selected) 2.dp else 1.dp,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            },
+                            shape = CircleShape,
+                        )
+                        .clickable { onSelect(argb) },
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
     }
 }

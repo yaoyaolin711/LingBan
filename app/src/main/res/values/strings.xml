@@ -269,6 +269,8 @@
   <string name="chat_page_compress_target_tokens">Target Token Size</string>
   <string name="chat_page_compress_warning">⚠️ Compressing context will reset all messages in the current conversation</string>
   <string name="chat_page_compressing">Compressing...</string>
+  <string name="chat_page_organizing_context">Organizing conversation context…</string>
+  <string name="error_title_auto_context_summary">Context organization failed — earlier messages may not be available to the model</string>
   <string name="chat_page_conversation_system_prompt">Conversation System Prompt</string>
   <string name="chat_page_conversation_system_prompt_clear">Clear</string>
   <string name="chat_page_conversation_system_prompt_hint">Override the assistant\'s system prompt for this conversation</string>
@@ -429,6 +431,8 @@
   <string name="mermaid_export_success">Export successful</string>
   <string name="model_list_favorite">Favorites</string>
   <string name="model_list_no_providers">No available AI providers, please add in settings</string>
+  <string name="model_list_go_to_providers">Go to Providers</string>
+  <string name="model_list_manage_providers">Manage providers</string>
   <string name="model_list_search_placeholder">Enter model name to search</string>
   <string name="model_list_select_model">Select Model</string>
   <string name="more_options">More options</string>
@@ -743,7 +747,9 @@
   <string name="setting_files_page_delete_failed_toast">Delete Failed</string>
   <string name="setting_files_page_delete_file_title">Delete File</string>
   <string name="setting_files_page_deleted_toast">Deleted</string>
-  <string name="setting_files_page_folder_upload">Upload</string>
+  <string name="setting_files_page_folder_upload">Chat Images</string>
+  <string name="setting_files_page_folder_avatars">Avatars</string>
+  <string name="setting_files_page_folder_backgrounds">Backgrounds</string>
   <string name="setting_files_page_no_files">No Files</string>
   <string name="setting_files_page_title">File Management</string>
   <string name="setting_mcp_page_add_header">Add Header</string>
@@ -1314,6 +1320,8 @@
   <string name="log_page_record_requests_desc">Capture request headers, bodies, and response metadata</string>
   <string name="chat_message_tool_recent_chats">View recent chats</string>
   <string name="chat_message_tool_conversation_search">Search history: %1$s</string>
+  <string name="chat_message_tool_recall_chat_history">Recall chat details</string>
+  <string name="chat_message_tool_recall_chat_history_query">Recall details: %1$s</string>
   <string name="assistant_page_local_tools_screen_time_title">Screen Time</string>
   <string name="assistant_page_local_tools_screen_time_desc">Let the AI read your app screen usage time</string>
   <string name="assistant_page_local_tools_screen_time_permission_required">Please grant the Usage access permission in settings to use screen time</string>
@@ -1339,5 +1347,7 @@
   <string name="assistant_page_context_message_limit_count">Context message limit: %d</string>
   <string name="assistant_page_context_message_limit_unlimited">Unlimited context messages</string>
   <string name="assistant_page_context_message_limit_warning">Any non-zero limit invalidates the prompt cache each time the context is trimmed. A larger limit trims less often; 0 never trims and keeps the cache fully intact.</string>
+  <string name="assistant_page_auto_context_summary">Auto context summary</string>
+  <string name="assistant_page_auto_context_summary_desc">When the context limit trims older messages, automatically summarize them for the model so important details are not forgotten. Chat history on screen is kept intact.</string>
 </resources>
 

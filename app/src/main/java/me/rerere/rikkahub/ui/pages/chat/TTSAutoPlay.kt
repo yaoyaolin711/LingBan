@@ -5,9 +5,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import me.rerere.ai.core.MessageRole
+import me.rerere.rikkahub.data.ai.isCarryoverOffer
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.context.LocalTTSState
+import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallGate
 import me.rerere.rikkahub.utils.extractQuotedContentAsText
 import me.rerere.rikkahub.utils.removeBracketedContent
 
@@ -19,9 +21,11 @@ fun TTSAutoPlay(vm: ChatVM, setting: Settings, conversation: Conversation) {
     val updatedSetting by rememberUpdatedState(setting)
     LaunchedEffect(Unit) {
         vm.generationDoneFlow.collect { conversationId ->
+            if (VoiceCallGate.active) return@collect
             if (updatedSetting.displaySetting.autoPlayTTSAfterGeneration) {
                 val lastMessage = currentConversation.currentMessages.lastOrNull()
                 if (lastMessage != null && lastMessage.role == MessageRole.ASSISTANT) {
+                    if (lastMessage.isCarryoverOffer()) return@collect
                     val text = lastMessage.toText()
                     var textToSpeak = text
                     if (updatedSetting.displaySetting.ttsOnlyReadQuoted) {

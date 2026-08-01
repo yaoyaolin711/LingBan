@@ -22,8 +22,8 @@ android {
         applicationId = "com.agent.chat"
         minSdk = 26
         targetSdk = 37
-        versionCode = 100
-        versionName = "1.0.0"
+        versionCode = 105
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -72,8 +72,11 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Temporarily disable R8 shrink for signed builds: release-only cold-start crashes
+            // have been hard to reproduce without device logcat; keep signing + packaging.
+            // Re-enable after crash is confirmed fixed with a stack trace.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -106,6 +109,10 @@ android {
             useLegacyPackaging = true
             pickFirsts += "lib/*/libtermux.so"
         }
+    }
+    testOptions {
+        // android.jar methods are stubs on JVM; return defaults so AgentRuntime Log.* etc. work.
+        unitTests.isReturnDefaultValues = true
     }
     tasks.withType<KotlinCompile>().configureEach {
         compilerOptions.optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
@@ -234,6 +241,8 @@ dependencies {
     // quickie (qrcode scanner)
     implementation(libs.quickie.bundled)
     implementation(libs.barcode.scanning)
+    // Bundled Chinese+Latin OCR for see_screen / DeepSeek text models
+    implementation(libs.mlkit.text.recognition.chinese)
     implementation(libs.androidx.camera.core)
 
     // Room

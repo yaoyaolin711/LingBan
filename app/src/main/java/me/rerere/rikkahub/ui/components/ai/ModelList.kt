@@ -418,6 +418,13 @@ private fun ColumnScope.ModelList(
         }.toMap()
     }
 
+    val navController = LocalNavController.current
+
+    fun openProviderSettings() {
+        onDismiss()
+        navController.navigate(Screen.SettingProvider)
+    }
+
     Surface(
         shape = RoundedCornerShape(50),
         modifier = Modifier
@@ -457,12 +464,29 @@ private fun ColumnScope.ModelList(
     ) {
         if (providers.isEmpty()) {
             item {
-                Text(
-                    text = stringResource(R.string.model_list_no_providers),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.extendColors.gray6,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = stringResource(R.string.model_list_no_providers),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.extendColors.gray6,
+                    )
+                    TextButton(onClick = { openProviderSettings() }) {
+                        Text(stringResource(R.string.model_list_go_to_providers))
+                        Icon(
+                            imageVector = HugeIcons.ArrowRight01,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(16.dp),
+                        )
+                    }
+                }
             }
         }
 
@@ -652,13 +676,31 @@ private fun ColumnScope.ModelList(
                         }
                     },
                     label = {
-                        Text(provider.name)
+                        Text(provider.name, maxLines = 1, softWrap = false)
                     },
                     leadingIcon = {
                         AutoAIIcon(name = provider.name, modifier = Modifier.size(16.dp))
                     },
                 )
             }
+        }
+    }
+
+    if (providers.isNotEmpty()) {
+        TextButton(
+            onClick = { openProviderSettings() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+        ) {
+            Text(stringResource(R.string.model_list_manage_providers))
+            Icon(
+                imageVector = HugeIcons.ArrowRight01,
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .size(16.dp),
+            )
         }
     }
 }

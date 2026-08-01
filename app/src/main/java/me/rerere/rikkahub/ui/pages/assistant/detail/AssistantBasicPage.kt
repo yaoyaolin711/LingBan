@@ -407,6 +407,30 @@ internal fun AssistantBasicContent(
                     )
                 }
             }
+            if (assistant.contextMessageLimit > 0) {
+                HorizontalDivider()
+                FormItem(
+                    modifier = Modifier.padding(8.dp),
+                    label = {
+                        Text(stringResource(R.string.assistant_page_auto_context_summary))
+                    },
+                    description = {
+                        Text(stringResource(R.string.assistant_page_auto_context_summary_desc))
+                    },
+                    tail = {
+                        Switch(
+                            checked = assistant.enableAutoContextSummary,
+                            onCheckedChange = {
+                                onUpdate(
+                                    assistant.copy(
+                                        enableAutoContextSummary = it
+                                    )
+                                )
+                            }
+                        )
+                    }
+                )
+            }
             HorizontalDivider()
             FormItem(
                 modifier = Modifier.padding(8.dp),

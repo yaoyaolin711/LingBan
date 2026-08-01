@@ -365,6 +365,10 @@ private fun MessagePartsBlock(
                                 SolaceUserBubble(
                                     modifier = if (loading) Modifier else Modifier.animateContentSize(),
                                     opacity = settings.displaySetting.bubbleOpacity,
+                                    frosted = settings.displaySetting.frostedBubble,
+                                    customColor = settings.displaySetting.userBubbleColorArgb?.let {
+                                        androidx.compose.ui.graphics.Color(it.toInt())
+                                    },
                                     onClick = { onUserMessageClick?.invoke() },
                                 ) {
                                     MarkdownBlock(
@@ -380,6 +384,10 @@ private fun MessagePartsBlock(
                                 SolaceAssistantBubble(
                                     modifier = if (loading) Modifier else Modifier.animateContentSize(),
                                     opacity = settings.displaySetting.bubbleOpacity,
+                                    frosted = settings.displaySetting.frostedBubble,
+                                    customColor = settings.displaySetting.assistantBubbleColorArgb?.let {
+                                        androidx.compose.ui.graphics.Color(it.toInt())
+                                    },
                                 ) {
                                     MarkdownBlock(
                                         content = part.text.replaceRegexes(

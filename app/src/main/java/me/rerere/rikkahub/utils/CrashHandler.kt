@@ -3,12 +3,14 @@ package me.rerere.rikkahub.utils
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
+import java.io.File
 
 private const val TAG = "CrashHandler"
 private const val PREFS_NAME = "crash_handler"
 private const val KEY_CRASHED = "crashed"
 private const val KEY_STACKTRACE = "stacktrace"
 private const val MAX_STACKTRACE_LENGTH = 8000
+private const val CRASH_FILE_NAME = "last_crash.txt"
 
 object CrashHandler {
     fun install(context: Context) {
@@ -29,12 +31,24 @@ object CrashHandler {
     fun getStackTrace(context: Context): String? {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_STACKTRACE, null)
+            ?: readCrashFile(context)
     }
 
     fun clearCrashed(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit { remove(KEY_CRASHED).remove(KEY_STACKTRACE) }
     }
+
+    fun crashFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, CRASH_FILE_NAME)
+
+    /** Used when Application.onCreate itself fails before an uncaught handler fires. */
+    fun markCrashedForStartup(context: Context, throwable: Throwable) {
+        markCrashed(context.applicationContext, Thread.currentThread(), throwable)
+    }
+
+    private fun readCrashFile(context: Context): String? =
+        runCatching { crashFile(context).takeIf { it.exists() }?.readText() }.getOrNull()
 
     private fun markCrashed(context: Context, thread: Thread, throwable: Throwable) {
         val stackTrace = buildString {
@@ -46,5 +60,10 @@ object CrashHandler {
                 putBoolean(KEY_CRASHED, true)
                 putString(KEY_STACKTRACE, stackTrace)
             } // commit() 同步写入，确保崩溃前写完
+        runCatching {
+            crashFile(context).writeText(stackTrace)
+        }.onFailure {
+            Log.e(TAG, "Failed to write crash file", it)
+        }
     }
 }

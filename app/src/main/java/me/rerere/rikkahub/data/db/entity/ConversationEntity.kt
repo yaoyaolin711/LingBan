@@ -32,4 +32,12 @@ data class ConversationEntity(
     val workspaceCwd: String = "",
     @ColumnInfo("folder_id", defaultValue = "")
     val folderId: String = "",
+    @ColumnInfo("rolling_summary", defaultValue = "")
+    val rollingSummary: String = "",
+    @ColumnInfo("rolling_summary_covered_count", defaultValue = "0")
+    val rollingSummaryCoveredCount: Int = 0,
+    @ColumnInfo("session_overview", defaultValue = "")
+    val sessionOverview: String = "",
+    @ColumnInfo("carryover_overview", defaultValue = "")
+    val carryoverOverview: String = "",
 )

@@ -31,6 +31,20 @@ data class Conversation(
     val workspaceCwd: String? = null,
     // 所属文件夹（助手内分组），null 表示未归入任何文件夹
     val folderId: Uuid? = null,
+    /** Soft rolling summary of early messages dropped by contextMessageLimit (API payload only). */
+    val rollingSummary: String? = null,
+    /** How many leading currentMessages entries [rollingSummary] already covers. */
+    val rollingSummaryCoveredCount: Int = 0,
+    /**
+     * Cached overview of this conversation (generated when leaving / starting a new chat).
+     * Used to avoid re-summarizing the same session.
+     */
+    val sessionOverview: String? = null,
+    /**
+     * Overview imported from a previous conversation into this new chat (user-opted).
+     * Injected into the system prompt for continuity.
+     */
+    val carryoverOverview: String? = null,
     @Transient
     val newConversation: Boolean = false
 ) {

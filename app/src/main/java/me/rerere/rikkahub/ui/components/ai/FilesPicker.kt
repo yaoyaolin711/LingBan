@@ -50,7 +50,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Job
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Camera01
@@ -61,7 +60,6 @@ import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Package
-import me.rerere.hugeicons.stroke.Package01
 import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.rikkahub.R
@@ -91,13 +89,10 @@ internal fun FilesPicker(
     assistant: Assistant,
     state: ChatInputState,
     mcpManager: McpManager,
-    onCompressContext: (additionalPrompt: String, targetTokens: Int, keepRecentMessages: Int) -> Job,
     onUpdateAssistant: (Assistant) -> Unit,
     onUpdateConversation: (Conversation) -> Unit,
     showInjectionSheet: Boolean,
     onShowInjectionSheetChange: (Boolean) -> Unit,
-    showCompressDialog: Boolean,
-    onShowCompressDialogChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onTakePic: () -> Unit,
     onPickImage: () -> Unit,
@@ -209,36 +204,6 @@ internal fun FilesPicker(
                 },
         )
 
-        // Compress History Button
-        ListItem(
-            leadingContent = {
-                Icon(
-                    imageVector = HugeIcons.Package01,
-                    contentDescription = stringResource(R.string.chat_page_compress_context),
-                )
-            },
-            headlineContent = {
-                Text(stringResource(R.string.chat_page_compress_context))
-            },
-            trailingContent = {
-                if (conversation.messageNodes.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.chat_page_message_count, conversation.messageNodes.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            },
-            colors = ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier
-                .clip(MaterialTheme.shapes.large)
-                .clickable {
-                    onShowCompressDialogChange(true)
-                },
-        )
-
         // Workspace CWD
         val boundWorkspace = remember(workspaces, assistant.workspaceId) {
             workspaces.find { it.id == assistant.workspaceId?.toString() }
@@ -286,16 +251,6 @@ internal fun FilesPicker(
             onDismiss = { onShowInjectionSheetChange(false) },
             onDismissAll = onDismiss,
         )
-    }
-
-    // Compress Context Dialog
-    if (showCompressDialog) {
-        CompressContextDialog(onDismiss = {
-            onShowCompressDialogChange(false)
-            onDismiss()
-        }, onConfirm = { additionalPrompt, targetTokens, keepRecentMessages ->
-            onCompressContext(additionalPrompt, targetTokens, keepRecentMessages)
-        })
     }
 }
 

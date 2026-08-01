@@ -328,6 +328,8 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                                                         Text(
                                                             text = option,
                                                             style = MaterialTheme.typography.labelSmall,
+                                                            maxLines = 1,
+                                                            softWrap = false,
                                                         )
                                                     },
                                                 )
@@ -356,6 +358,8 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                                                         Text(
                                                             text = option,
                                                             style = MaterialTheme.typography.labelSmall,
+                                                            maxLines = 1,
+                                                            softWrap = false,
                                                         )
                                                     },
                                                 )
@@ -378,6 +382,8 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                                                         Text(
                                                             text = option,
                                                             style = MaterialTheme.typography.labelSmall,
+                                                            maxLines = 1,
+                                                            softWrap = false,
                                                         )
                                                     },
                                                 )

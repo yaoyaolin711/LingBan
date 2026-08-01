@@ -16,6 +16,7 @@ import me.rerere.rikkahub.ui.pages.extensions.PromptVM
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesVM
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailVM
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsVM
+import me.rerere.rikkahub.ui.pages.extensions.workflows.WorkflowsVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceVM
 import me.rerere.rikkahub.ui.pages.setting.SettingVM
@@ -34,7 +35,8 @@ val viewModelModule = module {
             settingsStore = get(),
             conversationRepo = get(),
             chatService = get(),
-            analytics = get(),
+            sessionOverviewHelper = get(),
+            analytics = getOrNull(),
             filesManager = get(),
             favoriteRepository = get(),
         )
@@ -51,6 +53,7 @@ val viewModelModule = module {
             memoryRepository = get(),
             filesManager = get(),
             skillManager = get(),
+            workflowManager = get(),
             workspaceRepository = get(),
         )
     }
@@ -67,6 +70,7 @@ val viewModelModule = module {
     viewModelOf(::QuickMessagesVM)
     viewModelOf(::SkillsVM)
     viewModelOf(::SkillDetailVM)
+    viewModelOf(::WorkflowsVM)
     viewModelOf(::WorkspaceVM)
     viewModel<WorkspaceDetailVM> {
         WorkspaceDetailVM(

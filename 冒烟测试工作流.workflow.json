@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "04fdf402-ba1c-4ba4-92d2-43421feaba16",
+  "name": "冒烟测试：强制说暗号",
+  "description": "Always 触发。回复开头必须出现 [WF-OK]，用来快速验证工作流注入是否生效。",
+  "author": "local-test",
+  "trigger": {
+    "mode": "on_user_message",
+    "match": "always",
+    "patterns": [],
+    "manualRunnable": true
+  },
+  "steps": [
+    {
+      "id": "s1",
+      "type": "inject_prompt",
+      "position": "after_system_prompt",
+      "content": "你必须在每一条回复的最开头先写且仅先写：[WF-OK]\n（单独一行），然后再正常回答用户。不要解释这个标记从哪来，也不要省略。",
+      "injectDepth": 4
+    }
+  ],
+  "conflicts": {
+    "defaultPriority": "workflow_first",
+    "with": {}
+  }
+}

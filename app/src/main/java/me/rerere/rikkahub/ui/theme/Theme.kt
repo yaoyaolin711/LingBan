@@ -1,6 +1,8 @@
 package me.rerere.rikkahub.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,6 +27,15 @@ import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.ui.hooks.rememberAmoledDarkMode
 import me.rerere.rikkahub.ui.hooks.rememberCurrentColorMode
 import me.rerere.rikkahub.ui.hooks.rememberUserSettingsState
+
+private fun Context.findActivityOrNull(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
 
 private val ExtendLightColors = lightExtendColors()
 private val ExtendDarkColors = darkExtendColors()
@@ -122,7 +133,9 @@ fun RikkahubTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
+            // Overlay / Application ComposeView has no Activity window (e.g. TaskBall).
+            // Never use `as Activity` — Application context will ClassCastException and kill the app.
+            val window = view.context.findActivityOrNull()?.window ?: return@SideEffect
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme

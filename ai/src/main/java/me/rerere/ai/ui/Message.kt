@@ -278,6 +278,21 @@ fun List<UIMessagePart>.isEmptyUIMessage(): Boolean {
 private const val CONTEXT_KEEP_RATIO = 0.5f
 
 /**
+ * Index of the first message kept after [limitContext] truncation.
+ * Messages in `[0, start)` are dropped from the model payload and should be covered by a rolling summary.
+ * Returns 0 when no truncation happens.
+ */
+fun List<UIMessage>.contextWindowStartIndex(limit: Int): Int {
+    if (limit <= 0 || this.size <= limit) return 0
+
+    val target = (limit * CONTEXT_KEEP_RATIO).roundToInt().coerceIn(1, limit)
+    val stride = (limit - target).coerceAtLeast(1)
+    val startIndex = (((this.size - limit) / stride + 1) * stride).coerceAtMost(this.size - 1)
+
+    return alignContextStart(startIndex)
+}
+
+/**
  * 按阶梯式(滞回)策略限制上下文消息数量
  *
  * 与每轮平移一条的滑动窗口不同, 截断点只在消息数越过 [limit] 时才前进一大步,
@@ -289,18 +304,9 @@ private const val CONTEXT_KEEP_RATIO = 0.5f
  * @param limit 触发截断的消息条数上限, 小于等于 0 表示不限制
  */
 fun List<UIMessage>.limitContext(limit: Int): List<UIMessage> {
-    if (limit <= 0 || this.size <= limit) return this
-
-    // 截断后回落到的目标条数, 以及两次截断之间截断点前进的步幅
-    // limit 为 1 时无法构造滞回(步幅至少为 1), 此时退化为逐条平移的滑动窗口
-    val target = (limit * CONTEXT_KEEP_RATIO).roundToInt().coerceIn(1, limit)
-    val stride = (limit - target).coerceAtLeast(1)
-
-    // 每越过一级台阶, 截断点前进 stride 条; 台阶之内截断点不动
-    // 上界兜底保证至少保留一条消息, 正常路径(limit >= 2)不会触发
-    val startIndex = (((this.size - limit) / stride + 1) * stride).coerceAtMost(this.size - 1)
-
-    return this.subList(alignContextStart(startIndex), this.size)
+    val start = contextWindowStartIndex(limit)
+    if (start <= 0) return this
+    return this.subList(start, this.size)
 }
 
 /**

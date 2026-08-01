@@ -472,7 +472,7 @@ class ChatCompletionsAPI(
                     supportInputModalities = supportInputModalities,
                 )
             } else {
-                addNonAssistantMessage(message)
+                addNonAssistantMessage(message, supportInputModalities)
             }
         }
     }
@@ -588,7 +588,7 @@ class ChatCompletionsAPI(
                                     }.onFailure {
                                         it.printStackTrace()
                                         put("type", "text")
-                                        put("text", "")
+                                        put("text", "[Image encode failed]")
                                     }
                                 })
                             }
@@ -618,7 +618,11 @@ class ChatCompletionsAPI(
         }
     }
 
-    private fun JsonArrayBuilder.addNonAssistantMessage(message: UIMessage) {
+    private fun JsonArrayBuilder.addNonAssistantMessage(
+        message: UIMessage,
+        supportInputModalities: List<Modality>,
+    ) {
+        val supportsImageInput = Modality.IMAGE in supportInputModalities
         add(buildJsonObject {
             put("role", JsonPrimitive(message.role.name.lowercase()))
 
@@ -636,18 +640,33 @@ class ChatCompletionsAPI(
                             }
 
                             is UIMessagePart.Image -> {
-                                add(buildJsonObject {
-                                    part.encodeBase64().onSuccess { encodedImage ->
-                                        put("type", "image_url")
-                                        put("image_url", buildJsonObject {
-                                            put("url", encodedImage.base64)
-                                        })
-                                    }.onFailure {
-                                        it.printStackTrace()
+                                if (supportsImageInput) {
+                                    add(buildJsonObject {
+                                        part.encodeBase64().onSuccess { encodedImage ->
+                                            put("type", "image_url")
+                                            put("image_url", buildJsonObject {
+                                                put("url", encodedImage.base64)
+                                            })
+                                        }.onFailure {
+                                            it.printStackTrace()
+                                            put("type", "text")
+                                            put(
+                                                "text",
+                                                "[Image encode failed: ${it.message ?: "unknown"}]"
+                                            )
+                                        }
+                                    })
+                                } else {
+                                    // Text-only model: never send raw image_url (becomes empty placeholder).
+                                    // OcrTransformer should have replaced this; if not, surface a clear hint.
+                                    add(buildJsonObject {
                                         put("type", "text")
-                                        put("text", "")
-                                    }
-                                })
+                                        put(
+                                            "text",
+                                            "[User uploaded an image. OCR text should appear in <image_file_ocr>; if missing, local OCR failed.]"
+                                        )
+                                    })
+                                }
                             }
 
                             else -> {}

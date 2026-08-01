@@ -72,7 +72,7 @@ class CompanionFacade(
         conversation: Conversation,
     ): InteractionSuggestion? {
         if (!assistant.enableCompanion) return null
-        if (!settings.companionAssist.proactiveChatEnabled) return null
+        if (!assistant.proactiveChatEnabled && !settings.companionAssist.proactiveChatEnabled) return null
         val state = stateStore.getState(conversation.id)
         return proactiveTriggerManager.evaluateSuggestion(
             settings = settings,

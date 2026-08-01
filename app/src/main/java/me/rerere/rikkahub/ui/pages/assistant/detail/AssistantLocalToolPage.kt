@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -35,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -47,27 +45,36 @@ import com.dokar.sonner.ToastType
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
+import me.rerere.rikkahub.data.accessibility.AccessibilityKeepAlive
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.device.CompanionAssistSetting
 import me.rerere.rikkahub.data.device.DeviceShellExecutor
 import me.rerere.rikkahub.data.device.ShizukuBootstrap
+import me.rerere.rikkahub.data.companion.policy.CompanionActionLevel
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.overlay.pet.CompanionPetHost
 import me.rerere.rikkahub.service.CompanionMonitorService
 import me.rerere.rikkahub.service.SolaceAccessibilityService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
+import me.rerere.rikkahub.ui.components.ui.ChipScrollRow
+import me.rerere.rikkahub.ui.components.ui.IntOutlinedTextField
+import me.rerere.rikkahub.ui.components.ui.chipUnshrinkable
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionInfo
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.utils.canDrawOverlays
 import me.rerere.rikkahub.utils.hasUsageStatsPermission
 import me.rerere.rikkahub.utils.isSolaceAccessibilityEnabled
 import me.rerere.rikkahub.utils.openAccessibilitySettings
+import me.rerere.rikkahub.utils.openOverlayPermissionSettings
 import me.rerere.rikkahub.utils.openUsageAccessSettings
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import androidx.compose.material3.FilterChip
 
 @Composable
 fun AssistantLocalToolPage(id: String) {
@@ -133,6 +140,7 @@ private fun AssistantLocalToolContent(
     val context = LocalContext.current
     val toaster = LocalToaster.current
     val scope = rememberCoroutineScope()
+    val settingsStore = koinInject<SettingsStore>()
     val permissionRequiredText =
         stringResource(R.string.assistant_page_local_tools_screen_time_permission_required)
 
@@ -173,6 +181,8 @@ private fun AssistantLocalToolContent(
     PermissionManager(permissionState = locationPermissionState)
 
     var showShizukuGuide by remember { mutableStateOf(false) }
+    var showA11yKeepAliveGuide by remember { mutableStateOf(false) }
+    var showDeviceToolsConfirm by remember { mutableStateOf(false) }
 
     fun toggleLocalTool(option: LocalToolOption, enabled: Boolean) {
         if (enabled && (option == LocalToolOption.ScreenTime || option == LocalToolOption.DeviceAssist) &&
@@ -181,12 +191,17 @@ private fun AssistantLocalToolContent(
             toaster.show(message = permissionRequiredText, type = ToastType.Warning)
             context.openUsageAccessSettings()
         }
-        if (enabled && option == LocalToolOption.PhoneControl && !SolaceAccessibilityService.isRunning()) {
-            toaster.show(
-                message = "请在系统无障碍设置中开启 Solace，才能操控手机界面",
-                type = ToastType.Warning,
-            )
-            context.openAccessibilitySettings()
+        if (enabled && option == LocalToolOption.PhoneControl) {
+            if (!context.isSolaceAccessibilityEnabled()) {
+                toaster.show(
+                    message = "请在系统无障碍设置中开启 Solace，才能操控手机界面",
+                    type = ToastType.Warning,
+                )
+                context.openAccessibilitySettings()
+            }
+            // OEM force-stop strips accessibility; request battery whitelist + show keep-alive guide.
+            AccessibilityKeepAlive.requestIgnoreBatteryOptimizations(context)
+            showA11yKeepAliveGuide = true
         }
         if (enabled && option == LocalToolOption.Calendar && !calendarPermissionState.allPermissionsGranted) {
             calendarPermissionState.requestPermissions()
@@ -211,7 +226,64 @@ private fun AssistantLocalToolContent(
                 toaster.show(message = permissionRequiredText, type = ToastType.Warning)
                 context.openUsageAccessSettings()
             }
-            CompanionMonitorService.syncWithSettings(context, next)
+            val settings = settingsStore.settingsFlow.value.copy(companionAssist = next)
+            CompanionMonitorService.syncWithSettings(context, settings)
+        }
+    }
+
+    fun updateProactiveChat(enabled: Boolean) {
+        onUpdate(assistant.copy(proactiveChatEnabled = enabled))
+        scope.launch {
+            val clearGlobal = companionAssist.proactiveChatEnabled
+            if (clearGlobal) {
+                onUpdateCompanion(companionAssist.copy(proactiveChatEnabled = false))
+            }
+            val settings = settingsStore.settingsFlow.value.let { s ->
+                s.copy(
+                    companionAssist = if (clearGlobal) {
+                        s.companionAssist.copy(proactiveChatEnabled = false)
+                    } else {
+                        s.companionAssist
+                    },
+                    assistants = s.assistants.map {
+                        if (it.id == assistant.id) it.copy(proactiveChatEnabled = enabled) else it
+                    },
+                )
+            }
+            CompanionMonitorService.syncWithSettings(context, settings)
+        }
+    }
+
+    val petHost = koinInject<CompanionPetHost>()
+
+    fun updateCompanionMode(enabled: Boolean) {
+        if (enabled) {
+            if (!context.canDrawOverlays()) {
+                toaster.show(message = "陪伴悬浮头像需要悬浮窗权限", type = ToastType.Warning)
+                context.openOverlayPermissionSettings()
+            }
+            onUpdate(
+                assistant.copy(
+                    enableCompanion = true,
+                    companionPetEnabled = true,
+                )
+            )
+            return
+        }
+        // 关闭陪伴模式 = 关掉悬浮头像 + 本助手主动找人 + 后台监测，并停掉 FGS
+        onUpdate(
+            assistant.copy(
+                enableCompanion = false,
+                companionPetEnabled = false,
+                proactiveChatEnabled = false,
+            )
+        )
+        runCatching { petHost.hide() }
+        updateCompanion {
+            it.copy(
+                monitorEnabled = false,
+                proactiveChatEnabled = false,
+            )
         }
     }
 
@@ -413,11 +485,61 @@ private fun AssistantLocalToolContent(
             )
         }
 
+
+        CardGroup {
+            item(
+                headlineContent = { Text("陪伴模式") },
+                supportingContent = {
+                    Text("开启后显示伴侣悬浮头像；主动找人时旁侧出短气泡（人设口吻）。关闭会停监测与主动找人")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = assistant.enableCompanion,
+                        onCheckedChange = { enabled -> updateCompanionMode(enabled) }
+                    )
+                }
+            )
+            if (assistant.enableCompanion) {
+                item(
+                    headlineContent = { Text("主动动作上限") },
+                    supportingContent = {
+                        Text("仅消息=通知；轻量=notify/open_solace；设备控制=超时可回桌面（需手机控制）")
+                    },
+                    trailingContent = {}
+                )
+            }
+        }
+
+        if (assistant.enableCompanion) {
+            ChipScrollRow(modifier = Modifier.fillMaxWidth()) {
+                listOf(
+                    CompanionActionLevel.MESSAGE_ONLY to "仅消息",
+                    CompanionActionLevel.SOFT_TOOLS to "轻量工具",
+                    CompanionActionLevel.DEVICE_TOOLS to "设备控制",
+                ).forEach { (level, label) ->
+                    FilterChip(
+                        selected = assistant.companionActionLevel == level,
+                        onClick = {
+                            if (level == CompanionActionLevel.DEVICE_TOOLS &&
+                                assistant.companionActionLevel != CompanionActionLevel.DEVICE_TOOLS
+                            ) {
+                                showDeviceToolsConfirm = true
+                            } else {
+                                onUpdate(assistant.copy(companionActionLevel = level))
+                            }
+                        },
+                        label = { Text(label) },
+                        modifier = Modifier.chipUnshrinkable(),
+                    )
+                }
+            }
+        }
+
         CardGroup {
             item(
                 headlineContent = { Text("后台使用监测") },
                 supportingContent = {
-                    Text("超时刷抖音等 App 时自动切回 Solace 提醒休息（需「使用情况访问」权限）")
+                    Text("超时刷别的 App 时，伴侣会用人设主动找你（需「使用情况访问」权限）")
                 },
                 trailingContent = {
                     Switch(
@@ -431,13 +553,13 @@ private fun AssistantLocalToolContent(
             item(
                 headlineContent = { Text("主动找我聊天") },
                 supportingContent = {
-                    Text("按人设主动发早安/晚间问候，或长时间没聊时来找你（通知进会话，不强打断）")
+                    Text("仅对本助手生效：按人设发早安/晚间问候，或长时间没聊时来找你（通知进会话，不强打断）")
                 },
                 trailingContent = {
                     Switch(
-                        checked = companionAssist.proactiveChatEnabled,
+                        checked = assistant.proactiveChatEnabled || companionAssist.proactiveChatEnabled,
                         onCheckedChange = { enabled ->
-                            updateCompanion { it.copy(proactiveChatEnabled = enabled) }
+                            updateProactiveChat(enabled)
                         }
                     )
                 }
@@ -452,6 +574,20 @@ private fun AssistantLocalToolContent(
                         checked = companionAssist.useLlmMessage,
                         onCheckedChange = { enabled ->
                             updateCompanion { it.copy(useLlmMessage = enabled) }
+                        }
+                    )
+                }
+            )
+            item(
+                headlineContent = { Text("快测模式") },
+                supportingContent = {
+                    Text("阈值/冷却 1 分钟，沉默按分钟计，重度 2 分钟；测完请关")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = companionAssist.companionTestMode,
+                        onCheckedChange = { enabled ->
+                            updateCompanion { it.copy(companionTestMode = enabled) }
                         }
                     )
                 }
@@ -607,32 +743,114 @@ private fun AssistantLocalToolContent(
             )
         }
 
-        if (companionAssist.proactiveChatEnabled) {
-            OutlinedTextField(
-                value = companionAssist.silenceHours.toString(),
-                onValueChange = { raw ->
-                    raw.toIntOrNull()?.coerceIn(1, 72)?.let { hours ->
-                        updateCompanion { it.copy(silenceHours = hours) }
+        if (showDeviceToolsConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeviceToolsConfirm = false },
+                title = { Text("允许设备控制？") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("开启后，使用关怀在「刷太久」时可能自动按 Home 回到桌面，再打开 Solace 提醒你。")
+                        Text("仅限白名单动作（回到桌面），不会自由点击界面或支付。需先开启「手机控制」和无障碍。")
+                        Text("夜间（0–6 点）不会自动控机。")
                     }
                 },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeviceToolsConfirm = false
+                            val needPhone = !assistant.localTools.contains(LocalToolOption.PhoneControl)
+                            if (needPhone) {
+                                if (!context.isSolaceAccessibilityEnabled()) {
+                                    toaster.show(
+                                        message = "请在系统无障碍设置中开启 Solace",
+                                        type = ToastType.Warning,
+                                    )
+                                    context.openAccessibilitySettings()
+                                }
+                                AccessibilityKeepAlive.requestIgnoreBatteryOptimizations(context)
+                                showA11yKeepAliveGuide = true
+                            }
+                            onUpdate(
+                                assistant.copy(
+                                    companionActionLevel = CompanionActionLevel.DEVICE_TOOLS,
+                                    localTools = if (needPhone) {
+                                        assistant.localTools + LocalToolOption.PhoneControl
+                                    } else {
+                                        assistant.localTools
+                                    },
+                                )
+                            )
+                        }
+                    ) {
+                        Text("确认开启")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeviceToolsConfirm = false }) {
+                        Text("取消")
+                    }
+                },
+            )
+        }
+
+        if (showA11yKeepAliveGuide) {
+            AlertDialog(
+                onDismissRequest = { showA11yKeepAliveGuide = false },
+                title = { Text("让无障碍尽量一直开着") },
+                text = {
+                    Text(AccessibilityKeepAlive.keepAliveGuideText())
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            AccessibilityKeepAlive.requestIgnoreBatteryOptimizations(context)
+                        }
+                    ) {
+                        Text("电池无限制")
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                AccessibilityKeepAlive.openOemAutostartSettings(context)
+                            }
+                        ) {
+                            Text("自启动设置")
+                        }
+                        TextButton(
+                            onClick = {
+                                showA11yKeepAliveGuide = false
+                                AccessibilityKeepAlive.openAccessibilitySettings(context)
+                            }
+                        ) {
+                            Text("去开无障碍")
+                        }
+                    }
+                },
+            )
+        }
+
+        if (assistant.proactiveChatEnabled || companionAssist.proactiveChatEnabled) {
+            IntOutlinedTextField(
+                value = companionAssist.silenceHours,
+                onValueChange = { hours ->
+                    updateCompanion { it.copy(silenceHours = hours) }
+                },
                 modifier = Modifier.fillMaxWidth(),
+                range = 1..72,
                 label = { Text("沉默多久后主动找你（小时）") },
                 supportingText = { Text("默认 6 小时没对话就按人设来一句开场白") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
             )
-            OutlinedTextField(
-                value = companionAssist.proactiveCooldownMinutes.toString(),
-                onValueChange = { raw ->
-                    raw.toIntOrNull()?.coerceIn(30, 1440)?.let { minutes ->
-                        updateCompanion { it.copy(proactiveCooldownMinutes = minutes) }
-                    }
+            IntOutlinedTextField(
+                value = companionAssist.proactiveCooldownMinutes,
+                onValueChange = { minutes ->
+                    updateCompanion { it.copy(proactiveCooldownMinutes = minutes) }
                 },
                 modifier = Modifier.fillMaxWidth(),
+                range = 30..1440,
                 label = { Text("主动聊天冷却（分钟）") },
                 supportingText = { Text("两次主动找你的最小间隔，默认 180") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
             )
             CardGroup {
                 item(
@@ -664,58 +882,76 @@ private fun AssistantLocalToolContent(
                     }
                 )
             }
-            OutlinedTextField(
-                value = companionAssist.morningHour.toString(),
-                onValueChange = { raw ->
-                    raw.toIntOrNull()?.coerceIn(0, 23)?.let { hour ->
-                        updateCompanion { it.copy(morningHour = hour) }
-                    }
+            IntOutlinedTextField(
+                value = companionAssist.morningHour,
+                onValueChange = { hour ->
+                    updateCompanion { it.copy(morningHour = hour) }
                 },
                 modifier = Modifier.fillMaxWidth(),
+                range = 0..23,
                 label = { Text("早安小时（0-23）") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
             )
-            OutlinedTextField(
-                value = companionAssist.eveningHour.toString(),
-                onValueChange = { raw ->
-                    raw.toIntOrNull()?.coerceIn(0, 23)?.let { hour ->
-                        updateCompanion { it.copy(eveningHour = hour) }
-                    }
+            IntOutlinedTextField(
+                value = companionAssist.eveningHour,
+                onValueChange = { hour ->
+                    updateCompanion { it.copy(eveningHour = hour) }
                 },
                 modifier = Modifier.fillMaxWidth(),
+                range = 0..23,
                 label = { Text("晚间小时（0-23）") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
+            )
+            IntOutlinedTextField(
+                value = companionAssist.quietHourStart,
+                onValueChange = { hour ->
+                    updateCompanion { it.copy(quietHourStart = hour) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                range = 0..23,
+                label = { Text("静默开始小时") },
+                supportingText = { Text("默认 0：该时段优先通知、不控机") },
+            )
+            IntOutlinedTextField(
+                value = companionAssist.quietHourEnd,
+                onValueChange = { hour ->
+                    updateCompanion { it.copy(quietHourEnd = hour) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                range = 0..23,
+                label = { Text("静默结束小时（含）") },
+                supportingText = { Text("默认 6；可跨午夜如 22–6") },
+            )
+            IntOutlinedTextField(
+                value = companionAssist.maxProactivePerDay,
+                onValueChange = { n ->
+                    updateCompanion { it.copy(maxProactivePerDay = n) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                range = 1..50,
+                label = { Text("每日主动上限") },
+                supportingText = { Text("使用关怀 + 主动聊天合计次数，默认 8") },
             )
         }
 
         if (companionAssist.monitorEnabled || assistant.localTools.contains(LocalToolOption.DeviceAssist)) {
-            OutlinedTextField(
-                value = companionAssist.thresholdMinutes.toString(),
-                onValueChange = { raw ->
-                    raw.toIntOrNull()?.coerceIn(1, 240)?.let { minutes ->
-                        updateCompanion { it.copy(thresholdMinutes = minutes) }
-                    }
+            IntOutlinedTextField(
+                value = companionAssist.thresholdMinutes,
+                onValueChange = { minutes ->
+                    updateCompanion { it.copy(thresholdMinutes = minutes) }
                 },
                 modifier = Modifier.fillMaxWidth(),
+                range = 1..240,
                 label = { Text("连续使用阈值（分钟）") },
                 supportingText = { Text("默认 30：同一 App 连续前台超过该时长触发提醒") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
             )
-            OutlinedTextField(
-                value = companionAssist.cooldownMinutes.toString(),
-                onValueChange = { raw ->
-                    raw.toIntOrNull()?.coerceIn(1, 720)?.let { minutes ->
-                        updateCompanion { it.copy(cooldownMinutes = minutes) }
-                    }
+            IntOutlinedTextField(
+                value = companionAssist.cooldownMinutes,
+                onValueChange = { minutes ->
+                    updateCompanion { it.copy(cooldownMinutes = minutes) }
                 },
                 modifier = Modifier.fillMaxWidth(),
+                range = 1..720,
                 label = { Text("干预冷却（分钟）") },
                 supportingText = { Text("同一 App 两次提醒的最小间隔，默认 45") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
             )
             OutlinedTextField(
                 value = companionAssist.monitoredPackages.joinToString("\n"),

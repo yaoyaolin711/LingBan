@@ -102,9 +102,18 @@ class FilesManager(
     fun getFile(entity: ManagedFileEntity): File =
         File(context.filesDir, entity.relativePath)
 
-    fun createChatFilesByContents(uris: List<Uri>): List<Uri> {
+    fun createChatFilesByContents(uris: List<Uri>): List<Uri> =
+        createFilesByContents(FileFolders.UPLOAD, uris)
+
+    fun createAvatarFilesByContents(uris: List<Uri>): List<Uri> =
+        createFilesByContents(FileFolders.AVATARS, uris)
+
+    fun createBackgroundFilesByContents(uris: List<Uri>): List<Uri> =
+        createFilesByContents(FileFolders.BACKGROUNDS, uris)
+
+    fun createFilesByContents(folder: String, uris: List<Uri>): List<Uri> {
         val newUris = mutableListOf<Uri>()
-        val dir = context.filesDir.resolve(FileFolders.UPLOAD)
+        val dir = context.filesDir.resolve(folder)
         if (!dir.exists()) {
             dir.mkdirs()
         }
@@ -126,7 +135,7 @@ class FilesManager(
                 }
                 val guessedMime = sourceMime ?: guessMimeType(file, sourceName)
                 trackManagedFile(
-                    folder = FileFolders.UPLOAD,
+                    folder = folder,
                     file = file,
                     displayName = sourceName,
                     mimeType = guessedMime
@@ -134,10 +143,10 @@ class FilesManager(
                 newUris.add(file.toUri())
             }.onFailure {
                 it.printStackTrace()
-                Log.e(TAG, "createChatFilesByContents: Failed to save file from $uri", it)
+                Log.e(TAG, "createFilesByContents($folder): Failed to save file from $uri", it)
                 Logging.log(
                     TAG,
-                    "createChatFilesByContents: Failed to save file from $uri ${it.message} | ${it.stackTraceToString()}"
+                    "createFilesByContents($folder): Failed to save file from $uri ${it.message} | ${it.stackTraceToString()}"
                 )
             }
         }
@@ -487,8 +496,14 @@ data class SyncResult(
 )
 
 object FileFolders {
+    /** 聊天附件 / 会话图片（清理不影响头像与背景） */
     const val UPLOAD = "upload"
+    /** 用户与助手头像 */
+    const val AVATARS = "avatars"
+    /** 聊天背景图 */
+    const val BACKGROUNDS = "backgrounds"
     const val SKILLS = "skills"
+    const val WORKFLOWS = "workflows"
     const val FONTS = "fonts"
     const val TOOL_OUTPUTS = "tool_outputs"
 }

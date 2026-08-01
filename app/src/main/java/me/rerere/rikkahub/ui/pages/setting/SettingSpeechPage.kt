@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
 import me.rerere.asr.ASRProviderSetting
+import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_ASR_ID
 import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_TTS_ID
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -521,7 +522,7 @@ private fun AddTTSProviderButton(onAdd: (TTSProviderSetting) -> Unit) {
 private fun AddASRProviderButton(onAdd: (ASRProviderSetting) -> Unit) {
     var showBottomSheet by remember { mutableStateOf(false) }
     var showTypeMenu by remember { mutableStateOf(false) }
-    var currentProvider: ASRProviderSetting by remember { mutableStateOf(ASRProviderSetting.OpenAIRealtime()) }
+    var currentProvider: ASRProviderSetting by remember { mutableStateOf(ASRProviderSetting.System()) }
 
     Box {
         IconButton(
@@ -529,10 +530,18 @@ private fun AddASRProviderButton(onAdd: (ASRProviderSetting) -> Unit) {
         ) {
             Icon(HugeIcons.Add01, stringResource(R.string.setting_asr_page_add_provider))
         }
-        DropdownMenu(
+            DropdownMenu(
             expanded = showTypeMenu,
             onDismissRequest = { showTypeMenu = false }
         ) {
+            DropdownMenuItem(
+                text = { Text("System") },
+                onClick = {
+                    currentProvider = ASRProviderSetting.System()
+                    showTypeMenu = false
+                    showBottomSheet = true
+                }
+            )
             DropdownMenuItem(
                 text = { Text("OpenAI Realtime") },
                 onClick = {
@@ -835,6 +844,7 @@ private fun ASRProviderItem(
 
                     Text(
                         text = when (provider) {
+                            is ASRProviderSetting.System -> "System"
                             is ASRProviderSetting.OpenAIRealtime -> "OpenAI Realtime"
                             is ASRProviderSetting.DashScope -> "DashScope"
                             is ASRProviderSetting.Volcengine -> "Volcengine"
@@ -895,7 +905,8 @@ private fun ASRProviderItem(
                             },
                             leadingIcon = {
                                 Icon(HugeIcons.Delete01, contentDescription = null)
-                            }
+                            },
+                            enabled = provider.id != DEFAULT_SYSTEM_ASR_ID
                         )
                     }
                 }

@@ -2,9 +2,11 @@ package me.rerere.rikkahub.data.ai.tools.local
 
 import android.content.Context
 import me.rerere.ai.core.Tool
+import me.rerere.rikkahub.data.agent.capability.PhoneControlCore
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.device.CompanionIntervention
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.overlay.TaskBallManager
 import me.rerere.tts.provider.TTSManager
 
 class LocalTools(
@@ -13,7 +15,11 @@ class LocalTools(
     private val ttsManager: TTSManager,
     private val settingsStore: SettingsStore,
     private val companionIntervention: CompanionIntervention,
+    private val taskBallManagerLazy: Lazy<TaskBallManager>,
+    private val phoneControlCore: PhoneControlCore,
 ) {
+    private val taskBallManager: TaskBallManager get() = taskBallManagerLazy.value
+
     val javascriptTool by lazy { buildJavascriptTool() }
 
     val timeTool by lazy { buildTimeInfoTool() }
@@ -40,7 +46,7 @@ class LocalTools(
 
     val deviceShellTool by lazy { buildDeviceShellTool(settingsStore) }
 
-    val phoneControlTools by lazy { buildPhoneControlTools(context) }
+    val phoneControlTools by lazy { buildPhoneControlTools(phoneControlCore, taskBallManager) }
 
     val deviceInfoTools by lazy { buildDeviceInfoTools(context) }
 

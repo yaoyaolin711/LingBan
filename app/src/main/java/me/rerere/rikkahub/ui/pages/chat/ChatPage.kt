@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
@@ -68,11 +69,13 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.common.android.appTempFolder
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Call
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
@@ -292,6 +295,13 @@ private fun ChatPageContent(
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val assistant = setting.getCurrentAssistant()
     var showFilesSheet by remember { mutableStateOf(false) }
+    fun onRequestNewChat() {
+        val newId = Uuid.random()
+        if (vm.shouldOfferSessionCarryover()) {
+            vm.requestCarryoverOfferAsync(newId)
+        }
+        navigateToChatPage(navController, chatId = newId)
+    }
 
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
@@ -325,11 +335,12 @@ private fun ChatPageContent(
                     bigScreen = bigScreen,
                     drawerState = drawerState,
                     previewMode = previewMode,
-                    onNewChat = {
-                        navigateToChatPage(navController)
-                    },
+                    onNewChat = { onRequestNewChat() },
                     onClickMenu = {
                         previewMode = !previewMode
+                    },
+                    onVoiceCall = {
+                        navController.navigate(Screen.VoiceCall(conversationId = conversation.id.toString()))
                     },
                     onUpdateTitle = {
                         vm.updateTitle(it)
@@ -420,6 +431,15 @@ private fun ChatPageContent(
                 onConversationSystemPromptChange = { newPrompt ->
                     vm.updateConversation(conversation.copy(customSystemPrompt = newPrompt))
                     vm.saveConversationAsync()
+                },
+                onVoiceCall = {
+                    navController.navigate(Screen.VoiceCall(conversationId = conversation.id.toString()))
+                },
+                onAcceptCarryoverOffer = { messageId ->
+                    vm.acceptCarryoverOffer(messageId)
+                },
+                onDeclineCarryoverOffer = { messageId ->
+                    vm.declineCarryoverOffer(messageId)
                 },
             )
         }
@@ -538,11 +558,9 @@ private fun ChatFilesPickerSheet(
     val toaster = LocalToaster.current
     val filesManager: FilesManager = koinInject()
     var showInjectionSheet by remember { mutableStateOf(false) }
-    var showCompressDialog by remember { mutableStateOf(false) }
 
     fun dismissAll() {
         showInjectionSheet = false
-        showCompressDialog = false
         onDismiss()
     }
 
@@ -696,9 +714,6 @@ private fun ChatFilesPickerSheet(
             state = inputState,
             assistant = assistant,
             mcpManager = vm.mcpManager,
-            onCompressContext = { additionalPrompt, targetTokens, keepRecentMessages ->
-                vm.handleCompressContext(additionalPrompt, targetTokens, keepRecentMessages)
-            },
             onUpdateAssistant = {
                 vm.updateSettings(
                     setting.copy(
@@ -718,8 +733,6 @@ private fun ChatFilesPickerSheet(
             },
             showInjectionSheet = showInjectionSheet,
             onShowInjectionSheetChange = { showInjectionSheet = it },
-            showCompressDialog = showCompressDialog,
-            onShowCompressDialogChange = { showCompressDialog = it },
             onDismiss = { dismissAll() },
             onTakePic = onLaunchCamera,
             onPickImage = { imagePickerLauncher.launch("image/*") },
@@ -739,6 +752,7 @@ private fun TopBar(
     previewMode: Boolean,
     onClickMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onVoiceCall: () -> Unit,
     onUpdateTitle: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -820,6 +834,10 @@ private fun TopBar(
             }
         },
         actions = {
+            IconButton(onClick = onVoiceCall) {
+                Icon(HugeIcons.Call, "Voice Call")
+            }
+
             IconButton(
                 onClick = {
                     onClickMenu()

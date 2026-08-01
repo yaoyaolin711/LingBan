@@ -25,6 +25,8 @@ import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.rikkahub.data.workflow.WorkflowDefinition
+import me.rerere.rikkahub.data.workflow.WorkflowManager
 import kotlin.uuid.Uuid
 
 private const val TAG = "AssistantDetailVM"
@@ -35,6 +37,7 @@ class AssistantDetailVM(
     private val memoryRepository: MemoryRepository,
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
+    private val workflowManager: WorkflowManager,
     private val workspaceRepository: WorkspaceRepository,
 ) : ViewModel() {
     private val assistantId = Uuid.parse(id)
@@ -42,9 +45,13 @@ class AssistantDetailVM(
     private val _skills = MutableStateFlow<List<SkillMetadata>>(emptyList())
     val skills = _skills.asStateFlow()
 
+    private val _workflows = MutableStateFlow<List<WorkflowDefinition>>(emptyList())
+    val workflows = _workflows.asStateFlow()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             _skills.value = skillManager.listSkills()
+            _workflows.value = workflowManager.listWorkflows()
         }
     }
 

@@ -7,9 +7,6 @@ import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +21,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonObject
 import me.rerere.ai.core.MessageRole
@@ -40,20 +38,33 @@ import me.rerere.ai.ui.canResumeToolExecution
 import me.rerere.ai.ui.finishPendingTools
 import me.rerere.ai.ui.finishReasoning
 import me.rerere.ai.ui.isEmptyInputMessage
+import me.rerere.ai.ui.planRollingSummaryUpdate
 import me.rerere.common.android.Logging
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.ConversationCompressHelper
+import me.rerere.rikkahub.data.ai.DEFAULT_AUTO_SUMMARY_TARGET_TOKENS
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
+import me.rerere.rikkahub.data.ai.SessionOverviewHelper
+import me.rerere.rikkahub.data.ai.carryoverOfferSourceTitle
+import me.rerere.rikkahub.data.ai.isCarryoverOffer
+import me.rerere.rikkahub.data.ai.withoutCarryoverOffers
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.createConversationTools
+import me.rerere.rikkahub.data.ai.tools.buildRecallChatHistoryTool
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
+import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
+import me.rerere.rikkahub.data.ai.tools.createWorkflowTools
 import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
 import me.rerere.rikkahub.data.ai.tools.withAutoApprovalBypass
+import me.rerere.rikkahub.data.agent.AgentManager
+import me.rerere.rikkahub.data.agent.AgentRuntimeEvent
+import me.rerere.rikkahub.data.agent.TaskRoute
+import me.rerere.rikkahub.data.agent.TaskRouter
 import me.rerere.rikkahub.data.companion.CompanionFacade
-import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.CompanionPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
@@ -64,9 +75,11 @@ import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
 import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
+import me.rerere.rikkahub.data.ai.transformers.WorkflowPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
@@ -74,6 +87,10 @@ import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.SkillManager
+import me.rerere.rikkahub.data.workflow.WorkflowManager
+import me.rerere.rikkahub.data.workflow.WorkflowRuntimeBundle
+import me.rerere.rikkahub.data.workflow.WorkflowScheduler
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
@@ -122,6 +139,7 @@ private val inputTransformers by lazy {
         TimeReminderTransformer,
         PromptInjectionTransformer,
         CompanionPromptTransformer,
+        WorkflowPromptTransformer,
         PlaceholderTransformer,
         DocumentAsPromptTransformer,
         OcrTransformer,
@@ -144,16 +162,27 @@ class ChatService(
     private val conversationRepo: ConversationRepository,
     private val memoryRepository: MemoryRepository,
     private val generationHandler: GenerationHandler,
+    private val conversationCompressHelper: ConversationCompressHelper,
+    private val sessionOverviewHelper: SessionOverviewHelper,
     private val templateTransformer: TemplateTransformer,
     private val providerManager: ProviderManager,
     private val localTools: LocalTools,
     val mcpManager: McpManager,
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
+    private val workflowManager: WorkflowManager,
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
     private val companionFacade: CompanionFacade,
+    private val agentManagerLazy: Lazy<AgentManager>,
 ) {
+    private val agentManager: AgentManager get() = agentManagerLazy.value
+
+    /** Resolve AgentManager only when needed; never fail normal chat on DI errors. */
+    private fun agentManagerOrNull(): AgentManager? = runCatching { agentManagerLazy.value }
+        .onFailure { Log.e(TAG, "AgentManager unavailable", it) }
+        .getOrNull()
+
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
 
@@ -289,15 +318,108 @@ class ChatService(
             updateConversation(conversationId, conversation)
             settingsStore.updateAssistant(conversation.assistantId)
         } else {
-            // 新建对话, 并添加预设消息
+            // 新建对话, 并添加预设消息（上一会话概览改为异步卡片，不再在此处自动导入）
             val currentSettings = settingsStore.settingsFlowRaw.first()
             val assistant = currentSettings.getCurrentAssistant()
+            val existingOfferNodes = getConversationFlow(conversationId).value.messageNodes.filter {
+                it.currentMessage.isCarryoverOffer()
+            }
             val newConversation = Conversation.ofId(
                 id = conversationId,
                 assistantId = assistant.id,
                 newConversation = true
-            ).updateCurrentMessages(assistant.presetMessages)
+            ).updateCurrentMessages(assistant.presetMessages).let { base ->
+                if (existingOfferNodes.isEmpty()) base
+                else base.copy(messageNodes = base.messageNodes + existingOfferNodes)
+            }
             updateConversation(conversationId, newConversation)
+        }
+    }
+
+    /**
+     * 新建会话后异步生成上一会话概览，并以助手卡片形式插入目标会话，供用户选择是否导入。
+     */
+    fun requestCarryoverOfferAsync(
+        sourceConversation: Conversation,
+        targetConversationId: Uuid,
+    ) {
+        if (!sessionOverviewHelper.shouldOfferOverview(sourceConversation)) return
+        launchWithConversationReference(targetConversationId) {
+            val settings = settingsStore.settingsFlow.first()
+            val carryover = runCatching {
+                sessionOverviewHelper.prepareCarryoverFrom(sourceConversation, settings)
+            }.onFailure {
+                Log.w(TAG, "requestCarryoverOfferAsync failed", it)
+            }.getOrNull() ?: return@launchWithConversationReference
+
+            // Wait until the new chat page finished initializeConversation
+            for (i in 0 until 40) {
+                if (getConversationFlow(targetConversationId).value.newConversation) break
+                delay(50)
+            }
+
+            val current = getConversationFlow(targetConversationId).value
+            if (current.currentMessages.any { it.isCarryoverOffer() }) return@launchWithConversationReference
+            if (!current.carryoverOverview.isNullOrBlank()) return@launchWithConversationReference
+
+            val offerNode = SessionOverviewHelper.buildOfferNode(carryover)
+            val firstUserIndex = current.messageNodes.indexOfFirst {
+                it.currentMessage.role == MessageRole.USER
+            }
+            val updatedNodes = if (firstUserIndex < 0) {
+                current.messageNodes + offerNode
+            } else {
+                current.messageNodes.toMutableList().apply { add(firstUserIndex, offerNode) }
+            }
+            saveConversation(
+                targetConversationId,
+                current.copy(messageNodes = updatedNodes),
+            )
+            sessionOverviewHelper.clearPending()
+        }
+    }
+
+    fun acceptCarryoverOffer(conversationId: Uuid, messageId: Uuid) {
+        appScope.launch {
+            val current = getConversationFlow(conversationId).value
+            val offerMessage = current.currentMessages.firstOrNull { it.id == messageId && it.isCarryoverOffer() }
+                ?: return@launch
+            val overview = offerMessage.parts
+                .filterIsInstance<UIMessagePart.Text>()
+                .firstOrNull { it.isCarryoverOffer() }
+                ?.text
+                ?.trim()
+                .orEmpty()
+            if (overview.isBlank()) return@launch
+            val sourceTitle = offerMessage.carryoverOfferSourceTitle() ?: "上一会话"
+            val confirmation = UIMessage.assistant(
+                "已导入「$sourceTitle」的会话概览，后续对话会参考这些内容。"
+            )
+            val updatedNodes = current.messageNodes.map { node ->
+                if (node.messages.any { it.id == messageId }) {
+                    confirmation.toMessageNode()
+                } else {
+                    node
+                }
+            }
+            saveConversation(
+                conversationId,
+                current.copy(
+                    carryoverOverview = overview,
+                    messageNodes = updatedNodes,
+                ),
+            )
+        }
+    }
+
+    fun declineCarryoverOffer(conversationId: Uuid, messageId: Uuid) {
+        appScope.launch {
+            val current = getConversationFlow(conversationId).value
+            val updatedNodes = current.messageNodes.filterNot { node ->
+                node.messages.any { it.id == messageId && it.isCarryoverOffer() }
+            }
+            if (updatedNodes.size == current.messageNodes.size) return@launch
+            saveConversation(conversationId, current.copy(messageNodes = updatedNodes))
         }
     }
 
@@ -532,25 +654,83 @@ class ChatService(
             checkInvalidMessages(conversationId)
             val conversation = getConversationFlow(conversationId).value
 
+            val latestUserText = conversation.currentMessages
+                .lastOrNull { it.role == MessageRole.USER }
+                ?.toText()
+                ?.trim()
+                .orEmpty()
+            val phoneEnabled = assistant.localTools.contains(LocalToolOption.PhoneControl)
+            // Route without touching AgentManager — classify is pure local rules.
+            val routeDecision = TaskRouter.classify(latestUserText, phoneEnabled)
+
+            when (routeDecision.route) {
+                TaskRoute.DEVICE_TASK, TaskRoute.HYBRID -> {
+                    val manager = agentManagerOrNull()
+                    if (manager == null) {
+                        Log.w(TAG, "Device route skipped; AgentManager unavailable, falling back to chat")
+                    } else {
+                        handleDeviceTaskRoute(
+                            conversationId = conversationId,
+                            assistant = assistant,
+                            senderName = senderName,
+                            decisionGoal = routeDecision.goal,
+                            hybrid = routeDecision.route == TaskRoute.HYBRID,
+                            settings = settings.takeIf { routeDecision.route == TaskRoute.HYBRID },
+                            model = model.takeIf { routeDecision.route == TaskRoute.HYBRID },
+                            companionPromptBundle = companionPromptBundle.takeIf {
+                                routeDecision.route == TaskRoute.HYBRID
+                            },
+                            messageRange = messageRange.takeIf { routeDecision.route == TaskRoute.HYBRID },
+                            userText = latestUserText,
+                        )
+                        return@runCatching
+                    }
+                }
+                TaskRoute.CHAT -> Unit
+            }
+
+            val workflowBundle = buildWorkflowRuntimeBundle(
+                assistant = assistant,
+                userText = latestUserText,
+                deviceRouteTaken = false,
+            )
+
             // start generating
             val session = getOrCreateSession(conversationId)
-            generationHandler.generateText(
+            val conversationForGeneration = ensureRollingSummary(
+                conversationId = conversationId,
+                conversation = conversation,
+                assistant = assistant,
                 settings = settings,
-                model = model,
-                processingStatus = session.processingStatus,
                 messages = conversation.currentMessages.let {
                     if (messageRange != null) {
                         it.subList(messageRange.start, messageRange.endInclusive + 1)
                     } else {
                         it
                     }
-                },
+                }.withoutCarryoverOffers(),
+                processingStatus = session.processingStatus,
+            )
+            generationHandler.generateText(
+                settings = settings,
+                model = model,
+                processingStatus = session.processingStatus,
+                messages = conversationForGeneration.currentMessages.let {
+                    if (messageRange != null) {
+                        it.subList(messageRange.start, messageRange.endInclusive + 1)
+                    } else {
+                        it
+                    }
+                }.withoutCarryoverOffers(),
                 assistant = assistant,
-                conversationSystemPrompt = conversation.customSystemPrompt,
-                conversationModeInjectionIds = conversation.modeInjectionIds,
-                conversationLorebookIds = conversation.lorebookIds,
+                conversationSystemPrompt = conversationForGeneration.customSystemPrompt,
+                conversationModeInjectionIds = conversationForGeneration.modeInjectionIds,
+                conversationLorebookIds = conversationForGeneration.lorebookIds,
                 companionPromptBundle = companionPromptBundle,
-                workspaceCwd = conversation.workspaceCwd,
+                workspaceCwd = conversationForGeneration.workspaceCwd,
+                rollingSummary = conversationForGeneration.rollingSummary,
+                carryoverOverview = conversationForGeneration.carryoverOverview,
+                workflowBundle = workflowBundle,
                 memories = if (assistant.useGlobalMemory) {
                     memoryRepository.getGlobalMemories()
                 } else {
@@ -570,7 +750,24 @@ class ChatService(
                     if (assistant.enableRecentChatsReference) {
                         addAll(createConversationTools(conversationRepo, assistant.id))
                     }
-                    addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
+                    if (assistant.contextMessageLimit > 0) {
+                        add(
+                            buildRecallChatHistoryTool(
+                                getMessages = { getConversationFlow(conversationId).value.currentMessages },
+                                contextMessageLimit = assistant.contextMessageLimit,
+                            )
+                        )
+                    }
+                    addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversationForGeneration.workspaceCwd))
+                    addAll(
+                        createWorkflowTools(
+                            workflowManager = workflowManager,
+                            settingsStore = settingsStore,
+                            assistantId = assistant.id,
+                            workspaceRepository = workspaceRepository,
+                            workspaceId = assistant.workspaceId?.toString(),
+                        )
+                    )
                     if (assistant.enabledSkills.isNotEmpty()) {
                         addAll(
                             createSkillTools(
@@ -671,6 +868,254 @@ class ChatService(
             }
             launchWithConversationReference(conversationId) {
                 generateSuggestion(conversationId, finalConversation)
+            }
+        }
+    }
+
+    private fun buildWorkflowRuntimeBundle(
+        assistant: Assistant,
+        userText: String,
+        deviceRouteTaken: Boolean,
+        forcedWorkflowId: Uuid? = null,
+    ): WorkflowRuntimeBundle {
+        if (assistant.enabledWorkflowIds.isEmpty() && forcedWorkflowId == null) {
+            return WorkflowRuntimeBundle()
+        }
+        val all = workflowManager.listWorkflows()
+        val matched = WorkflowScheduler.matchWorkflows(
+            assistant = assistant,
+            all = all,
+            userText = userText,
+            forcedWorkflowId = forcedWorkflowId,
+        )
+        Log.i(
+            TAG,
+            "workflow match: assistant=${assistant.id} enabled=${assistant.enabledWorkflowIds.size} " +
+                "all=${all.size} matched=${matched.map { it.name }} deviceRoute=$deviceRouteTaken " +
+                "priority=${assistant.workflowPriority}"
+        )
+        return WorkflowScheduler.buildRuntimeBundle(
+            assistant = assistant,
+            matched = matched,
+            readSkillBody = skillManager::readSkillBody,
+            deviceRouteTaken = deviceRouteTaken,
+        )
+    }
+
+    /**
+     * DEVICE_TASK / HYBRID: stream Runtime events into an assistant message.
+     * HYBRID then continues with LLM summary (PhoneControl tools stripped).
+     */
+    private suspend fun handleDeviceTaskRoute(
+        conversationId: Uuid,
+        assistant: Assistant,
+        senderName: String,
+        decisionGoal: String,
+        hybrid: Boolean,
+        settings: me.rerere.rikkahub.data.datastore.Settings? = null,
+        model: Model? = null,
+        companionPromptBundle: me.rerere.rikkahub.data.companion.model.CompanionPromptBundle? = null,
+        messageRange: ClosedRange<Int>? = null,
+        userText: String = "",
+    ) {
+        val progressMessage = UIMessage.assistant("正在执行手机操作…")
+        val base = getConversationFlow(conversationId).value
+        updateConversation(
+            conversationId,
+            base.copy(messageNodes = base.messageNodes + progressMessage.toMessageNode()),
+        )
+        appEventBus.tryEmit(
+            AppEvent.ChatGenerationUpdate(conversationId, progressMessage, senderName)
+        )
+
+        val convIdStr = conversationId.toString()
+        val eventJob = appScope.launch {
+            agentManager.events.collect { event ->
+                if (event.conversationId != null && event.conversationId != convIdStr) return@collect
+                val status = when (event) {
+                    is AgentRuntimeEvent.TaskStarted -> "开始执行：${event.goal}"
+                    is AgentRuntimeEvent.StateUpdated -> {
+                        val agentState = agentManager.agentState.value
+                            ?.takeIf { it.taskId == event.taskId }
+                            ?: me.rerere.rikkahub.data.agent.AgentState(
+                                taskId = event.taskId,
+                                goal = decisionGoal,
+                                phase = event.phase,
+                                currentPackage = event.currentApp,
+                                currentActivity = event.currentActivity,
+                                lastAction = event.lastAction,
+                                lastActionResult = event.lastResult,
+                            )
+                        me.rerere.rikkahub.data.agent.status.AgentStatusFormatter.format(agentState)
+                    }
+                    // Progress / PhaseChanged / ActionStarted: UI ignores (AgentState via StateUpdated)
+                    else -> null
+                } ?: return@collect
+                val current = getConversationFlow(conversationId).value
+                val updated = current.updateCurrentMessages(
+                    current.currentMessages.map { msg ->
+                        if (msg.id == progressMessage.id) {
+                            msg.copy(parts = listOf(UIMessagePart.Text(status)))
+                        } else {
+                            msg
+                        }
+                    }
+                )
+                updateConversation(conversationId, updated)
+                appEventBus.tryEmit(
+                    AppEvent.ChatGenerationUpdate(
+                        conversationId,
+                        updated.currentMessages.firstOrNull { it.id == progressMessage.id }
+                            ?: progressMessage.copy(parts = listOf(UIMessagePart.Text(status))),
+                        senderName,
+                    )
+                )
+            }
+        }
+
+        val result = try {
+            agentManager.submitDeviceTask(
+                goal = decisionGoal,
+                conversationId = convIdStr,
+            )
+        } finally {
+            eventJob.cancel()
+        }
+
+        if (!hybrid) {
+            val finalText = if (result.success) result.summary else "操作未完成：${result.summary}"
+            val current = getConversationFlow(conversationId).value
+            val updated = current.updateCurrentMessages(
+                current.currentMessages.map { msg ->
+                    if (msg.id == progressMessage.id) {
+                        msg.copy(parts = listOf(UIMessagePart.Text(finalText)))
+                    } else {
+                        msg
+                    }
+                }
+            )
+            updateConversation(conversationId, updated)
+            appEventBus.tryEmit(
+                AppEvent.ChatGenerationEnded(
+                    conversationId,
+                    senderName,
+                    finalText.take(50),
+                )
+            )
+            return
+        }
+
+        // HYBRID: LLM summarizes without PhoneControl tools
+        val resolvedSettings = settings ?: settingsStore.settingsFlow.first()
+        val resolvedModel = model
+            ?: resolvedSettings.findModelById(assistant.chatModelId ?: resolvedSettings.chatModelId)
+            ?: return
+        val runtimeNote =
+            "\n\n[AgentRuntime] goal=${result.goal}\nsuccess=${result.success}\n${result.summary}\n请用自然语言简要告知用户操作结果，不要再调用手机控制工具。"
+        val conversation = getConversationFlow(conversationId).value
+        // Drop progress message before LLM turn; LLM reply becomes the assistant answer.
+        val withoutProgress = conversation.copy(
+            messageNodes = conversation.messageNodes.filterNot { node ->
+                node.messages.any { it.id == progressMessage.id }
+            }
+        )
+        updateConversation(conversationId, withoutProgress)
+
+        val session = getOrCreateSession(conversationId)
+        val messages = withoutProgress.currentMessages.let {
+            if (messageRange != null) {
+                it.subList(messageRange.start, messageRange.endInclusive + 1)
+            } else {
+                it
+            }
+        }
+        val conversationForGeneration = ensureRollingSummary(
+            conversationId = conversationId,
+            conversation = withoutProgress,
+            assistant = assistant,
+            settings = resolvedSettings,
+            messages = messages,
+            processingStatus = session.processingStatus,
+        )
+        val workflowBundle = buildWorkflowRuntimeBundle(
+            assistant = assistant,
+            userText = userText,
+            deviceRouteTaken = true,
+        )
+        val localOpts = assistant.localTools.filter { it !is LocalToolOption.PhoneControl }
+        generationHandler.generateText(
+            settings = resolvedSettings,
+            model = resolvedModel,
+            processingStatus = session.processingStatus,
+            messages = conversationForGeneration.currentMessages.let {
+                if (messageRange != null) {
+                    it.subList(messageRange.start, messageRange.endInclusive + 1)
+                } else {
+                    it
+                }
+            },
+            assistant = assistant,
+            conversationSystemPrompt = (conversationForGeneration.customSystemPrompt ?: "") + runtimeNote,
+            conversationModeInjectionIds = conversationForGeneration.modeInjectionIds,
+            conversationLorebookIds = conversationForGeneration.lorebookIds,
+            companionPromptBundle = companionPromptBundle,
+            workspaceCwd = conversationForGeneration.workspaceCwd,
+            rollingSummary = conversationForGeneration.rollingSummary,
+            carryoverOverview = conversationForGeneration.carryoverOverview,
+            workflowBundle = workflowBundle,
+            memories = if (assistant.useGlobalMemory) {
+                memoryRepository.getGlobalMemories()
+            } else {
+                memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
+            },
+            inputTransformers = buildList {
+                addAll(inputTransformers)
+                add(templateTransformer)
+                add(workspaceReminderTransformer)
+            },
+            outputTransformers = outputTransformers,
+            tools = buildList {
+                if (assistant.enableWebSearch) {
+                    addAll(createSearchTools(resolvedSettings))
+                }
+                addAll(localTools.getTools(localOpts))
+                if (assistant.contextMessageLimit > 0) {
+                    add(
+                        buildRecallChatHistoryTool(
+                            getMessages = { getConversationFlow(conversationId).value.currentMessages },
+                            contextMessageLimit = assistant.contextMessageLimit,
+                        )
+                    )
+                }
+            }.withAutoApprovalBypass(resolvedSettings.autoApprovedTools),
+        ).onCompletion {
+            val updatedConversation = getConversationFlow(conversationId).value.copy(
+                messageNodes = getConversationFlow(conversationId).value.messageNodes.map { node ->
+                    node.copy(messages = node.messages.map { it.finishReasoning() })
+                },
+                updateAt = java.time.Instant.now(),
+            )
+            updateConversation(conversationId, updatedConversation)
+            appEventBus.emit(
+                AppEvent.ChatGenerationEnded(
+                    conversationId = conversationId,
+                    senderName = senderName,
+                    contentPreview = updatedConversation.currentMessages.lastOrNull()
+                        ?.toText()?.take(50)?.trim() ?: "",
+                )
+            )
+        }.collect { chunk ->
+            when (chunk) {
+                is GenerationChunk.Messages -> {
+                    val updatedConversation = getConversationFlow(conversationId).value
+                        .updateCurrentMessages(chunk.messages)
+                    updateConversation(conversationId, updatedConversation)
+                    chunk.messages.lastOrNull()?.let { lastMessage ->
+                        appEventBus.tryEmit(
+                            AppEvent.ChatGenerationUpdate(conversationId, lastMessage, senderName)
+                        )
+                    }
+                }
             }
         }
     }
@@ -870,88 +1315,57 @@ class ChatService(
 
     // ---- 压缩对话历史 ----
 
-    suspend fun compressConversation(
+    /**
+     * Soft rolling summary before generation when contextMessageLimit would drop a prefix.
+     * On failure, keeps prior summary (if any) and surfaces an error; generation still proceeds.
+     */
+    private suspend fun ensureRollingSummary(
         conversationId: Uuid,
         conversation: Conversation,
-        additionalPrompt: String,
-        targetTokens: Int,
-        keepRecentMessages: Int = 32
-    ): Result<Unit> = runCatching {
-        val settings = settingsStore.settingsFlow.first()
-        val model = settings.findModelById(settings.compressModelId)
-            ?: settings.getCurrentChatModel()
-            ?: throw IllegalStateException("No model available for compression")
-        val provider = model.findProvider(settings.providers)
-            ?: throw IllegalStateException("Provider not found")
-
-        val providerHandler = providerManager.getProviderByType(provider)
-
-        val maxMessagesPerChunk = 256
-        val allMessages = conversation.currentMessages
-
-        // Split messages into those to compress and those to keep
-        val messagesToCompress: List<UIMessage>
-        val messagesToKeep: List<UIMessage>
-
-        if (keepRecentMessages > 0 && allMessages.size > keepRecentMessages) {
-            messagesToCompress = allMessages.dropLast(keepRecentMessages)
-            messagesToKeep = allMessages.takeLast(keepRecentMessages)
-        } else if (keepRecentMessages > 0) {
-            // Not enough messages to compress while keeping recent ones
-            throw IllegalStateException(context.getString(R.string.chat_page_compress_not_enough_messages))
-        } else {
-            messagesToCompress = allMessages
-            messagesToKeep = emptyList()
+        assistant: Assistant,
+        settings: Settings,
+        messages: List<UIMessage>,
+        processingStatus: MutableStateFlow<String?>,
+    ): Conversation {
+        if (!assistant.enableAutoContextSummary || assistant.contextMessageLimit <= 0) {
+            return conversation
         }
 
-        fun splitMessages(messages: List<UIMessage>): List<List<UIMessage>> {
-            if (messages.size <= maxMessagesPerChunk) return listOf(messages)
-            val mid = messages.size / 2
-            val left = splitMessages(messages.subList(0, mid))
-            val right = splitMessages(messages.subList(mid, messages.size))
-            return left + right
-        }
+        val plan = planRollingSummaryUpdate(
+            messages = messages,
+            contextMessageLimit = assistant.contextMessageLimit,
+            existingSummary = conversation.rollingSummary,
+            coveredCount = conversation.rollingSummaryCoveredCount,
+        ) ?: return conversation
 
-        suspend fun compressMessages(messages: List<UIMessage>): String {
-            val contentToCompress = messages.joinToString("\n\n") { it.summaryAsText(maxLength = 2000) }
-            val prompt = settings.compressPrompt.applyPlaceholders(
-                "content" to contentToCompress,
-                "target_tokens" to targetTokens.toString(),
-                "additional_context" to if (additionalPrompt.isNotBlank()) {
-                    "Additional instructions from user: $additionalPrompt"
-                } else "",
-                "locale" to Locale.getDefault().displayName
+        processingStatus.value = context.getString(R.string.chat_page_organizing_context)
+        return try {
+            val summary = conversationCompressHelper.buildRollingSummary(
+                settings = settings,
+                request = plan,
+                targetTokens = DEFAULT_AUTO_SUMMARY_TARGET_TOKENS,
             )
-
-            val result = providerHandler.generateText(
-                providerSetting = provider,
-                messages = listOf(UIMessage.user(prompt)),
-                params = backgroundTextGenerationParams(model),
+            val updated = conversation.copy(
+                rollingSummary = summary,
+                rollingSummaryCoveredCount = plan.coverCount,
             )
-
-            return result.choices[0].message?.toText()?.trim()
-                ?: throw IllegalStateException("Failed to generate compressed summary")
-        }
-
-        val compressedSummaries = coroutineScope {
-            splitMessages(messagesToCompress)
-                .map { chunk -> async { compressMessages(chunk) } }
-                .awaitAll()
-        }
-
-        // Create new conversation with compressed history as multiple user messages + kept messages
-        val newMessageNodes = buildList {
-            compressedSummaries.forEach { summary ->
-                add(UIMessage.user(summary).toMessageNode())
+            saveConversation(conversationId, updated)
+            updated
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "ensureRollingSummary failed", e)
+            addError(
+                error = e,
+                conversationId = conversationId,
+                title = context.getString(R.string.error_title_auto_context_summary),
+            )
+            conversation
+        } finally {
+            if (processingStatus.value == context.getString(R.string.chat_page_organizing_context)) {
+                processingStatus.value = null
             }
-            addAll(messagesToKeep.map { it.toMessageNode() })
         }
-        val newConversation = conversation.copy(
-            messageNodes = newMessageNodes,
-            chatSuggestions = emptyList(),
-        )
-
-        saveConversation(conversationId, newConversation)
     }
 
     // ---- 对话状态更新 ----
@@ -1295,6 +1709,7 @@ class ChatService(
 
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
+        agentManagerOrNull()?.cancel("chat_stop")
         val job = sessions[conversationId]?.getJob() ?: return
         job.cancel()
         runCatching { job.join() }

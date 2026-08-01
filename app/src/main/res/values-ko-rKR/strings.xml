@@ -704,7 +704,9 @@
   <string name="setting_files_page_delete_failed_toast">삭제 실패</string>
   <string name="setting_files_page_delete_file_title">파일 삭제</string>
   <string name="setting_files_page_deleted_toast">삭제됨</string>
-  <string name="setting_files_page_folder_upload">업로드</string>
+  <string name="setting_files_page_folder_upload">채팅 이미지</string>
+  <string name="setting_files_page_folder_avatars">아바타</string>
+  <string name="setting_files_page_folder_backgrounds">배경</string>
   <string name="setting_files_page_no_files">파일 없음</string>
   <string name="setting_files_page_title">파일 관리</string>
   <string name="setting_mcp_page_add_header">헤더 추가</string>

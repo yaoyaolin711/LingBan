@@ -730,7 +730,7 @@ private fun SettingsBottomSheet(
                         FilterChip(
                             selected = size == sizeOption.value,
                             onClick = { vm.updateSize(sizeOption.value) },
-                            label = { Text(sizeOption.value) }
+                            label = { Text(sizeOption.value, maxLines = 1, softWrap = false) }
                         )
                     }
                 }

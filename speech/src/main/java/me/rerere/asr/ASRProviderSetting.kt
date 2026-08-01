@@ -169,9 +169,37 @@ sealed class ASRProviderSetting {
         }
     }
 
+    /**
+     * Android 系统 SpeechRecognizer。
+     *
+     * 零 API Key、零额外包体；识别效果依赖设备厂商语音引擎。
+     * [preferOffline] 为 true 时优先走设备已安装的离线语音包（若无则可能失败）。
+     * [language] 使用 BCP-47（如 zh-CN / en-US）；留空则跟随系统语言。
+     */
+    @Serializable
+    @SerialName("system")
+    data class System(
+        override val id: Uuid = Uuid.random(),
+        override val name: String = "System ASR",
+        val language: String = "",
+        val preferOffline: Boolean = false,
+        val maxResults: Int = 1,
+    ) : ASRProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): ASRProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
+
     companion object {
         val Types by lazy {
             listOf(
+                System::class,
                 OpenAIRealtime::class,
                 DashScope::class,
                 Volcengine::class,

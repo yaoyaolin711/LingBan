@@ -62,6 +62,7 @@ import me.rerere.hugeicons.stroke.CalendarAdd01
 import me.rerere.hugeicons.stroke.SmartPhone01
 import me.rerere.hugeicons.stroke.Time02
 import me.rerere.hugeicons.stroke.VolumeHigh
+import me.rerere.hugeicons.stroke.WorkflowSquare01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -350,6 +351,24 @@ object UseSkillToolUI : ToolUIRenderer {
     }
 }
 
+object WorkflowToolUI : ToolUIRenderer {
+    override val toolName: String = "workflow_tool"
+
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.WorkflowSquare01
+
+    @Composable
+    override fun title(context: ToolUIContext): String {
+        return when (context.arguments.getStringContent("action").orEmpty()) {
+            "list" -> "工作流：列表"
+            "get" -> "工作流：查看"
+            "save" -> "工作流：保存到库"
+            "enable" -> "工作流：启用"
+            "disable" -> "工作流：停用"
+            else -> "工作流工具"
+        }
+    }
+}
+
 /**
  * 最近聊天: 标题固定, 摘要列出最近对话的标题
  */
@@ -407,6 +426,41 @@ object ConversationSearchToolUI : ToolUIRenderer {
         if (results.isEmpty()) return
         Text(
             text = stringResource(R.string.chat_message_tool_search_results_count, results.size),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+        )
+    }
+}
+
+/**
+ * 当前会话原文召回（上下文裁剪后的细节回读），与 conversation_search 区分开
+ */
+object RecallChatHistoryToolUI : ToolUIRenderer {
+    override val toolName: String = "recall_chat_history"
+
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.Search01
+
+    @Composable
+    override fun title(context: ToolUIContext): String {
+        val query = context.arguments.getStringContent("query")
+        return if (!query.isNullOrBlank()) {
+            stringResource(R.string.chat_message_tool_recall_chat_history_query, query)
+        } else {
+            stringResource(R.string.chat_message_tool_recall_chat_history)
+        }
+    }
+
+    private fun hitCount(context: ToolUIContext): Int =
+        context.content?.jsonObjectOrNull?.get("hit_count")?.jsonPrimitive?.intOrNull ?: 0
+
+    override fun hasSummary(context: ToolUIContext): Boolean = hitCount(context) > 0
+
+    @Composable
+    override fun Summary(context: ToolUIContext) {
+        val count = hitCount(context)
+        if (count <= 0) return
+        Text(
+            text = stringResource(R.string.chat_message_tool_search_results_count, count),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
         )

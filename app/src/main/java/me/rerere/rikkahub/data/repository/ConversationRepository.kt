@@ -362,6 +362,10 @@ class ConversationRepository(
             lorebookIds = JsonInstant.encodeToString(conversation.lorebookIds),
             workspaceCwd = conversation.workspaceCwd ?: "",
             folderId = conversation.folderId?.toString() ?: "",
+            rollingSummary = conversation.rollingSummary ?: "",
+            rollingSummaryCoveredCount = conversation.rollingSummaryCoveredCount,
+            sessionOverview = conversation.sessionOverview ?: "",
+            carryoverOverview = conversation.carryoverOverview ?: "",
         )
     }
 
@@ -383,6 +387,10 @@ class ConversationRepository(
             lorebookIds = JsonInstant.decodeFromString(conversationEntity.lorebookIds),
             workspaceCwd = conversationEntity.workspaceCwd.ifEmpty { null },
             folderId = conversationEntity.folderId.ifEmpty { null }?.let { Uuid.parse(it) },
+            rollingSummary = conversationEntity.rollingSummary.ifEmpty { null },
+            rollingSummaryCoveredCount = conversationEntity.rollingSummaryCoveredCount,
+            sessionOverview = conversationEntity.sessionOverview.ifEmpty { null },
+            carryoverOverview = conversationEntity.carryoverOverview.ifEmpty { null },
         )
     }
 

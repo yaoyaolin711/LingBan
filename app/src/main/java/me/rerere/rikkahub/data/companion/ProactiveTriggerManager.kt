@@ -6,10 +6,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import me.rerere.rikkahub.data.companion.model.CompanionEmotionState
 import me.rerere.rikkahub.data.companion.model.CompanionRelationshipStage
 import me.rerere.rikkahub.data.companion.model.CompanionState
 import me.rerere.rikkahub.data.companion.model.InteractionSuggestion
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.needsCompanionForegroundService
 import me.rerere.rikkahub.data.model.Conversation
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
@@ -33,7 +35,14 @@ class ProactiveTriggerManager(
         conversation: Conversation,
         state: CompanionState,
     ): InteractionSuggestion? {
-        if (!settings.companionAssist.proactiveChatEnabled) return null
+        if (!settings.needsCompanionForegroundService()) return null
+        // Per-conversation suggestions still honor the conversation's assistant flag via caller;
+        // here we only gate on "any proactive path enabled".
+        if (!settings.companionAssist.proactiveChatEnabled &&
+            settings.assistants.none { it.proactiveChatEnabled }
+        ) {
+            return null
+        }
 
         val conversationKey = conversation.id.toString()
         val now = clock.now().toEpochMilliseconds()
@@ -49,6 +58,7 @@ class ProactiveTriggerManager(
             inactivitySuggestion(settings, conversation, now)?.let(::add)
             anniversarySuggestion(conversation, now)?.let(::add)
             relationshipShiftSuggestion(conversationKey, state, now)?.let(::add)
+            emotionMissSuggestion(settings, conversation, state, now)?.let(::add)
         }
         if (candidates.isEmpty()) return null
 
@@ -82,7 +92,12 @@ class ProactiveTriggerManager(
             while (isActive) {
                 runCatching {
                     val settings = settingsProvider()
-                    if (!settings.companionAssist.proactiveChatEnabled) return@runCatching
+                    if (!settings.needsCompanionForegroundService()) return@runCatching
+                    if (!settings.companionAssist.proactiveChatEnabled &&
+                        settings.assistants.none { it.proactiveChatEnabled }
+                    ) {
+                        return@runCatching
+                    }
                     val sessions = sessionProvider()
                     sessions.forEach { session ->
                         val suggestion = evaluateSuggestion(
@@ -105,8 +120,7 @@ class ProactiveTriggerManager(
         conversation: Conversation,
         now: Long,
     ): InteractionSuggestion? {
-        val silenceHours = settings.companionAssist.silenceHours.coerceAtLeast(1)
-        val silenceThresholdMs = silenceHours * 60L * 60_000L
+        val silenceThresholdMs = settings.companionAssist.effectiveSilenceThresholdMs()
         val lastActiveAt = conversation.updateAt.toEpochMilli()
         if (now - lastActiveAt < silenceThresholdMs) return null
         return InteractionSuggestion(
@@ -151,6 +165,37 @@ class ProactiveTriggerManager(
             priority = 0.57f,
             messageContext = "关系阶段发生变化，可做一次自然的情感确认",
             reason = "relationship_${previousStage.name.lowercase()}_to_${currentStage.name.lowercase()}",
+            createdAtEpochMillis = now,
+        )
+    }
+
+    /**
+     * 情绪想念：WARM / CONCERNED 且沉默过半阈值时，优先于普通 inactivity。
+     */
+    private fun emotionMissSuggestion(
+        settings: Settings,
+        conversation: Conversation,
+        state: CompanionState,
+        now: Long,
+    ): InteractionSuggestion? {
+        val emotion = state.relationshipState.emotionState
+        if (emotion != CompanionEmotionState.WARM && emotion != CompanionEmotionState.CONCERNED) {
+            return null
+        }
+        val assist = settings.companionAssist
+        val halfSilenceMs = assist.effectiveSilenceThresholdMs() / 2
+        val lastActiveAt = conversation.updateAt.toEpochMilli()
+        if (now - lastActiveAt < halfSilenceMs) return null
+        val priority = if (emotion == CompanionEmotionState.CONCERNED) 0.72f else 0.58f
+        return InteractionSuggestion(
+            type = "emotion_miss",
+            priority = priority,
+            messageContext = if (emotion == CompanionEmotionState.CONCERNED) {
+                "情绪偏担忧，想确认用户是否安好"
+            } else {
+                "情绪偏温暖，有点想念用户"
+            },
+            reason = "emotion_${emotion.name.lowercase()}_miss",
             createdAtEpochMillis = now,
         )
     }

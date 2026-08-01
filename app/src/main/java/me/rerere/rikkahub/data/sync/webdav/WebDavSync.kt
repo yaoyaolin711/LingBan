@@ -179,6 +179,18 @@ class WebDavSync(
                     Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
                 }
 
+                listOf(FileFolders.AVATARS, FileFolders.BACKGROUNDS).forEach { folderName ->
+                    val folder = File(context.filesDir, folderName)
+                    if (folder.exists() && folder.isDirectory) {
+                        Log.i(TAG, "prepareBackupFile: Backing up $folderName from ${folder.absolutePath}")
+                        folder.listFiles()?.forEach { file ->
+                            if (file.isFile) {
+                                addFileToZip(zipOut, file, "$folderName/${file.name}")
+                            }
+                        }
+                    }
+                }
+
                 val skillsFolder = File(context.filesDir, FileFolders.SKILLS)
                 if (skillsFolder.exists() && skillsFolder.isDirectory) {
                     Log.i(TAG, "prepareBackupFile: Backing up skills from ${skillsFolder.absolutePath}")
@@ -190,6 +202,19 @@ class WebDavSync(
                     )
                 } else {
                     Log.w(TAG, "prepareBackupFile: Skills folder does not exist or is not a directory")
+                }
+
+                val workflowsFolder = File(context.filesDir, FileFolders.WORKFLOWS)
+                if (workflowsFolder.exists() && workflowsFolder.isDirectory) {
+                    Log.i(TAG, "prepareBackupFile: Backing up workflows from ${workflowsFolder.absolutePath}")
+                    addDirectoryToZip(
+                        zipOut = zipOut,
+                        rootDir = workflowsFolder,
+                        currentDir = workflowsFolder,
+                        entryPrefix = "${FileFolders.WORKFLOWS}/"
+                    )
+                } else {
+                    Log.w(TAG, "prepareBackupFile: Workflows folder does not exist or is not a directory")
                 }
 
                 val fontsFolder = File(context.filesDir, FileFolders.FONTS)
@@ -275,52 +300,27 @@ class WebDavSync(
                             if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
                                 zipEntry.name.startsWith("${FileFolders.UPLOAD}/")
                             ) {
-                                val fileName = zipEntry.name.substringAfter("${FileFolders.UPLOAD}/")
-                                if (fileName.isNotEmpty()) {
-                                    val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
-                                    if (!uploadFolder.exists()) {
-                                        uploadFolder.mkdirs()
-                                        Log.i(TAG, "restoreFromBackupFile: Created upload directory")
-                                    }
-
-                                    val targetFile = File(uploadFolder, fileName)
-                                    Log.i(
-                                        TAG,
-                                        "restoreFromBackupFile: Restoring file ${zipEntry.name} to ${targetFile.absolutePath}"
-                                    )
-
-                                    try {
-                                        FileOutputStream(targetFile).use { outputStream ->
-                                            zipIn.copyTo(outputStream)
-                                        }
-                                        Log.i(
-                                            TAG,
-                                            "restoreFromBackupFile: Restored ${zipEntry.name} (${targetFile.length()} bytes)"
-                                        )
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "restoreFromBackupFile: Failed to restore file ${zipEntry.name}", e)
-                                        throw Exception("Failed to restore file ${zipEntry.name}: ${e.message}")
-                                    }
-                                }
+                                restoreFlatFolderEntry(zipIn, zipEntry.name, FileFolders.UPLOAD)
+                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                                zipEntry.name.startsWith("${FileFolders.AVATARS}/")
+                            ) {
+                                restoreFlatFolderEntry(zipIn, zipEntry.name, FileFolders.AVATARS)
+                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                                zipEntry.name.startsWith("${FileFolders.BACKGROUNDS}/")
+                            ) {
+                                restoreFlatFolderEntry(zipIn, zipEntry.name, FileFolders.BACKGROUNDS)
                             } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
                                 zipEntry.name.startsWith("${FileFolders.SKILLS}/")
                             ) {
                                 restoreSkillEntry(zipIn, zipEntry.name)
                             } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                                zipEntry.name.startsWith("${FileFolders.WORKFLOWS}/")
+                            ) {
+                                restoreWorkflowEntry(zipIn, zipEntry.name)
+                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
                                 zipEntry.name.startsWith("${FileFolders.FONTS}/")
                             ) {
-                                val fileName = zipEntry.name.substringAfter("${FileFolders.FONTS}/")
-                                if (fileName.isNotEmpty() && !fileName.contains('/')) {
-                                    val fontsFolder = File(context.filesDir, FileFolders.FONTS).apply { mkdirs() }
-                                    val targetFile = File(fontsFolder, fileName)
-                                    FileOutputStream(targetFile).use { outputStream ->
-                                        zipIn.copyTo(outputStream)
-                                    }
-                                    Log.i(
-                                        TAG,
-                                        "restoreFromBackupFile: Restored ${zipEntry.name} (${targetFile.length()} bytes)"
-                                    )
-                                }
+                                restoreFlatFolderEntry(zipIn, zipEntry.name, FileFolders.FONTS)
                             } else {
                                 Log.i(TAG, "restoreFromBackupFile: Skipping entry ${zipEntry.name}")
                             }
@@ -366,6 +366,25 @@ class WebDavSync(
         }
     }
 
+    private fun restoreFlatFolderEntry(zipIn: ZipInputStream, entryName: String, folder: String) {
+        val fileName = entryName.substringAfter("$folder/")
+        if (fileName.isEmpty() || fileName.contains('/')) {
+            Log.w(TAG, "restoreFromBackupFile: Invalid $folder entry $entryName")
+            return
+        }
+        val targetFolder = File(context.filesDir, folder).apply { mkdirs() }
+        val targetFile = File(targetFolder, fileName)
+        try {
+            FileOutputStream(targetFile).use { outputStream ->
+                zipIn.copyTo(outputStream)
+            }
+            Log.i(TAG, "restoreFromBackupFile: Restored $entryName (${targetFile.length()} bytes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreFromBackupFile: Failed to restore file $entryName", e)
+            throw Exception("Failed to restore file $entryName: ${e.message}")
+        }
+    }
+
     private fun restoreSkillEntry(zipIn: ZipInputStream, entryName: String) {
         val relativePath = entryName.substringAfter("${FileFolders.SKILLS}/")
         val skillName = relativePath.substringBefore('/', missingDelimiterValue = "")
@@ -393,6 +412,25 @@ class WebDavSync(
         } catch (e: Exception) {
             Log.e(TAG, "restoreFromBackupFile: Failed to restore skill file $entryName", e)
             throw Exception("Failed to restore skill file $entryName: ${e.message}")
+        }
+    }
+
+    private fun restoreWorkflowEntry(zipIn: ZipInputStream, entryName: String) {
+        val fileName = entryName.substringAfter("${FileFolders.WORKFLOWS}/")
+        if (fileName.isEmpty() || fileName.contains('/')) {
+            Log.w(TAG, "restoreFromBackupFile: Invalid workflow entry $entryName")
+            return
+        }
+        val workflowsRoot = File(context.filesDir, FileFolders.WORKFLOWS).apply { mkdirs() }
+        val targetFile = File(workflowsRoot, fileName)
+        try {
+            FileOutputStream(targetFile).use { outputStream ->
+                zipIn.copyTo(outputStream)
+            }
+            Log.i(TAG, "restoreFromBackupFile: Restored workflow $entryName (${targetFile.length()} bytes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreFromBackupFile: Failed to restore workflow $entryName", e)
+            throw Exception("Failed to restore workflow $entryName: ${e.message}")
         }
     }
 

@@ -31,9 +31,10 @@ fun buildMemoryTools(
             - No relevant record: `create` + `content`
             - Existing relevant record: `edit` + `id` + `content`
             - Outdated/irrelevant record: `delete` + `id`
-            Memories will automatically appear in the <memories> tag in later conversations.
+            Memories will automatically appear under **Memories** in later conversations (JSON list with id/content).
             Do not store sensitive information (e.g., ethnicity, religion, sexual orientation, political views, sex life, criminal records).
             You may store: preferred name, preferences, plans, work-related notes, chat style preferences, first chat time, etc.
+            Do not store one-off transient details that only matter in the current turn.
             Do not show memory content directly in the conversation unless the user explicitly asks.
             Today is ${LocalDate.now().toLocalString(true)}.
             Similar memories should be merged; prefer updating existing records.

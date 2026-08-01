@@ -51,10 +51,16 @@ internal fun mapExifOrientationToTransform(orientation: Int): ExifTransformType 
 
 fun UIMessagePart.Image.encodeBase64(withPrefix: Boolean = true): Result<EncodedImage> = runCatching {
     when {
-        this.url.startsWith("file://") -> {
-            val filePath =
-                this.url.toUri().path ?: throw IllegalArgumentException("Invalid file URI: ${this.url}")
-            val file = File(filePath)
+        this.url.startsWith("file:") || this.url.startsWith("/") ||
+            (this.url.length > 2 && this.url[1] == ':' && (this.url[2] == '\\' || this.url[2] == '/')) -> {
+            val file = when {
+                this.url.startsWith("file:") -> {
+                    val filePath = this.url.toUri().path
+                        ?: throw IllegalArgumentException("Invalid file URI: ${this.url}")
+                    File(filePath)
+                }
+                else -> File(this.url)
+            }
             if (!file.exists()) {
                 throw IllegalArgumentException("File does not exist: ${this.url}")
             }

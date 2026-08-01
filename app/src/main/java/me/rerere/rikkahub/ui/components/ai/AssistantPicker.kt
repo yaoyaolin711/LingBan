@@ -165,7 +165,7 @@ private fun AssistantPickerSheet(
                                     selectedTagIds + tag.id
                                 }
                             },
-                            label = { Text(tag.name) },
+                            label = { Text(tag.name, maxLines = 1, softWrap = false) },
                             selected = tag.id in selectedTagIds,
                             shape = RoundedCornerShape(50),
                         )

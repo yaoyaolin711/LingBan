@@ -96,6 +96,8 @@ import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsPage
+import me.rerere.rikkahub.ui.pages.extensions.workflows.WorkflowDetailPage
+import me.rerere.rikkahub.ui.pages.extensions.workflows.WorkflowsPage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspacePage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailPage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceFileEditorPage
@@ -126,6 +128,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSpeechPage
+import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
@@ -468,6 +471,10 @@ class RouteActivity : ComponentActivity() {
                                 SettingSpeechPage()
                             }
 
+                            entry<Screen.VoiceCall> { key ->
+                                VoiceCallPage(conversationId = Uuid.parse(key.conversationId))
+                            }
+
                             entry<Screen.SettingMcp> {
                                 SettingMcpPage()
                             }
@@ -510,6 +517,14 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.Skills> {
                                 SkillsPage()
+                            }
+
+                            entry<Screen.Workflows> {
+                                WorkflowsPage()
+                            }
+
+                            entry<Screen.WorkflowDetail> { key ->
+                                WorkflowDetailPage(workflowId = key.id)
                             }
 
                             entry<Screen.Workspaces> {
@@ -583,6 +598,7 @@ class RouteActivity : ComponentActivity() {
     }
 }
 
+@Serializable
 sealed interface Screen : NavKey {
     @Serializable
     data object Home : Screen
@@ -689,6 +705,9 @@ sealed interface Screen : NavKey {
     data object SettingSpeech : Screen
 
     @Serializable
+    data class VoiceCall(val conversationId: String) : Screen
+
+    @Serializable
     data object SettingMcp : Screen
 
     @Serializable
@@ -720,6 +739,12 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Skills : Screen
+
+    @Serializable
+    data object Workflows : Screen
+
+    @Serializable
+    data class WorkflowDetail(val id: String) : Screen
 
     @Serializable
     data object Workspaces : Screen

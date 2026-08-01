@@ -31,6 +31,9 @@ import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.data.model.QuickMessage
+import me.rerere.rikkahub.data.workflow.WorkflowDefinition
+import me.rerere.rikkahub.data.workflow.WorkflowPriority
+import kotlin.uuid.Uuid
 
 @Composable
 fun ModeInjectionsContent(
@@ -146,6 +149,80 @@ fun SkillsContent(
             item {
                 ManageButton(onClick = onManage)
             }
+        }
+    }
+}
+
+@Composable
+fun WorkflowsContent(
+    workflows: List<WorkflowDefinition>,
+    enabledWorkflowIds: Set<Uuid>,
+    workflowPriority: WorkflowPriority,
+    onToggle: (Uuid, Boolean) -> Unit,
+    onPriorityChange: (WorkflowPriority) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = "冲突优先级",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = "当工作流与内置路由/注入冲突时，决定谁先执行。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    WorkflowPriority.entries.forEach { priority ->
+                        val selected = workflowPriority == priority
+                        TextButton(onClick = { onPriorityChange(priority) }) {
+                            Text(
+                                text = when (priority) {
+                                    WorkflowPriority.BuiltinFirst -> "内置优先"
+                                    WorkflowPriority.WorkflowFirst -> "工作流优先"
+                                    WorkflowPriority.Coexist -> "共存"
+                                },
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        items(workflows, key = { it.id.toString() }) { workflow ->
+            ListItem(
+                headlineContent = {
+                    Text(workflow.name.ifBlank { "未命名" })
+                },
+                supportingContent = if (workflow.description.isNotBlank()) {
+                    {
+                        Text(
+                            text = workflow.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            maxLines = 2,
+                        )
+                    }
+                } else null,
+                trailingContent = {
+                    Switch(
+                        checked = enabledWorkflowIds.contains(workflow.id),
+                        onCheckedChange = { checked -> onToggle(workflow.id, checked) },
+                    )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            )
         }
     }
 }

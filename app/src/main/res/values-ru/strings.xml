@@ -704,7 +704,9 @@
   <string name="setting_files_page_delete_failed_toast">Не удалось удалить</string>
   <string name="setting_files_page_delete_file_title">Удалить файл</string>
   <string name="setting_files_page_deleted_toast">Удалено</string>
-  <string name="setting_files_page_folder_upload">Загрузить</string>
+  <string name="setting_files_page_folder_upload">Изображения чата</string>
+  <string name="setting_files_page_folder_avatars">Аватары</string>
+  <string name="setting_files_page_folder_backgrounds">Фоны</string>
   <string name="setting_files_page_no_files">Нет файлов</string>
   <string name="setting_files_page_title">Управление файлами</string>
   <string name="setting_mcp_page_add_header">Добавить заголовок</string>

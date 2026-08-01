@@ -427,6 +427,8 @@
   <string name="mermaid_export_success">导出成功</string>
   <string name="model_list_favorite">收藏</string>
   <string name="model_list_no_providers">没有可用AI提供商, 请在设置添加</string>
+  <string name="model_list_go_to_providers">前往提供商设置</string>
+  <string name="model_list_manage_providers">管理提供商</string>
   <string name="model_list_search_placeholder">输入模型名称搜索</string>
   <string name="model_list_select_model">选择模型</string>
   <string name="more_options">更多选项</string>
@@ -736,7 +738,9 @@
   <string name="setting_files_page_delete_failed_toast">删除失败</string>
   <string name="setting_files_page_delete_file_title">删除文件</string>
   <string name="setting_files_page_deleted_toast">已删除</string>
-  <string name="setting_files_page_folder_upload">上传</string>
+  <string name="setting_files_page_folder_upload">聊天图片</string>
+  <string name="setting_files_page_folder_avatars">头像</string>
+  <string name="setting_files_page_folder_backgrounds">聊天背景</string>
   <string name="setting_files_page_no_files">无文件</string>
   <string name="setting_files_page_title">文件管理</string>
   <string name="setting_mcp_page_add_header">添加请求头</string>

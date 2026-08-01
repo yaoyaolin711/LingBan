@@ -18,9 +18,9 @@ import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.rikkahub.R
 import me.rerere.hugeicons.stroke.Book03
-import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
+import me.rerere.hugeicons.stroke.WorkflowSquare01
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -73,6 +73,12 @@ fun ExtensionsPage() {
                         leadingContent = { Icon(HugeIcons.Puzzle, null) },
                         headlineContent = { Text(stringResource(R.string.extensions_page_agent_skills)) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_agent_skills_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.Workflows) },
+                        leadingContent = { Icon(HugeIcons.WorkflowSquare01, null) },
+                        headlineContent = { Text("工作流") },
+                        supportingContent = { Text("可分享的提示词/工具流水线，按助手开关启用") },
                     )
                     item(
                         onClick = { navController.navigate(Screen.Workspaces) },

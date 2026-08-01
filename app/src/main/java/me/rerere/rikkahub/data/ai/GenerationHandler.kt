@@ -38,15 +38,18 @@ import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
 import me.rerere.rikkahub.data.files.FileFolders
 import java.io.File
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
+import me.rerere.rikkahub.data.ai.withoutCarryoverOffers
 import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
 import me.rerere.rikkahub.data.ai.tools.buildMemoryTools
+import me.rerere.rikkahub.data.ai.tools.RECALL_CHAT_HISTORY_TOOL
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.workflow.WorkflowRuntimeBundle
 import me.rerere.rikkahub.utils.applyPlaceholders
 import java.util.Locale
 import kotlin.time.Clock
@@ -85,6 +88,9 @@ class GenerationHandler(
         conversationLorebookIds: Set<Uuid> = emptySet(),
         companionPromptBundle: CompanionPromptBundle? = null,
         workspaceCwd: String? = null,
+        rollingSummary: String? = null,
+        carryoverOverview: String? = null,
+        workflowBundle: WorkflowRuntimeBundle? = null,
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -164,6 +170,9 @@ class GenerationHandler(
                     conversationLorebookIds = conversationLorebookIds,
                     companionPromptBundle = companionPromptBundle,
                     workspaceCwd = workspaceCwd,
+                    rollingSummary = rollingSummary,
+                    carryoverOverview = carryoverOverview,
+                    workflowBundle = workflowBundle,
                 )
                 messages = messages.visualTransforms(
                     transformers = outputTransformers,
@@ -364,6 +373,9 @@ class GenerationHandler(
         conversationLorebookIds: Set<Uuid> = emptySet(),
         companionPromptBundle: CompanionPromptBundle? = null,
         workspaceCwd: String? = null,
+        rollingSummary: String? = null,
+        carryoverOverview: String? = null,
+        workflowBundle: WorkflowRuntimeBundle? = null,
     ) {
         val internalMessages = buildList {
             val system = buildString {
@@ -377,19 +389,53 @@ class GenerationHandler(
                     append(effectiveSystemPrompt)
                 }
 
+                val hasRecallTool = tools.any { it.name == RECALL_CHAT_HISTORY_TOOL }
+                val hasMemoryTool = assistant.enableMemory
+                val hasCrossConversationSearch = tools.any {
+                    it.name == "conversation_search" || it.name == "recent_chats"
+                }
+                val hasRollingSummary = !rollingSummary.isNullOrBlank()
+                val hasCarryover = !carryoverOverview.isNullOrBlank()
+
+                // Soft continuity policy (auto-assembled; not user-editable)
+                append(
+                    buildRuntimeContinuityPolicy(
+                        hasRollingSummary = hasRollingSummary || hasCarryover,
+                        hasRecallTool = hasRecallTool,
+                        hasMemoryTool = hasMemoryTool,
+                        hasCrossConversationSearch = hasCrossConversationSearch,
+                    )
+                )
+
+                if (workflowBundle != null && !workflowBundle.skipBecauseDeviceRoute) {
+                    append(buildWorkflowToolHintsPrompt(workflowBundle.hintedToolNames))
+                }
+
+                // Soft rolling summary of trimmed early context
+                if (hasRollingSummary) {
+                    append(buildRollingSummaryPrompt(rollingSummary))
+                }
+
+                // Overview imported from a previous conversation (user-opted)
+                if (hasCarryover) {
+                    append(buildCarryoverOverviewPrompt(carryoverOverview))
+                }
+
                 // 记忆
                 if (assistant.enableMemory) {
-                    appendLine()
                     append(buildMemoryPrompt(memories = memories))
                 }
                 // 工具prompt
                 tools.forEach { tool ->
-                    appendLine()
-                    append(tool.systemPrompt(model, messages))
+                    val extra = tool.systemPrompt(model, messages)
+                    if (extra.isNotBlank()) {
+                        appendLine()
+                        append(extra)
+                    }
                 }
             }
             if (system.isNotBlank()) add(UIMessage.system(prompt = system))
-            addAll(messages.limitContext(assistant.contextMessageLimit))
+            addAll(messages.withoutCarryoverOffers().limitContext(assistant.contextMessageLimit))
         }.transforms(
             transformers = transformers,
             context = context,
@@ -398,7 +444,8 @@ class GenerationHandler(
             settings = settings,
             conversationModeInjectionIds = conversationModeInjectionIds,
             conversationLorebookIds = conversationLorebookIds,
-                companionPromptBlocks = companionPromptBundle?.blocks.orEmpty(),
+            companionPromptBlocks = companionPromptBundle?.blocks.orEmpty(),
+            workflowBundle = workflowBundle,
             processingStatus = processingStatus,
             workspaceCwd = workspaceCwd,
         )

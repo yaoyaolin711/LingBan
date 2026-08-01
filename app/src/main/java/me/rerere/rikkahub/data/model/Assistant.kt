@@ -9,6 +9,8 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.companion.model.CompanionCharacterCard
+import me.rerere.rikkahub.data.companion.policy.CompanionActionLevel
+import me.rerere.rikkahub.data.workflow.WorkflowPriority
 import me.rerere.rikkahub.utils.SimpleCache
 import java.util.concurrent.TimeUnit
 import kotlin.uuid.Uuid
@@ -26,6 +28,8 @@ data class Assistant(
     val topP: Float? = null,
     // 上下文消息条数上限, 超出后阶梯式截断; 0 表示不限制
     val contextMessageLimit: Int = 0,
+    // 超限时自动生成滚动摘要并注入 system，避免静默遗忘
+    val enableAutoContextSummary: Boolean = true,
     val streamOutput: Boolean = true,
     val enableMemory: Boolean = false,
     val useGlobalMemory: Boolean = false, // 使用全局共享记忆而非助手隔离记忆
@@ -45,11 +49,24 @@ data class Assistant(
     val background: String? = null, // 聊天页背景图地址(本地文件 URI 或网络 URL), 为 null 时无背景
     val backgroundOpacity: Float = 1.0f, // 背景图不透明度(0~1)
     val useGradientBackground: Boolean = false, // 开启后聊天页使用动态渐变背景
+    /**
+     * 陪伴模式总开关：人设注入、关系/情绪状态、政策引擎主动行为。
+     * 导入角色卡时通常为 true；设置页可单独开关。
+     */
     val enableCompanion: Boolean = false,
+    /** 是否允许此人设主动找用户聊天（早安/晚间/沉默唤醒），按助手独立 */
+    val proactiveChatEnabled: Boolean = false,
+    /** 桌面宠物悬浮窗（需悬浮窗权限；像素精灵渲染） */
+    val companionPetEnabled: Boolean = false,
+    /** 陪伴主动动作上限：消息 / 轻量工具 / 设备控制（预留） */
+    val companionActionLevel: CompanionActionLevel = CompanionActionLevel.MESSAGE_ONLY,
     val companionCharacter: CompanionCharacterCard? = null,
+    val voiceCall: AssistantVoiceCallSettings = AssistantVoiceCallSettings(),
     val modeInjectionIds: Set<Uuid> = emptySet(),      // 关联的模式注入 ID
     val lorebookIds: Set<Uuid> = emptySet(),            // 关联的 Lorebook ID
     val enabledSkills: Set<String> = emptySet(),        // 启用的 skill 名称列表
+    val enabledWorkflowIds: Set<Uuid> = emptySet(),     // 启用的自定义工作流
+    val workflowPriority: WorkflowPriority = WorkflowPriority.BuiltinFirst,
     val enableTimeReminder: Boolean = false,            // 时间间隔提醒注入
     val allowConversationSystemPrompt: Boolean = false, // 允许对话单独重写 system prompt
     val allowConversationPromptInjection: Boolean = false, // 允许对话单独绑定提示词注入

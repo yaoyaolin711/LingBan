@@ -17,6 +17,8 @@ import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.data.ai.AIRequestInterceptor
 import me.rerere.rikkahub.data.ai.RequestLoggingInterceptor
 import me.rerere.rikkahub.data.ai.transformers.AssistantTemplateLoader
+import me.rerere.rikkahub.data.ai.ConversationCompressHelper
+import me.rerere.rikkahub.data.ai.SessionOverviewHelper
 import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
 import me.rerere.rikkahub.data.api.RikkaHubAPI
@@ -51,54 +53,70 @@ val dataSourceModule = module {
 
     single {
         val context: Context = get()
-        Room.databaseBuilder(context, AppDatabase::class.java, "rikka_hub")
+        val libSimpleSo = java.io.File(context.applicationInfo.nativeLibraryDir, "libsimple.so")
+        val builder = Room.databaseBuilder(context, AppDatabase::class.java, "rikka_hub")
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .addMigrations(Migration_6_7, Migration_11_12, Migration_13_14, Migration_14_15, Migration_15_16)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onOpen(db: SupportSQLiteDatabase) {
-                    val dictDir = SimpleDictManager.extractDict(context)
-                    val cursor = db.query("SELECT jieba_dict(?)", arrayOf(dictDir.absolutePath))
-                    cursor.use {
-                        if (it.moveToFirst()) {
-                            val result = it.getString(0)
-                            val success = result?.trimEnd('/') == dictDir.absolutePath.trimEnd('/')
-                            if (!success) {
-                                android.util.Log.e(
-                                    "DataSourceModule",
-                                    "jieba_dict failed: $result, path=${dictDir.absolutePath}"
-                                )
+                    runCatching {
+                        val dictDir = SimpleDictManager.extractDict(context)
+                        val cursor = db.query("SELECT jieba_dict(?)", arrayOf(dictDir.absolutePath))
+                        cursor.use {
+                            if (it.moveToFirst()) {
+                                val result = it.getString(0)
+                                val success = result?.trimEnd('/') == dictDir.absolutePath.trimEnd('/')
+                                if (!success) {
+                                    android.util.Log.e(
+                                        "DataSourceModule",
+                                        "jieba_dict failed: $result, path=${dictDir.absolutePath}"
+                                    )
+                                }
                             }
                         }
-                    }
-                    db.execSQL(
-                        """
-                        CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
-                            text,
-                            node_id UNINDEXED,
-                            message_id UNINDEXED,
-                            conversation_id UNINDEXED,
-                            title UNINDEXED,
-                            update_at UNINDEXED,
-                            tokenize = 'simple'
+                        db.execSQL(
+                            """
+                            CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
+                                text,
+                                node_id UNINDEXED,
+                                message_id UNINDEXED,
+                                conversation_id UNINDEXED,
+                                title UNINDEXED,
+                                update_at UNINDEXED,
+                                tokenize = 'simple'
+                            )
+                            """.trimIndent()
                         )
-                        """.trimIndent()
-                    )
+                    }.onFailure {
+                        android.util.Log.e("DataSourceModule", "FTS/jieba init failed; continuing without it", it)
+                    }
                 }
             })
-            .openHelperFactory(
+
+        if (libSimpleSo.exists()) {
+            builder.openHelperFactory(
                 RequerySQLiteOpenHelperFactory(
                     listOf(
-                RequerySQLiteOpenHelperFactory.ConfigurationOptions { options ->
-                    options.customExtensions.add(
-                        SQLiteCustomExtension(
-                            context.applicationInfo.nativeLibraryDir + "/libsimple",
-                            null
-                        )
-                    )
-                    options
-                }
-            )))
-            .build()
+                        RequerySQLiteOpenHelperFactory.ConfigurationOptions { options ->
+                            options.customExtensions.add(
+                                SQLiteCustomExtension(
+                                    context.applicationInfo.nativeLibraryDir + "/libsimple",
+                                    null,
+                                ),
+                            )
+                            options
+                        },
+                    ),
+                ),
+            )
+        } else {
+            android.util.Log.w(
+                "DataSourceModule",
+                "libsimple.so missing at ${libSimpleSo.absolutePath}; using default SQLite helper",
+            )
+        }
+
+        builder.build()
     }
 
     single {
@@ -159,6 +177,17 @@ val dataSourceModule = module {
     }
 
     single { McpManager(settingsStore = get(), appScope = get(), filesManager = get(), appEventBus = get()) }
+
+    single {
+        ConversationCompressHelper(providerManager = get())
+    }
+
+    single {
+        SessionOverviewHelper(
+            compressHelper = get(),
+            conversationRepo = get(),
+        )
+    }
 
     single {
         GenerationHandler(

@@ -102,51 +102,9 @@ fun UIAvatar(
     onUpdate: ((Avatar) -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
-    val filesManager: FilesManager = koinInject()
-    val context = LocalContext.current
+    // Edit machinery (crop / activity result / toaster) must not run in display-only
+    // contexts such as the system overlay TaskBall, which has no LocalToaster / Activity.
     var showPickOption by remember { mutableStateOf(false) }
-    var showEmojiPicker by remember { mutableStateOf(false) }
-    var showUrlInput by remember { mutableStateOf(false) }
-    var urlInput by remember { mutableStateOf("") }
-    var preCropTempFile by remember { mutableStateOf<File?>(null) }
-
-    fun saveAvatarImage(uri: Uri) {
-        val localUris = filesManager.createChatFilesByContents(listOf(uri))
-        localUris.firstOrNull()?.let { localUri ->
-            onUpdate?.invoke(Avatar.Image(localUri.toString()))
-        }
-    }
-
-    val (_, launchImageCrop) = useCropLauncher(
-        onCroppedImageReady = { croppedUri ->
-            saveAvatarImage(croppedUri)
-        },
-        onCleanup = {
-            preCropTempFile?.delete()
-            preCropTempFile = null
-        },
-        aspectRatio = 1f to 1f,
-        freeStyleCropEnabled = false
-    )
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { selectedUri ->
-            val tempFile = File(context.appTempFolder, "avatar_pick_${System.currentTimeMillis()}.jpg")
-            runCatching {
-                context.contentResolver.openInputStream(selectedUri)?.use { input ->
-                    tempFile.outputStream().use { output -> input.copyTo(output) }
-                } ?: error("Failed to open input stream for $selectedUri")
-                preCropTempFile?.delete()
-                preCropTempFile = tempFile
-                launchImageCrop(tempFile.toUri())
-            }.onFailure {
-                tempFile.delete()
-                launchImageCrop(selectedUri)
-            }
-        }
-    }
 
     Box(modifier = modifier.then(Modifier.size(32.dp))) {
         Surface(
@@ -227,10 +185,70 @@ fun UIAvatar(
         }
     }
 
+    if (onUpdate != null) {
+        UIAvatarEditHost(
+            onUpdate = onUpdate,
+            showPickOption = showPickOption,
+            onShowPickOptionChange = { showPickOption = it },
+        )
+    }
+}
+
+@Composable
+private fun UIAvatarEditHost(
+    onUpdate: (Avatar) -> Unit,
+    showPickOption: Boolean,
+    onShowPickOptionChange: (Boolean) -> Unit,
+) {
+    val filesManager: FilesManager = koinInject()
+    val context = LocalContext.current
+    var showEmojiPicker by remember { mutableStateOf(false) }
+    var showUrlInput by remember { mutableStateOf(false) }
+    var urlInput by remember { mutableStateOf("") }
+    var preCropTempFile by remember { mutableStateOf<File?>(null) }
+
+    fun saveAvatarImage(uri: Uri) {
+        val localUris = filesManager.createAvatarFilesByContents(listOf(uri))
+        localUris.firstOrNull()?.let { localUri ->
+            onUpdate(Avatar.Image(localUri.toString()))
+        }
+    }
+
+    val (_, launchImageCrop) = useCropLauncher(
+        onCroppedImageReady = { croppedUri ->
+            saveAvatarImage(croppedUri)
+        },
+        onCleanup = {
+            preCropTempFile?.delete()
+            preCropTempFile = null
+        },
+        aspectRatio = 1f to 1f,
+        freeStyleCropEnabled = false
+    )
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { selectedUri ->
+            val tempFile = File(context.appTempFolder, "avatar_pick_${System.currentTimeMillis()}.jpg")
+            runCatching {
+                context.contentResolver.openInputStream(selectedUri)?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                } ?: error("Failed to open input stream for $selectedUri")
+                preCropTempFile?.delete()
+                preCropTempFile = tempFile
+                launchImageCrop(tempFile.toUri())
+            }.onFailure {
+                tempFile.delete()
+                launchImageCrop(selectedUri)
+            }
+        }
+    }
+
     if (showPickOption) {
         AlertDialog(
             onDismissRequest = {
-                showPickOption = false
+                onShowPickOptionChange(false)
             },
             title = {
                 Text(text = stringResource(id = R.string.avatar_change_avatar))
@@ -241,7 +259,7 @@ fun UIAvatar(
                 ) {
                     Button(
                         onClick = {
-                            showPickOption = false
+                            onShowPickOptionChange(false)
                             imagePickerLauncher.launch("image/*")
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -250,7 +268,7 @@ fun UIAvatar(
                     }
                     Button(
                         onClick = {
-                            showPickOption = false
+                            onShowPickOptionChange(false)
                             showEmojiPicker = true
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -259,7 +277,7 @@ fun UIAvatar(
                     }
                     Button(
                         onClick = {
-                            showPickOption = false
+                            onShowPickOptionChange(false)
                             urlInput = ""
                             showUrlInput = true
                         },
@@ -269,8 +287,8 @@ fun UIAvatar(
                     }
                     Button(
                         onClick = {
-                            showPickOption = false
-                            onUpdate?.invoke(Avatar.Dummy)
+                            onShowPickOptionChange(false)
+                            onUpdate(Avatar.Dummy)
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -281,7 +299,7 @@ fun UIAvatar(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showPickOption = false
+                        onShowPickOptionChange(false)
                     }
                 ) {
                     Text(stringResource(id = R.string.avatar_cancel))
@@ -299,7 +317,7 @@ fun UIAvatar(
         ) {
             EmojiPicker(
                 onEmojiSelected = { emoji ->
-                    onUpdate?.invoke(Avatar.Emoji(content = emoji.emoji))
+                    onUpdate(Avatar.Emoji(content = emoji.emoji))
                     showEmojiPicker = false
                 },
                 modifier = Modifier
@@ -331,7 +349,7 @@ fun UIAvatar(
                 TextButton(
                     onClick = {
                         if (urlInput.isNotBlank()) {
-                            onUpdate?.invoke(Avatar.Image(urlInput.trim()))
+                            onUpdate(Avatar.Image(urlInput.trim()))
                             showUrlInput = false
                         }
                     }

@@ -83,4 +83,8 @@ val repositoryModule = module {
     single {
         SkillManager(get(), get())
     }
+
+    single {
+        me.rerere.rikkahub.data.workflow.WorkflowManager(get(), get())
+    }
 }

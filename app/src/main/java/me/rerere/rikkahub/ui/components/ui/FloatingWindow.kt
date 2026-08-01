@@ -32,20 +32,22 @@ fun FloatingWindow(
     }
 
     DisposableEffect(context) {
-        window = FloatingX.install {
-            setTag(tag)
-            setContext(context)
-            setGravity(FxGravity.LEFT_OR_BOTTOM)
-            setOffsetXY(20f, -20f)
-            setEnableAnimation(true)
-            setLayoutView(ComposeView(context).apply {
-                setContent {
-                    RikkahubTheme {
-                        content()
+        window = runCatching {
+            FloatingX.install {
+                setTag(tag)
+                setContext(context.applicationContext)
+                setGravity(FxGravity.LEFT_OR_BOTTOM)
+                setOffsetXY(20f, -20f)
+                setEnableAnimation(true)
+                setLayoutView(ComposeView(context.applicationContext).apply {
+                    setContent {
+                        RikkahubTheme {
+                            content()
+                        }
                     }
-                }
-            })
-        }
+                })
+            }
+        }.getOrNull()
         if (visibility) window?.show() else window?.hide()
         onDispose {
             window?.cancel()
