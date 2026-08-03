@@ -13,21 +13,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,8 +45,11 @@ import me.rerere.hugeicons.stroke.Call
 import me.rerere.hugeicons.stroke.CallEnd01
 import me.rerere.hugeicons.stroke.Mic01
 import me.rerere.hugeicons.stroke.Settings01
+import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
+import me.rerere.rikkahub.data.model.VoiceCallTtsResolveResult
 import me.rerere.rikkahub.data.model.resolveVoiceCallDisplay
+import me.rerere.rikkahub.data.model.resolveVoiceCallTts
 import me.rerere.rikkahub.ui.components.solace.CompanionAvatar
 import me.rerere.rikkahub.ui.components.solace.CompanionAvatarSize
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
@@ -66,7 +64,6 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import kotlin.uuid.Uuid
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceCallPage(conversationId: Uuid) {
     val vm: ChatVM = koinViewModel(parameters = { parametersOf(conversationId.toString()) })
@@ -93,8 +90,30 @@ fun VoiceCallPage(conversationId: Uuid) {
     }
     val ui by session.ui.collectAsStateWithLifecycle()
 
-    var showVoiceSheet by remember { mutableStateOf(false) }
     var callStarted by remember { mutableStateOf(false) }
+    val voiceReady = resolveVoiceCallTts(settings, assistant.voiceCall) is VoiceCallTtsResolveResult.Ready
+
+    fun openVoiceSelection() {
+        nav.navigate(Screen.VoiceSelection)
+    }
+
+    fun tryStartCall() {
+        if (callStarted) {
+            session.applyVoiceAndListen()
+            return
+        }
+        if (!asrPermission.allRequiredPermissionsGranted) {
+            asrPermission.requestPermissions()
+            return
+        }
+        when (resolveVoiceCallTts(vm.settings.value, vm.settings.value.getCurrentAssistant().voiceCall)) {
+            is VoiceCallTtsResolveResult.Ready -> {
+                callStarted = true
+                session.start()
+            }
+            else -> openVoiceSelection()
+        }
+    }
 
     fun hangUpAndExit() {
         session.hangUp()
@@ -112,6 +131,18 @@ fun VoiceCallPage(conversationId: Uuid) {
     LaunchedEffect(asrPermission.allRequiredPermissionsGranted) {
         if (!asrPermission.allRequiredPermissionsGranted) {
             asrPermission.requestPermissions()
+        }
+    }
+
+    // Local system voices can start immediately; cloud voices wait for explicit start.
+    LaunchedEffect(asrPermission.allRequiredPermissionsGranted, settings) {
+        if (callStarted) return@LaunchedEffect
+        if (!asrPermission.allRequiredPermissionsGranted) return@LaunchedEffect
+        val display = resolveVoiceCallDisplay(settings, assistant.voiceCall)
+        if (!display.requiresApiKey &&
+            resolveVoiceCallTts(settings, assistant.voiceCall) is VoiceCallTtsResolveResult.Ready
+        ) {
+            tryStartCall()
         }
     }
 
@@ -141,7 +172,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showVoiceSheet = true }) {
+                    IconButton(onClick = { openVoiceSelection() }) {
                         Icon(HugeIcons.Settings01, contentDescription = "Voice settings")
                     }
                 },
@@ -225,26 +256,60 @@ fun VoiceCallPage(conversationId: Uuid) {
             when (ui.phase) {
                 VoiceCallPhase.NeedsSetup, VoiceCallPhase.Idle -> {
                     Text(
-                        text = if (ui.phase == VoiceCallPhase.NeedsSetup) {
-                            ui.statusMessage.ifBlank { "Configure voice API Key first" }
+                        text = if (!voiceReady) {
+                            "先选择并配置通话声线"
                         } else {
-                            "Pick a voice then start the call"
+                            "声线已就绪，可以开始通话"
                         },
                         style = typography.bodyMedium,
                         color = colors.secondaryText,
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    FilledIconButton(
-                        onClick = { showVoiceSheet = true },
-                        modifier = Modifier.size(72.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = colors.primary,
-                            contentColor = colors.onPrimary,
-                        ),
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(28.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(HugeIcons.Settings01, contentDescription = "Configure voice", modifier = Modifier.size(28.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            FilledIconButton(
+                                onClick = { openVoiceSelection() },
+                                modifier = Modifier.size(64.dp),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = colors.surfaceContainerHigh,
+                                    contentColor = colors.text,
+                                ),
+                            ) {
+                                Icon(HugeIcons.Settings01, contentDescription = "选择声线", modifier = Modifier.size(26.dp))
+                            }
+                            Text(
+                                text = "选择声线",
+                                style = typography.labelMedium,
+                                color = colors.secondaryText,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        if (voiceReady) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                FilledIconButton(
+                                    onClick = { tryStartCall() },
+                                    modifier = Modifier.size(72.dp),
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = colors.primary,
+                                        contentColor = colors.onPrimary,
+                                    ),
+                                ) {
+                                    Icon(HugeIcons.Call, contentDescription = "开始通话", modifier = Modifier.size(28.dp))
+                                }
+                                Text(
+                                    text = "开始通话",
+                                    style = typography.labelMedium,
+                                    color = colors.secondaryText,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        }
                     }
+                    Spacer(Modifier.height(32.dp))
                 }
 
                 else -> {
@@ -316,61 +381,6 @@ fun VoiceCallPage(conversationId: Uuid) {
                     }
                 }
             }
-        }
-    }
-
-    if (showVoiceSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = { showVoiceSheet = false },
-            sheetState = sheetState,
-            containerColor = colors.surface,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 32.dp)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                Text(
-                    text = "Call voice",
-                    style = typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.text,
-                )
-                Spacer(Modifier.height(12.dp))
-                VoicePresetPicker(
-                    settings = settings,
-                    onUpdateSettings = { vm.updateSettings(it) },
-                    onPreview = { session.previewVoice(vm.settings.value) },
-                    onReadyToCall = {
-                        showVoiceSheet = false
-                        if (!asrPermission.allRequiredPermissionsGranted) {
-                            asrPermission.requestPermissions()
-                            return@VoicePresetPicker
-                        }
-                        if (!callStarted) {
-                            callStarted = true
-                            session.start()
-                        } else {
-                            session.applyVoiceAndListen()
-                        }
-                    },
-                )
-            }
-        }
-    }
-
-    LaunchedEffect(asrPermission.allRequiredPermissionsGranted, settings) {
-        if (callStarted) return@LaunchedEffect
-        if (!asrPermission.allRequiredPermissionsGranted) return@LaunchedEffect
-        val display = resolveVoiceCallDisplay(settings, assistant.voiceCall)
-        if (!display.requiresApiKey) {
-            callStarted = true
-            session.start()
-        } else {
-            showVoiceSheet = true
         }
     }
 }

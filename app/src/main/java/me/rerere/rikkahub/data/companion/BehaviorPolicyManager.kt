@@ -32,7 +32,7 @@ class BehaviorPolicyManager {
     private fun basePolicyFor(stage: CompanionRelationshipStage): CompanionBehaviorPolicy {
         return when (stage) {
             CompanionRelationshipStage.STRANGER -> CompanionBehaviorPolicy(
-                responseTone = "polite",
+                responseTone = "neutral",
                 replyLength = "short",
                 initiativeLevel = "low",
                 questionFrequency = "low",

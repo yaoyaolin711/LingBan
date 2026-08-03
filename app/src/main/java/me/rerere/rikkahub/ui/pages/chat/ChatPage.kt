@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
@@ -322,10 +324,9 @@ private fun ChatPageContent(
         modifier = Modifier.fillMaxSize()
     ) {
         AssistantBackground(setting = setting, modifier = Modifier)
-        // 输入框叠在 Scaffold 外：imePadding 只抬起输入层，列表用固定占位高度，避免键盘遮挡且不卡顿
-        var inputBarHeightPx by remember { mutableIntStateOf(0) }
+        // 输入框叠在 Scaffold 外：bottomBar 直接跟输入层实测高度（含 imePadding），避免二次弹起竞态
+        var inputOverlayHeightPx by remember { mutableIntStateOf(0) }
         val density = LocalDensity.current
-        val imeInsets = WindowInsets.ime
         Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
@@ -349,7 +350,7 @@ private fun ChatPageContent(
             },
             bottomBar = {
                 val reserveDp = with(density) {
-                    if (inputBarHeightPx > 0) inputBarHeightPx.toDp() else 96.dp
+                    if (inputOverlayHeightPx > 0) inputOverlayHeightPx.toDp() else 96.dp
                 }
                 Spacer(
                     modifier = Modifier
@@ -357,6 +358,8 @@ private fun ChatPageContent(
                         .height(reserveDp)
                 )
             },
+            // 键盘高度已计入输入层 / bottomBar，避免 Scaffold 再吃一份 IME
+            contentWindowInsets = WindowInsets.safeDrawing.exclude(WindowInsets.ime),
             containerColor = Color.Transparent,
         ) { innerPadding ->
             ChatList(
@@ -449,10 +452,8 @@ private fun ChatPageContent(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .onSizeChanged { size ->
-                    val ime = imeInsets.getBottom(density)
-                    val reserved = (size.height - ime).coerceAtLeast(0)
-                    if (reserved > 0 && reserved != inputBarHeightPx) {
-                        inputBarHeightPx = reserved
+                    if (size.height > 0 && size.height != inputOverlayHeightPx) {
+                        inputOverlayHeightPx = size.height
                     }
                 },
             state = inputState,

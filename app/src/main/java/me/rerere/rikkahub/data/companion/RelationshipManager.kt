@@ -69,7 +69,7 @@ class RelationshipManager {
         contextCache[key]?.let { return it }
         val context = when (stage) {
             CompanionRelationshipStage.STRANGER -> CompanionRelationshipContext(
-                tone = "polite",
+                tone = "neutral",
                 initiative = "low",
                 care = "low",
             )
@@ -145,7 +145,7 @@ class RelationshipManager {
             expressionStyle = if (state.relationshipLevel >= 10) {
                 "Use a familiar and companion-like voice."
             } else {
-                "Keep the tone natural and respectful."
+                "Keep the tone natural and companion-like."
             },
         )
     }

@@ -1103,7 +1103,7 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="setting_page_preferences">設定</string>
   <string name="setting_page_preferences_desc">テーマ、通知、UI、全般設定</string>
   <string name="setting_page_preferences_theme">テーマ</string>
-  <string name="setting_page_preferences_theme_desc">ダイナミックカラー、テーマ、AMOLEDダークモード</string>
+  <string name="setting_page_preferences_theme_desc">カラーモード、ダイナミックカラー、テーマ、AMOLEDダークモード</string>
   <string name="setting_page_preferences_notification">通知</string>
   <string name="setting_page_preferences_notification_desc">アップデート通知、メッセージ生成通知</string>
   <string name="setting_page_preferences_general">一般</string>

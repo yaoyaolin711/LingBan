@@ -1101,7 +1101,7 @@
   <string name="setting_page_preferences">偏好設定</string>
   <string name="setting_page_preferences_desc">主題、通知、介面與一般設定</string>
   <string name="setting_page_preferences_theme">主題</string>
-  <string name="setting_page_preferences_theme_desc">動態色彩、主題、AMOLED 深色模式</string>
+  <string name="setting_page_preferences_theme_desc">顏色模式、動態色彩、主題、AMOLED 深色模式</string>
   <string name="setting_page_preferences_notification">通知</string>
   <string name="setting_page_preferences_notification_desc">更新提醒、訊息產生通知</string>
   <string name="setting_page_preferences_general">一般</string>

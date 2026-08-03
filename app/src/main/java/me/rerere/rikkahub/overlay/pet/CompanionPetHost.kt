@@ -8,6 +8,9 @@ import android.util.Log
 import android.view.View
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import com.petterp.floatingx.FloatingX
 import com.petterp.floatingx.assist.FxGravity
@@ -28,6 +31,8 @@ import me.rerere.rikkahub.data.companion.policy.CompanionEmotionResolver
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.data.model.CompanionOverlayStyle
+import me.rerere.rikkahub.data.model.CompanionPixelPetSkin
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.canDrawOverlays
 import me.rerere.rikkahub.utils.openOverlayPermissionSettings
@@ -42,10 +47,12 @@ private data class PetHostConfig(
     val name: String,
     val assistantId: Uuid,
     val avatar: Avatar,
+    val overlayStyle: CompanionOverlayStyle,
+    val pixelPetSkin: CompanionPixelPetSkin,
 )
 
 /**
- * 陪伴悬浮头像宿主：开陪伴模式即显示伴侣头像；主动发言用旁侧短气泡。
+ * 陪伴悬浮层宿主：头像或像素桌宠；主动发言用旁侧短气泡。
  */
 class CompanionPetHost(
     private val context: Application,
@@ -63,6 +70,12 @@ class CompanionPetHost(
     @Volatile
     private var control: IFxAppControl? = null
 
+    /** 用户从快捷菜单「收起」后，直到再次开启陪伴才自动浮出。 */
+    @Volatile
+    private var userDismissed = false
+
+    private var lastCompanionEnabled = false
+
     init {
         appScope.launch(Dispatchers.Default) {
             settingsStore.settingsFlow
@@ -73,14 +86,24 @@ class CompanionPetHost(
                         name = assistant.name,
                         assistantId = assistant.id,
                         avatar = resolvePetAvatar(assistant),
+                        overlayStyle = resolveOverlayStyle(assistant),
+                        pixelPetSkin = resolvePixelPetSkin(assistant),
                     )
                 }
                 .distinctUntilChanged()
                 .collect { config ->
                     if (!config.enabled) {
+                        userDismissed = false
+                        lastCompanionEnabled = false
                         hide()
                         return@collect
                     }
+                    if (!lastCompanionEnabled) {
+                        // 陪伴从关→开：清除收起状态
+                        userDismissed = false
+                    }
+                    lastCompanionEnabled = true
+                    if (userDismissed) return@collect
                     val emotion = runCatching {
                         emotionResolver.resolveForAssistant(config.assistantId)
                     }.getOrDefault(CompanionEmotionState.CALM)
@@ -89,6 +112,8 @@ class CompanionPetHost(
                         avatar = config.avatar,
                         emotion = emotion,
                         statusText = config.name.ifBlank { "陪伴中" },
+                        overlayStyle = config.overlayStyle,
+                        pixelPetSkin = config.pixelPetSkin,
                     )
                 }
         }
@@ -100,9 +125,11 @@ class CompanionPetHost(
         emotion: CompanionEmotionState = _state.value.emotion,
         statusText: String = _state.value.statusText,
         conversationId: Uuid? = _state.value.conversationId,
+        overlayStyle: CompanionOverlayStyle = _state.value.overlayStyle,
+        pixelPetSkin: CompanionPixelPetSkin = _state.value.pixelPetSkin,
     ) {
         if (!context.canDrawOverlays()) {
-            Log.w(TAG, "overlay permission missing; companion avatar not shown")
+            Log.w(TAG, "overlay permission missing; companion pet not shown")
             return
         }
         _state.value = _state.value.copy(
@@ -112,6 +139,8 @@ class CompanionPetHost(
             emotion = emotion,
             statusText = statusText,
             conversationId = conversationId,
+            overlayStyle = overlayStyle,
+            pixelPetSkin = pixelPetSkin,
         )
         mainHandler.post { ensureFloatInstalled() }
     }
@@ -122,6 +151,12 @@ class CompanionPetHost(
         mainHandler.post {
             control?.hide()
         }
+    }
+
+    /** 用户主动收起桌宠（会话级，关闭后再开陪伴会重新出现）。 */
+    fun dismissByUser() {
+        userDismissed = true
+        hide()
     }
 
     fun updateEmotion(emotion: CompanionEmotionState, statusText: String? = null) {
@@ -180,10 +215,24 @@ class CompanionPetHost(
             setContent {
                 val petState by _state.collectAsState()
                 if (!petState.visible) return@setContent
+                var menuExpanded by remember { mutableStateOf(false) }
                 RikkahubTheme {
                     renderer.Content(
                         state = petState,
-                        onClick = { openApp(petState.conversationId?.toString()) },
+                        onClick = { menuExpanded = !menuExpanded },
+                        besidePet = {
+                            PetQuickActionsPanel(
+                                visible = menuExpanded,
+                                onOpenChat = {
+                                    menuExpanded = false
+                                    openApp(petState.conversationId?.toString())
+                                },
+                                onHidePet = {
+                                    menuExpanded = false
+                                    dismissByUser()
+                                },
+                            )
+                        },
                     )
                 }
             }

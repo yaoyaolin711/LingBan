@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
@@ -58,6 +59,7 @@ import coil3.request.crossfade
 import coil3.svg.SvgDecoder
 import com.dokar.sonner.Toaster
 import com.dokar.sonner.rememberToasterState
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import me.rerere.highlight.Highlighter
 import me.rerere.highlight.LocalHighlighter
@@ -67,6 +69,7 @@ import me.rerere.rikkahub.data.db.MigrationState
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
+import me.rerere.rikkahub.ui.components.ui.CivilChatConsentDialog
 import me.rerere.rikkahub.ui.components.ui.TTSController
 import me.rerere.rikkahub.ui.context.LocalASRState
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -122,13 +125,14 @@ import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
 import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
 import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
 import me.rerere.rikkahub.ui.pages.setting.SettingModelPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchDetailPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSearchPage
 import me.rerere.rikkahub.ui.pages.setting.SettingSpeechPage
+import me.rerere.rikkahub.ui.pages.voicecall.CustomVoiceEditPage
 import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallPage
+import me.rerere.rikkahub.ui.pages.voicecall.VoiceSelectionPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
@@ -252,6 +256,7 @@ class RouteActivity : ComponentActivity() {
         val tts = rememberCustomTtsState()
         val asr = rememberCustomAsrState()
         val eventBus = koinInject<AppEventBus>()
+        val scope = rememberCoroutineScope()
         LaunchedEffect(tts) {
             eventBus.events.collect { event ->
                 when (event) {
@@ -401,10 +406,6 @@ class RouteActivity : ComponentActivity() {
                                 TranslatorPage()
                             }
 
-                            entry<Screen.Setting> {
-                                SettingPage()
-                            }
-
                             entry<Screen.Backup> {
                                 BackupPage()
                             }
@@ -473,6 +474,14 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.VoiceCall> { key ->
                                 VoiceCallPage(conversationId = Uuid.parse(key.conversationId))
+                            }
+
+                            entry<Screen.VoiceSelection> {
+                                VoiceSelectionPage()
+                            }
+
+                            entry<Screen.CustomVoiceEdit> { key ->
+                                CustomVoiceEditPage(profileId = key.profileId)
                             }
 
                             entry<Screen.SettingMcp> {
@@ -592,6 +601,18 @@ class RouteActivity : ComponentActivity() {
                             }
                         }
                     }
+
+                    if (!settings.init && !settings.civilChatConsentAccepted) {
+                        CivilChatConsentDialog(
+                            onAgree = {
+                                scope.launch {
+                                    settingsStore.update(
+                                        settings.copy(civilChatConsentAccepted = true)
+                                    )
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -654,9 +675,6 @@ sealed interface Screen : NavKey {
     data object Translator : Screen
 
     @Serializable
-    data object Setting : Screen
-
-    @Serializable
     data object Backup : Screen
 
     @Serializable
@@ -706,6 +724,12 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data class VoiceCall(val conversationId: String) : Screen
+
+    @Serializable
+    data object VoiceSelection : Screen
+
+    @Serializable
+    data class CustomVoiceEdit(val profileId: String = "") : Screen
 
     @Serializable
     data object SettingMcp : Screen

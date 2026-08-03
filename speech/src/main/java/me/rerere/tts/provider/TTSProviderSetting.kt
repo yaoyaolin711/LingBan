@@ -282,6 +282,35 @@ sealed class TTSProviderSetting {
         }
     }
 
+    /**
+     * 模思 Mossland / MOSI Studio TTS。
+     *
+     * 在 [studio.mosi.cn](https://studio.mosi.cn) 创建 API Key 与音色；
+     * API 请求发往 [api.mosi.cn](https://api.mosi.cn)：`POST /v1/audio/speech`。
+     */
+    @Serializable
+    @SerialName("mossland")
+    data class Mossland(
+        override var id: Uuid = Uuid.random(),
+        override var name: String = "Mossland TTS",
+        val apiKey: String = "",
+        val baseUrl: String = "https://api.mosi.cn",
+        val model: String = "moss-tts",
+        val voiceId: String = "",
+        /** Preferred container / response_format: mp3 | wav | pcm（官方默认 mp3） */
+        val format: String = "mp3",
+    ) : TTSProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): TTSProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
+
     companion object {
         val Types by lazy {
             listOf(
@@ -296,6 +325,7 @@ sealed class TTSProviderSetting {
                 ElevenLabs::class,
                 Step::class,
                 FishAudio::class,
+                Mossland::class,
             )
         }
     }

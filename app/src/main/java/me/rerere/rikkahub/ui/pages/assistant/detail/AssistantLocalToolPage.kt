@@ -52,6 +52,10 @@ import me.rerere.rikkahub.data.device.DeviceShellExecutor
 import me.rerere.rikkahub.data.device.ShizukuBootstrap
 import me.rerere.rikkahub.data.companion.policy.CompanionActionLevel
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.CompanionOverlayStyle
+import me.rerere.rikkahub.data.model.CompanionPixelPetSkin
+import me.rerere.rikkahub.data.model.resolvedCompanionOverlayStyle
+import me.rerere.rikkahub.data.model.withCompanionOverlayStyle
 import me.rerere.rikkahub.overlay.pet.CompanionPetHost
 import me.rerere.rikkahub.service.CompanionMonitorService
 import me.rerere.rikkahub.service.SolaceAccessibilityService
@@ -265,7 +269,6 @@ private fun AssistantLocalToolContent(
             onUpdate(
                 assistant.copy(
                     enableCompanion = true,
-                    companionPetEnabled = true,
                 )
             )
             return
@@ -275,6 +278,7 @@ private fun AssistantLocalToolContent(
             assistant.copy(
                 enableCompanion = false,
                 companionPetEnabled = false,
+                companionOverlayStyle = CompanionOverlayStyle.AVATAR,
                 proactiveChatEnabled = false,
             )
         )
@@ -490,7 +494,7 @@ private fun AssistantLocalToolContent(
             item(
                 headlineContent = { Text("陪伴模式") },
                 supportingContent = {
-                    Text("开启后显示伴侣悬浮头像；主动找人时旁侧出短气泡（人设口吻）。关闭会停监测与主动找人")
+                    Text("开启后显示悬浮伴侣（头像或像素桌宠）；主动找人时旁侧出短气泡。关闭会停监测与主动找人")
                 },
                 trailingContent = {
                     Switch(
@@ -501,12 +505,58 @@ private fun AssistantLocalToolContent(
             )
             if (assistant.enableCompanion) {
                 item(
+                    headlineContent = { Text("悬浮样式") },
+                    supportingContent = {
+                        Text("头像=圆形伴侣头像；像素桌宠=WebView SVG 角色（需悬浮窗权限），可选皮肤")
+                    },
+                    trailingContent = {}
+                )
+                item(
                     headlineContent = { Text("主动动作上限") },
                     supportingContent = {
                         Text("仅消息=通知；轻量=notify/open_solace；设备控制=超时可回桌面（需手机控制）")
                     },
                     trailingContent = {}
                 )
+            }
+        }
+
+        if (assistant.enableCompanion) {
+            ChipScrollRow(modifier = Modifier.fillMaxWidth()) {
+                listOf(
+                    CompanionOverlayStyle.AVATAR to "头像",
+                    CompanionOverlayStyle.PIXEL_PET to "像素桌宠",
+                ).forEach { (style, label) ->
+                    FilterChip(
+                        selected = assistant.resolvedCompanionOverlayStyle() == style,
+                        onClick = {
+                            if (style == CompanionOverlayStyle.PIXEL_PET && !context.canDrawOverlays()) {
+                                toaster.show(message = "像素桌宠需要悬浮窗权限", type = ToastType.Warning)
+                                context.openOverlayPermissionSettings()
+                            }
+                            onUpdate(assistant.withCompanionOverlayStyle(style))
+                        },
+                        label = { Text(label) },
+                        modifier = Modifier.chipUnshrinkable(),
+                    )
+                }
+            }
+        }
+
+        if (assistant.enableCompanion &&
+            assistant.resolvedCompanionOverlayStyle() == CompanionOverlayStyle.PIXEL_PET
+        ) {
+            ChipScrollRow(modifier = Modifier.fillMaxWidth()) {
+                CompanionPixelPetSkin.entries.forEach { skin ->
+                    FilterChip(
+                        selected = assistant.companionPixelPetSkin == skin,
+                        onClick = {
+                            onUpdate(assistant.copy(companionPixelPetSkin = skin))
+                        },
+                        label = { Text(skin.displayName) },
+                        modifier = Modifier.chipUnshrinkable(),
+                    )
+                }
             }
         }
 

@@ -49,6 +49,10 @@ enum class VoiceTtsBackend {
     /** Supports custom reference_id (cloned / library voices). */
     @SerialName("fish-audio")
     FishAudio,
+
+    /** Mossland / MOSI Studio cloned or library voice_id. */
+    @SerialName("mossland")
+    Mossland,
 }
 
 @Serializable
@@ -56,9 +60,9 @@ data class CustomVoiceProfile(
     val id: Uuid = Uuid.random(),
     /** User-facing name, e.g. "妈妈的声音" */
     val name: String,
-    /** Must be a custom-capable backend: MiniMax / ElevenLabs / FishAudio */
+    /** Must be a custom-capable backend: MiniMax / ElevenLabs / FishAudio / Mossland */
     val backend: VoiceTtsBackend,
-    /** MiniMax voice_id / ElevenLabs voiceId / Fish reference_id */
+    /** MiniMax voice_id / ElevenLabs voiceId / Fish reference_id / Mossland voice_id */
     val voiceId: String,
     val model: String = "",
 )
@@ -106,7 +110,7 @@ object VoicePresets {
      * Classification (based on project TTS integrations):
      * - Local: System TTS
      * - Preset (no custom voice): Qwen
-     * - Custom (supports voice id / reference / clone): MiniMax, ElevenLabs, Fish Audio
+     * - Custom (supports voice id / reference / clone): MiniMax, ElevenLabs, Fish Audio, Mossland
      */
     val all: List<VoicePreset> = listOf(
         // —— Local ——
@@ -272,6 +276,17 @@ object VoicePresets {
             requiresApiKey = true,
             supportsCustomVoice = true,
         ),
+        VoicePreset(
+            id = "custom_mossland_voice",
+            tier = VoiceTier.Custom,
+            displayName = "Mossland 自定义",
+            description = "自定义 · 在 studio.mosi.cn 克隆后填写 voice_id",
+            backend = VoiceTtsBackend.Mossland,
+            voiceId = "",
+            model = "moss-tts",
+            requiresApiKey = true,
+            supportsCustomVoice = true,
+        ),
     )
 
     fun forTier(tier: VoiceTier): List<VoicePreset> = all.filter { it.tier == tier }
@@ -292,6 +307,7 @@ object VoicePresets {
         VoiceTtsBackend.MiniMax,
         VoiceTtsBackend.ElevenLabs,
         VoiceTtsBackend.FishAudio,
+        VoiceTtsBackend.Mossland,
     )
 }
 
@@ -450,6 +466,29 @@ private fun resolvePresetVoice(
                 )
             }
         }
+
+        VoiceTtsBackend.Mossland -> {
+            val existing = settings.ttsProviders.filterIsInstance<TTSProviderSetting.Mossland>().firstOrNull()
+            val apiKey = existing?.apiKey.orEmpty()
+            if (apiKey.isBlank()) {
+                VoiceCallTtsResolveResult.NeedsApiKey(VoiceTtsBackend.Mossland, "Mossland", preset)
+            } else if (voiceId.isBlank()) {
+                VoiceCallTtsResolveResult.Unavailable("请填写 Mossland 的 voice_id（在 studio.mosi.cn 克隆后获得）")
+            } else {
+                VoiceCallTtsResolveResult.Ready(
+                    (existing ?: TTSProviderSetting.Mossland()).copy(
+                        name = "VoiceCall · ${preset.displayName}",
+                        apiKey = apiKey,
+                        // Console is studio.mosi.cn; API host must be api.mosi.cn
+                        baseUrl = "https://api.mosi.cn",
+                        // Official id is moss-tts; map HF/console names like MOSS-TTS-v1.5-Flash
+                        model = normalizeMosslandModel(preset.model),
+                        voiceId = voiceId,
+                        format = "mp3",
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -512,8 +551,29 @@ fun Settings.withVoiceCallApiKey(backend: VoiceTtsBackend, apiKey: String): Sett
                 providers.add(TTSProviderSetting.FishAudio(apiKey = key, name = "Fish Audio TTS"))
             }
         }
+        VoiceTtsBackend.Mossland -> {
+            val idx = providers.indexOfFirst { it is TTSProviderSetting.Mossland }
+            if (idx >= 0) {
+                providers[idx] = (providers[idx] as TTSProviderSetting.Mossland).copy(apiKey = key)
+            } else {
+                providers.add(TTSProviderSetting.Mossland(apiKey = key, name = "Mossland TTS"))
+            }
+        }
     }
     return copy(ttsProviders = providers)
+}
+
+/** Map console/HF names (e.g. MOSS-TTS-v1.5-Flash) to official API model ids. */
+fun normalizeMosslandModel(raw: String): String {
+    val m = raw.trim()
+    if (m.isBlank()) return "moss-tts"
+    if (m.equals("moss-tts", ignoreCase = true)) return "moss-tts"
+    if (m.equals("moss-ttsd", ignoreCase = true)) return "moss-ttsd"
+    val lower = m.lowercase()
+    if (lower.contains("moss") && lower.contains("tts")) {
+        return if (lower.contains("ttsd") || lower.contains("speaker")) "moss-ttsd" else "moss-tts"
+    }
+    return "moss-tts"
 }
 
 fun Settings.withAssistantVoiceCall(

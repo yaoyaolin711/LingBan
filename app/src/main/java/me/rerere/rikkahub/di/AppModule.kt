@@ -40,6 +40,8 @@ import me.rerere.rikkahub.overlay.TaskBallManager
 import me.rerere.rikkahub.overlay.pet.CompanionPetHost
 import me.rerere.rikkahub.overlay.pet.CompanionPetRenderer
 import me.rerere.rikkahub.overlay.pet.PetRenderer
+import me.rerere.rikkahub.overlay.pet.PixelPetRenderer
+import me.rerere.rikkahub.overlay.pet.SwitchingPetRenderer
 import kotlinx.coroutines.Dispatchers
 import androidx.room.Room
 import me.rerere.rikkahub.service.ChatNotificationManager
@@ -313,7 +315,12 @@ val appModule = module {
         )
     }
 
-    single<PetRenderer> { CompanionPetRenderer() }
+    single<PetRenderer> {
+        SwitchingPetRenderer(
+            avatarRenderer = CompanionPetRenderer(),
+            pixelRenderer = PixelPetRenderer(),
+        )
+    }
 
     single {
         CompanionPetHost(

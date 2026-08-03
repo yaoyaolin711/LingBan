@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+  <title id="title">Animated blinking Claude pet</title>
+  <desc id="desc">A tiny orange square pet blinking slowly.</desc>
+  <style>
+    .eye-open { animation: blink 2.2s steps(1) infinite; }
+    .eye-closed { animation: blinkClosed 2.2s steps(1) infinite; opacity:0; }
+    @keyframes blink { 0%,88%,100%{opacity:1} 89%,95%{opacity:0} }
+    @keyframes blinkClosed { 0%,88%,100%{opacity:0} 89%,95%{opacity:1} }
+  </style>
+  <rect x="37" y="21" width="12" height="31" rx="3" fill="#f6a066" stroke="#a96b45" stroke-width="4"/>
+  <rect x="79" y="21" width="12" height="31" rx="3" fill="#f6a066" stroke="#a96b45" stroke-width="4"/>
+  <rect x="33" y="44" width="62" height="54" rx="4" fill="#f49a5e" stroke="#9d603f" stroke-width="4"/>
+  <rect x="45" y="33" width="38" height="16" fill="#f49a5e"/>
+  <rect x="20" y="62" width="17" height="19" rx="4" fill="#f6a066" stroke="#a96b45" stroke-width="4"/>
+  <rect x="91" y="62" width="17" height="19" rx="4" fill="#f6a066" stroke="#a96b45" stroke-width="4"/>
+  <g class="eye-open"><rect x="43" y="61" width="9" height="21" rx="2" fill="#232323"/><rect x="76" y="61" width="9" height="21" rx="2" fill="#232323"/></g>
+  <g class="eye-closed"><rect x="42" y="70" width="12" height="4" fill="#232323"/><rect x="75" y="70" width="12" height="4" fill="#232323"/></g>
+  <rect x="57" y="86" width="14" height="4" fill="#7d4633"/>
+  <rect x="47" y="96" width="7" height="16" fill="#e9844f"/>
+  <rect x="62" y="96" width="7" height="16" fill="#e9844f"/>
+  <rect x="77" y="96" width="7" height="16" fill="#e9844f"/>
+</svg>

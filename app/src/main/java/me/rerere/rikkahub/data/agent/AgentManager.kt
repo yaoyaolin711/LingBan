@@ -39,4 +39,9 @@ class AgentManager(
     fun cancel(reason: String = "cancelled") {
         queue.cancel(reason)
     }
+
+    /** Cancel the active device task and wait until it fully stops. */
+    suspend fun cancelAndJoin(reason: String = "cancelled") {
+        queue.cancelAndJoin(reason)
+    }
 }

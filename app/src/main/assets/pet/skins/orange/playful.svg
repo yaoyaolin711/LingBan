@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+  <title id="title">Animated party Claude pet</title>
+  <desc id="desc">A tiny orange square pet with falling confetti.</desc>
+  <style>
+    .confetti-a { animation: fall 1.4s steps(5) infinite; }
+    .confetti-b { animation: fall 1.4s steps(5) infinite .35s; }
+    @keyframes fall { 0%{transform:translateY(-18px);opacity:0} 20%,80%{opacity:1} 100%{transform:translateY(28px);opacity:0} }
+  </style>
+  <g class="confetti-a"><rect x="18" y="24" width="6" height="6" fill="#8b5cf6"/><rect x="106" y="32" width="7" height="7" fill="#22c55e"/><rect x="66" y="17" width="6" height="6" fill="#facc15"/></g>
+  <g class="confetti-b"><rect x="28" y="38" width="6" height="6" fill="#ef476f"/><rect x="98" y="50" width="6" height="6" fill="#60a5fa"/><rect x="55" y="30" width="6" height="6" fill="#f97316"/></g>
+  <rect x="37" y="22" width="12" height="29" rx="3" fill="#f39d64" stroke="#9d6040" stroke-width="4"/>
+  <rect x="79" y="22" width="12" height="29" rx="3" fill="#f39d64" stroke="#9d6040" stroke-width="4"/>
+  <path d="M52 8h24l13 37H39L52 8Z" fill="#22c55e" stroke="#17633a" stroke-width="4"/>
+  <rect x="49" y="28" width="31" height="7" fill="#f472b6"/>
+  <rect x="55" y="15" width="18" height="6" fill="#facc15"/>
+  <rect x="32" y="45" width="64" height="53" rx="4" fill="#f3975e" stroke="#965b3c" stroke-width="4"/>
+  <rect x="44" y="35" width="40" height="15" fill="#f3975e"/>
+  <rect x="20" y="64" width="17" height="18" rx="3" fill="#f39d64" stroke="#9d6040" stroke-width="4"/>
+  <rect x="91" y="64" width="17" height="18" rx="3" fill="#f39d64" stroke="#9d6040" stroke-width="4"/>
+  <rect x="43" y="61" width="9" height="18" rx="2" fill="#222"/>
+  <rect x="76" y="61" width="9" height="18" rx="2" fill="#222"/>
+  <rect x="55" y="85" width="18" height="5" fill="#7d4633"/>
+</svg>

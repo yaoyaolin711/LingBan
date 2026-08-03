@@ -434,6 +434,9 @@ class ChatService(
 
         val job = appScope.launch {
             try {
+                // Device tasks run on an independent appScope Job; cancel+join them
+                // before starting a new turn, otherwise the interrupted task keeps controlling the phone.
+                agentManagerOrNull()?.cancelAndJoin("chat_interrupt")
                 runCatching { previousJob?.join() }
                 finishInterruptedPendingTools(conversationId)
 
@@ -458,6 +461,8 @@ class ChatService(
                 }
 
                 _generationDoneFlow.emit(conversationId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 e.printStackTrace()
                 addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
@@ -496,6 +501,8 @@ class ChatService(
 
         val job = appScope.launch {
             try {
+                agentManagerOrNull()?.cancelAndJoin("chat_interrupt")
+                finishInterruptedPendingTools(conversationId)
                 val conversation = session.state.value
 
                 if (message.role == MessageRole.USER) {
@@ -518,6 +525,8 @@ class ChatService(
                 }
 
                 _generationDoneFlow.emit(conversationId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
             }
@@ -541,6 +550,7 @@ class ChatService(
 
         val job = appScope.launch {
             try {
+                agentManagerOrNull()?.cancelAndJoin("chat_interrupt")
                 val conversation = session.state.value
                 val toolName = conversation.messageNodes
                     .asSequence()
@@ -596,6 +606,8 @@ class ChatService(
                 }
 
                 _generationDoneFlow.emit(conversationId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_tool_approval))
             }
@@ -844,6 +856,8 @@ class ChatService(
                 }
             }
         }.onFailure {
+            if (it is CancellationException) throw it
+
             // 兜底取消 Live Update 通知（生成开始前失败时 onCompletion 不会执行）
             appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
 
@@ -978,12 +992,23 @@ class ChatService(
                 goal = decisionGoal,
                 conversationId = convIdStr,
             )
+        } catch (e: CancellationException) {
+            markDeviceProgressCancelled(conversationId, progressMessage.id)
+            throw e
         } finally {
             eventJob.cancel()
         }
 
         if (!hybrid) {
-            val finalText = if (result.success) result.summary else "操作未完成：${result.summary}"
+            val finalText = when {
+                result.success -> result.summary
+                result.summary.equals("cancelled", ignoreCase = true) ||
+                    result.summary.equals("chat_stop", ignoreCase = true) ||
+                    result.summary.equals("chat_interrupt", ignoreCase = true) ||
+                    result.summary.equals("user_stop", ignoreCase = true) ||
+                    result.summary.equals("superseded", ignoreCase = true) -> "操作已取消"
+                else -> "操作未完成：${result.summary}"
+            }
             val current = getConversationFlow(conversationId).value
             val updated = current.updateCurrentMessages(
                 current.currentMessages.map { msg ->
@@ -1709,10 +1734,25 @@ class ChatService(
 
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
-        agentManagerOrNull()?.cancel("chat_stop")
-        val job = sessions[conversationId]?.getJob() ?: return
-        job.cancel()
-        runCatching { job.join() }
+        val job = sessions[conversationId]?.getJob()
+        job?.cancel()
+        // Await device-task shutdown so a follow-up message cannot race with the old Runtime job.
+        agentManagerOrNull()?.cancelAndJoin("chat_stop")
+        runCatching { job?.join() }
         finishInterruptedPendingTools(conversationId)
+    }
+
+    private fun markDeviceProgressCancelled(conversationId: Uuid, progressMessageId: Uuid) {
+        val current = getConversationFlow(conversationId).value
+        val updated = current.updateCurrentMessages(
+            current.currentMessages.map { msg ->
+                if (msg.id == progressMessageId) {
+                    msg.copy(parts = listOf(UIMessagePart.Text("操作已取消")))
+                } else {
+                    msg
+                }
+            }
+        )
+        updateConversation(conversationId, updated)
     }
 }

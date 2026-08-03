@@ -56,8 +56,15 @@ data class Assistant(
     val enableCompanion: Boolean = false,
     /** 是否允许此人设主动找用户聊天（早安/晚间/沉默唤醒），按助手独立 */
     val proactiveChatEnabled: Boolean = false,
-    /** 桌面宠物悬浮窗（需悬浮窗权限；像素精灵渲染） */
+    /**
+     * 兼容旧字段：曾表示「像素精灵」。现由 [companionOverlayStyle] 驱动；
+     * 读写时与 PIXEL_PET 保持一致。
+     */
     val companionPetEnabled: Boolean = false,
+    /** 陪伴悬浮层样式：头像 或 像素桌宠 */
+    val companionOverlayStyle: CompanionOverlayStyle = CompanionOverlayStyle.AVATAR,
+    /** 像素桌宠皮肤包（仅 PIXEL_PET 时生效） */
+    val companionPixelPetSkin: CompanionPixelPetSkin = CompanionPixelPetSkin.PINK,
     /** 陪伴主动动作上限：消息 / 轻量工具 / 设备控制（预留） */
     val companionActionLevel: CompanionActionLevel = CompanionActionLevel.MESSAGE_ONLY,
     val companionCharacter: CompanionCharacterCard? = null,
@@ -90,6 +97,48 @@ enum class AssistantAffectScope {
     USER,
     ASSISTANT,
 }
+
+/** 陪伴悬浮层外观：圆形头像 或 WebView 像素桌宠 */
+@Serializable
+enum class CompanionOverlayStyle {
+    @SerialName("avatar")
+    AVATAR,
+
+    @SerialName("pixel_pet")
+    PIXEL_PET,
+}
+
+/**
+ * 像素桌宠皮肤（assets/pet/skins/<id>/）。
+ * 素材来自 Harzva/WellAgentPets（MIT）。
+ */
+@Serializable
+enum class CompanionPixelPetSkin(val assetId: String, val displayName: String) {
+    @SerialName("pink")
+    PINK(assetId = "pink", displayName = "粉色"),
+
+    @SerialName("pink_alt")
+    PINK_ALT(assetId = "pink_alt", displayName = "粉饰"),
+
+    @SerialName("orange")
+    ORANGE(assetId = "orange", displayName = "橙色"),
+
+    @SerialName("dark")
+    DARK(assetId = "dark", displayName = "暗黑"),
+}
+
+/** Keep [Assistant.companionPetEnabled] aligned with overlay style for older readers. */
+fun Assistant.withCompanionOverlayStyle(style: CompanionOverlayStyle): Assistant = copy(
+    companionOverlayStyle = style,
+    companionPetEnabled = style == CompanionOverlayStyle.PIXEL_PET,
+)
+
+/**
+ * Prefer [Assistant.companionOverlayStyle].
+ * Do not treat legacy [Assistant.companionPetEnabled] alone as PIXEL_PET —
+ * older builds set it true while still rendering the avatar.
+ */
+fun Assistant.resolvedCompanionOverlayStyle(): CompanionOverlayStyle = companionOverlayStyle
 
 @Serializable
 data class AssistantRegex(

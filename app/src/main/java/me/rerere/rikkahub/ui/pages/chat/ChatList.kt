@@ -94,7 +94,10 @@ import me.rerere.rikkahub.ui.components.ui.ErrorCardsDisplay
 import me.rerere.rikkahub.ui.components.ui.ListSelectableItem
 import me.rerere.rikkahub.ui.components.ui.ThinkingDots
 import me.rerere.rikkahub.ui.components.ui.Tooltip
-import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
+import me.rerere.rikkahub.ui.hooks.ChatFollowBottomEffect
+import me.rerere.rikkahub.ui.hooks.ChatUserScrollDetachEffect
+import me.rerere.rikkahub.ui.hooks.rememberChatFollowBottom
+import me.rerere.rikkahub.ui.hooks.scrollChatListToBottom
 import me.rerere.rikkahub.ui.theme.ChatFontProvider
 import me.rerere.rikkahub.ui.theme.SolaceAnimationDefault
 import me.rerere.rikkahub.ui.theme.SolaceTheme
@@ -236,9 +239,6 @@ private fun ChatListNormal(
     var selecting by remember { mutableStateOf(false) }
     var showExportSheet by remember { mutableStateOf(false) }
 
-    // 自动跟随键盘滚动
-    ImeLazyListAutoScroller(lazyListState = state)
-
     // 对话大小警告对话框
     val sizeInfo = rememberConversationSizeInfo(conversation)
     var showSizeWarningDialog by rememberSaveable(conversation.id) { mutableStateOf(true) }
@@ -265,38 +265,33 @@ private fun ChatListNormal(
         }
     }
 
+    val followController = rememberChatFollowBottom(
+        conversationId = conversation.id,
+        loading = loadingState,
+    )
+    ChatUserScrollDetachEffect(lazyListState = state, controller = followController)
+    ChatFollowBottomEffect(
+        lazyListState = state,
+        controller = followController,
+        enabled = settings.displaySetting.enableAutoScroll,
+        loading = loadingState,
+        messageCount = conversationUpdated.messageNodes.size,
+        streamKey = lastMessageScrollKey,
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize(),
     ) {
-        // 自动滚动到底部：新消息、开始生成、流式输出时跟随
-        if (settings.displaySetting.enableAutoScroll) {
-            LaunchedEffect(conversationUpdated.messageNodes.size) {
-                if (conversationUpdated.messageNodes.isNotEmpty()) {
-                    state.scrollChatToBottom(animated = true)
-                }
-            }
-            LaunchedEffect(loadingState) {
-                if (loadingState) {
-                    state.scrollChatToBottom(animated = true)
-                }
-            }
-            LaunchedEffect(loadingState, lastMessageScrollKey, isAtBottom) {
-                if (loadingState && isAtBottom) {
-                    state.scrollChatToBottom(animated = false)
-                }
-            }
-        }
-
-        // 判断最近是否滚动
+        // 判断最近是否滚动（避免 start/stop 快速切换时多个 delay 互相覆盖）
         LaunchedEffect(state.isScrollInProgress) {
             if (state.isScrollInProgress) {
                 isRecentScroll = true
-                delay(1500)
-                isRecentScroll = false
             } else {
                 delay(1500)
-                isRecentScroll = false
+                if (!state.isScrollInProgress) {
+                    isRecentScroll = false
+                }
             }
         }
 
@@ -534,7 +529,8 @@ private fun ChatListNormal(
                 show = isRecentScroll && !state.isScrollInProgress && settings.displaySetting.showMessageJumper && !captureProgress,
                 onLeft = settings.displaySetting.messageJumperOnLeft,
                 scope = scope,
-                state = state
+                state = state,
+                onScrollToBottom = { followController.setFollowBottom(true) },
             )
 
             // Suggestion
@@ -768,18 +764,7 @@ private fun ChatSuggestionsRow(
 }
 
 private suspend fun LazyListState.scrollChatToBottom(animated: Boolean) {
-    repeat(4) {
-        val target = layoutInfo.totalItemsCount - 1
-        if (target >= 0) {
-            if (animated) {
-                animateScrollToItem(target)
-            } else {
-                scrollToItem(target)
-            }
-            return
-        }
-        delay(16)
-    }
+    scrollChatListToBottom(this, animated)
 }
 
 @Composable
@@ -787,7 +772,8 @@ private fun BoxScope.MessageJumper(
     show: Boolean,
     onLeft: Boolean,
     scope: CoroutineScope,
-    state: LazyListState
+    state: LazyListState,
+    onScrollToBottom: () -> Unit = {},
 ) {
     AnimatedVisibility(
         visible = show,
@@ -865,6 +851,7 @@ private fun BoxScope.MessageJumper(
             }
             Surface(
                 onClick = {
+                    onScrollToBottom()
                     scope.launch {
                         state.scrollToItem(state.layoutInfo.totalItemsCount - 1)
                     }

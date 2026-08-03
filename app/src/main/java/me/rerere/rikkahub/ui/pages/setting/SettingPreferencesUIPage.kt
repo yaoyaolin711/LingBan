@@ -53,13 +53,19 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.hugeicons.stroke.FileImport
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.BubbleGlassStyle
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.data.datastore.DisplaySetting
+import me.rerere.rikkahub.data.datastore.description
+import me.rerere.rikkahub.data.datastore.displayName
+import me.rerere.rikkahub.data.datastore.resolvedBubbleGlassStyle
+import me.rerere.rikkahub.data.datastore.withBubbleGlassStyle
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FileUtils
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.ui.CardGroup
+import me.rerere.rikkahub.ui.components.ui.OptionalHslColorPicker
 import me.rerere.rikkahub.ui.components.ui.Select
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
@@ -182,15 +188,22 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                         }
                     )
                     item(
-                        headlineContent = { Text("磨砂气泡") },
-                        supportingContent = { Text("半透明填充 + 高光描边，接近毛玻璃观感") },
-                        trailingContent = {
-                            Switch(
-                                checked = displaySetting.frostedBubble,
-                                onCheckedChange = {
-                                    updateDisplaySetting(displaySetting.copy(frostedBubble = it))
-                                }
-                            )
+                        headlineContent = { Text("气泡磨砂样式") },
+                        supportingContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(displaySetting.resolvedBubbleGlassStyle().description())
+                                Select(
+                                    options = BubbleGlassStyle.entries,
+                                    selectedOption = displaySetting.resolvedBubbleGlassStyle(),
+                                    onOptionSelected = { style ->
+                                        updateDisplaySetting(displaySetting.withBubbleGlassStyle(style))
+                                    },
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .fillMaxWidth(),
+                                    optionToString = { it.displayName() },
+                                )
+                            }
                         },
                     )
                     item(
@@ -211,6 +224,30 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                                 selectedArgb = displaySetting.assistantBubbleColorArgb,
                                 onSelect = {
                                     updateDisplaySetting(displaySetting.copy(assistantBubbleColorArgb = it))
+                                },
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text("用户文字颜色") },
+                        supportingContent = {
+                            OptionalHslColorPicker(
+                                selectedArgb = displaySetting.userMessageTextColorArgb,
+                                themeColor = MaterialTheme.colorScheme.onSurface,
+                                onSelect = {
+                                    updateDisplaySetting(displaySetting.copy(userMessageTextColorArgb = it))
+                                },
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text("助手文字颜色") },
+                        supportingContent = {
+                            OptionalHslColorPicker(
+                                selectedArgb = displaySetting.assistantMessageTextColorArgb,
+                                themeColor = MaterialTheme.colorScheme.onSurface,
+                                onSelect = {
+                                    updateDisplaySetting(displaySetting.copy(assistantMessageTextColorArgb = it))
                                 },
                             )
                         },

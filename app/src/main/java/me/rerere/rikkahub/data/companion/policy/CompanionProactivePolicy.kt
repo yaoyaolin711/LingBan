@@ -167,7 +167,7 @@ object CompanionProactivePolicy {
     fun emotionToneHint(emotion: CompanionEmotionState): String = when (emotion) {
         CompanionEmotionState.CALM -> "当前情绪偏平静，语气平稳自然，不要过度热情。"
         CompanionEmotionState.WARM -> "当前情绪偏温暖，语气柔软亲近，可以稍微多一点关心。"
-        CompanionEmotionState.PLAYFUL -> "当前情绪偏俏皮，可以轻松一点、带点玩笑，但仍要尊重用户。"
+        CompanionEmotionState.PLAYFUL -> "当前情绪偏俏皮，可以轻松一点、带点玩笑，语气自然就好。"
         CompanionEmotionState.CONCERNED -> "当前情绪偏担忧，语气认真关切，优先关心用户状态，不要卖萌。"
     }
 

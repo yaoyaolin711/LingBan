@@ -48,6 +48,7 @@ fun TTSProviderConfigure(
                     is TTSProviderSetting.Step -> "Step"
                     is TTSProviderSetting.ElevenLabs -> "ElevenLabs"
                     is TTSProviderSetting.FishAudio -> "Fish Audio"
+                    is TTSProviderSetting.Mossland -> "Mossland"
                 },
                 options = providers,
                 readOnly = true,
@@ -64,6 +65,7 @@ fun TTSProviderConfigure(
                         TTSProviderSetting.MiMo::class -> "MiMo"
                         TTSProviderSetting.ElevenLabs::class -> "ElevenLabs"
                         TTSProviderSetting.FishAudio::class -> "Fish Audio"
+                        TTSProviderSetting.Mossland::class -> "Mossland"
                         TTSProviderSetting.Step::class -> "Step"
                         else -> providerClass.simpleName ?: "Unknown"
                     }
@@ -120,6 +122,11 @@ fun TTSProviderConfigure(
                             name = "Fish Audio TTS"
                         )
 
+                        TTSProviderSetting.Mossland::class -> TTSProviderSetting.Mossland(
+                            id = setting.id,
+                            name = "Mossland TTS"
+                        )
+
                         TTSProviderSetting.Step::class -> TTSProviderSetting.Step(
                             id = setting.id,
                             name = "Step TTS"
@@ -159,6 +166,7 @@ fun TTSProviderConfigure(
             is TTSProviderSetting.MiMo -> MiMoTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.ElevenLabs -> ElevenLabsTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.FishAudio -> FishAudioTTSConfiguration(setting, onValueChange)
+            is TTSProviderSetting.Mossland -> MosslandTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.Step -> StepTTSConfiguration(setting, onValueChange)
         }
     }
@@ -1198,6 +1206,60 @@ private fun StepTTSConfiguration(
             placeholder = { Text("例如: 语气温柔, 语速偏慢") },
             minLines = 2,
             maxLines = 4,
+        )
+    }
+}
+
+@Composable
+private fun MosslandTTSConfiguration(
+    setting: TTSProviderSetting.Mossland,
+    onValueChange: (TTSProviderSetting) -> Unit,
+) {
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_api_key)) },
+        description = { Text("在 studio.mosi.cn 控制台创建 API Key") },
+    ) {
+        OutlinedTextField(
+            value = setting.apiKey,
+            onValueChange = { onValueChange(setting.copy(apiKey = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("sk-...") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_base_url)) },
+        description = { Text(stringResource(R.string.setting_tts_page_base_url_description)) },
+    ) {
+        OutlinedTextField(
+            value = setting.baseUrl,
+            onValueChange = { onValueChange(setting.copy(baseUrl = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("https://api.mosi.cn") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_model)) },
+        description = { Text(stringResource(R.string.setting_tts_page_model_description)) },
+    ) {
+        OutlinedTextField(
+            value = setting.model,
+            onValueChange = { onValueChange(setting.copy(model = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("moss-tts") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_voice_id)) },
+        description = { Text("克隆音色后的 voice_id，或平台提供的音色 ID") },
+    ) {
+        OutlinedTextField(
+            value = setting.voiceId,
+            onValueChange = { onValueChange(setting.copy(voiceId = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("voice_id") },
         )
     }
 }

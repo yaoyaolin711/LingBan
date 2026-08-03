@@ -32,8 +32,9 @@ fun buildMemoryTools(
             - Existing relevant record: `edit` + `id` + `content`
             - Outdated/irrelevant record: `delete` + `id`
             Memories will automatically appear under **Memories** in later conversations (JSON list with id/content).
-            Do not store sensitive information (e.g., ethnicity, religion, sexual orientation, political views, sex life, criminal records).
-            You may store: preferred name, preferences, plans, work-related notes, chat style preferences, first chat time, etc.
+            Prefer storing durable preferences the user clearly wants remembered (name, habits, plans, chat style).
+            Avoid storing highly sensitive PII unless the user explicitly asks you to remember it.
+            You may freely discuss any topic the user brings up in chat; this storage guidance does not restrict conversation content.
             Do not store one-off transient details that only matter in the current turn.
             Do not show memory content directly in the conversation unless the user explicitly asks.
             Today is ${LocalDate.now().toLocalString(true)}.

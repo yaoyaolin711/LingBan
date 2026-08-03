@@ -82,6 +82,7 @@ class SettingsStore(
         val CUSTOM_THEMES = stringPreferencesKey("custom_themes")
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val CIVIL_CHAT_CONSENT = booleanPreferencesKey("civil_chat_consent_accepted")
 
         // 模型选择
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")
@@ -211,6 +212,7 @@ class SettingsStore(
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
                 developerMode = preferences[DEVELOPER_MODE] == true,
+                civilChatConsentAccepted = preferences[CIVIL_CHAT_CONSENT] == true,
                 displaySetting = JsonInstant.decodeFromString(preferences[DISPLAY_SETTING] ?: "{}"),
                 searchServices = preferences[SEARCH_SERVICES]?.let {
                     JsonInstant.decodeFromString(it)
@@ -386,6 +388,7 @@ class SettingsStore(
             preferences[THEME_ID] = settings.themeId
             preferences[CUSTOM_THEMES] = JsonInstant.encodeToString(settings.customThemes)
             preferences[DEVELOPER_MODE] = settings.developerMode
+            preferences[CIVIL_CHAT_CONSENT] = settings.civilChatConsentAccepted
             preferences[DISPLAY_SETTING] = JsonInstant.encodeToString(settings.displaySetting)
 
             preferences[FAVORITE_MODELS] = JsonInstant.encodeToString(settings.favoriteModels)
@@ -548,6 +551,8 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,
+    /** 是否已同意文明上网 / 绿色聊天提示（首次进入强制阅读） */
+    val civilChatConsentAccepted: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),
@@ -619,6 +624,33 @@ enum class ChatFontFamily {
 }
 
 @Serializable
+enum class BubbleGlassStyle {
+    /** 实心/主题默认填充 */
+    @SerialName("none")
+    NONE,
+
+    /** 轻透磨砂：香槟半透明 + 白色高光描边（原「磨砂气泡」） */
+    @SerialName("light_frost")
+    LIGHT_FROST,
+
+    /** 暗夜磨砂：深炭灰半透明 + 细亮边，接近深色毛玻璃面板 */
+    @SerialName("dark_frost")
+    DARK_FROST,
+}
+
+fun BubbleGlassStyle.displayName(): String = when (this) {
+    BubbleGlassStyle.NONE -> "关闭"
+    BubbleGlassStyle.LIGHT_FROST -> "轻透磨砂"
+    BubbleGlassStyle.DARK_FROST -> "暗夜磨砂"
+}
+
+fun BubbleGlassStyle.description(): String = when (this) {
+    BubbleGlassStyle.NONE -> "使用主题默认气泡填充"
+    BubbleGlassStyle.LIGHT_FROST -> "浅色半透明 + 高光描边"
+    BubbleGlassStyle.DARK_FROST -> "深色雾面 + 细亮边，接近毛玻璃面板"
+}
+
+@Serializable
 data class DisplaySetting(
     val userAvatar: Avatar = Avatar.Dummy,
     val userNickname: String = "",
@@ -626,12 +658,21 @@ data class DisplaySetting(
     val showUserAvatar: Boolean = true,
     val showAssistantBubble: Boolean = false,
     val bubbleOpacity: Float = 1.0f,
-    /** 磨砂半透明气泡（降低填充透明度并加高光描边） */
+    /**
+     * 兼容旧开关：曾表示开启轻透磨砂。
+     * 新逻辑请用 [bubbleGlassStyle]；加载时用 [resolvedBubbleGlassStyle]。
+     */
     val frostedBubble: Boolean = false,
+    /** 聊天气泡磨砂样式 */
+    val bubbleGlassStyle: BubbleGlassStyle = BubbleGlassStyle.NONE,
     /** 用户气泡自定义 ARGB；null 表示跟随主题 */
     val userBubbleColorArgb: Long? = null,
     /** 助手气泡自定义 ARGB；null 表示跟随主题渐变 */
     val assistantBubbleColorArgb: Long? = null,
+    /** 用户消息文字自定义 ARGB；null 表示跟随主题 */
+    val userMessageTextColorArgb: Long? = null,
+    /** 助手消息文字自定义 ARGB；null 表示跟随主题 */
+    val assistantMessageTextColorArgb: Long? = null,
     val showModelIcon: Boolean = true,
     val showModelName: Boolean = true,
     val showDateTimeInMessage: Boolean = false,
@@ -663,6 +704,18 @@ data class DisplaySetting(
     val chatCustomFontName: String = "",
     val enableVolumeKeyScroll: Boolean = false,
     val volumeKeyScrollRatio: Float = 1.0f,
+)
+
+/** Prefer [DisplaySetting.bubbleGlassStyle]; map legacy [DisplaySetting.frostedBubble] to 轻透磨砂. */
+fun DisplaySetting.resolvedBubbleGlassStyle(): BubbleGlassStyle = when {
+    bubbleGlassStyle != BubbleGlassStyle.NONE -> bubbleGlassStyle
+    frostedBubble -> BubbleGlassStyle.LIGHT_FROST
+    else -> BubbleGlassStyle.NONE
+}
+
+fun DisplaySetting.withBubbleGlassStyle(style: BubbleGlassStyle): DisplaySetting = copy(
+    bubbleGlassStyle = style,
+    frostedBubble = style == BubbleGlassStyle.LIGHT_FROST,
 )
 
 @Serializable

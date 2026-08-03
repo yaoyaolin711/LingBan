@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import me.rerere.rikkahub.data.accessibility.AgentEvent
 import me.rerere.rikkahub.data.accessibility.AgentEventBus
 import me.rerere.rikkahub.data.accessibility.UISnapshot
@@ -22,6 +24,7 @@ import me.rerere.rikkahub.data.agent.trace.AgentTrace
 import me.rerere.rikkahub.data.agent.trace.AgentTracer
 import java.util.ArrayDeque
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Task lifecycle: Perceive → Plan → Act → Verify.
@@ -65,6 +68,9 @@ class AgentRuntime(
     private val mutex = Mutex()
     private val taskPlanner: TaskPlanner? = planner as? TaskPlanner
     private val lightPlanner: LightweightTaskPlanner? = planner as? LightweightTaskPlanner
+
+    /** Set by [cancel]; cleared in [startTask]. Prevents tick from overwriting cancel with SUCCESS. */
+    private val cancelRequested = AtomicBoolean(false)
 
     private val _taskState = MutableStateFlow<TaskState?>(null)
     val taskState: StateFlow<TaskState?> = _taskState.asStateFlow()
@@ -122,6 +128,7 @@ class AgentRuntime(
     }
 
     suspend fun startTask(goal: String, maxFails: Int = 5): TaskState = mutex.withLock {
+        cancelRequested.set(false)
         clearPendingPlan()
         cachedObservation = null
         observationCollector?.clearLightCache()
@@ -161,6 +168,9 @@ class AgentRuntime(
                 lastError = "No active task. Call startTask() first.",
             )
         if (state.isTerminal) return state
+        if (cancelRequested.get() || scheduler.isStopped()) {
+            return finishTrace(state.withPhase(AgentPhase.FAILED, "cancelled"))
+        }
         if (state.goal.isBlank()) {
             state = state.withPhase(AgentPhase.FAILED, "Empty goal")
             return finishTrace(state)
@@ -575,6 +585,13 @@ class AgentRuntime(
         var steps = 0
         var state = _taskState.value!!
         while (!state.isTerminal && steps < maxSteps) {
+            coroutineContext.ensureActive()
+            if (cancelRequested.get() || scheduler.isStopped()) {
+                state = finishTrace(state.withPhase(AgentPhase.FAILED, "cancelled"))
+                break
+            }
+            // Re-read after cancel() may have marked the task terminal mid-loop.
+            _taskState.value?.takeIf { it.isTerminal }?.let { return it }
             state = tick()
             steps++
         }
@@ -601,11 +618,26 @@ class AgentRuntime(
     }
 
     fun cancel(reason: String = "cancelled") {
+        cancelRequested.set(true)
         scheduler.cancelAll(reason)
         runJob?.cancel()
         runJob = null
-        activePlanStep = activePlanStep?.copy(status = StepStatus.FAILED)
-        clearPendingPlan(clearActive = false)
+        // Prefer locking so pendingActions clear does not race tick; if tick holds the lock,
+        // cancelRequested + FAILED state are enough for tick to exit without SUCCESS overwrite.
+        if (mutex.tryLock()) {
+            try {
+                activePlanStep = activePlanStep?.copy(status = StepStatus.FAILED)
+                clearPendingPlan(clearActive = false)
+                markCancelledLocked(reason)
+            } finally {
+                mutex.unlock()
+            }
+        } else {
+            markCancelledLocked(reason)
+        }
+    }
+
+    private fun markCancelledLocked(reason: String) {
         _taskState.update { current ->
             val next = current?.takeUnless { it.isTerminal }
                 ?.withPhase(AgentPhase.FAILED, reason)
@@ -631,22 +663,39 @@ class AgentRuntime(
         lastAction: AgentAction? = null,
         lastActionResult: ActionExecuteResult? = null,
     ): TaskState {
-        _taskState.value = state
-        memory?.writeTaskState(state, durable = durable)
+        val existing = _taskState.value
+        // Cancel already won: never let a late SUCCESS from tick overwrite FAILED.
+        if (existing != null &&
+            existing.taskId == state.taskId &&
+            existing.isTerminal &&
+            existing.state == AgentPhase.FAILED &&
+            (state.state == AgentPhase.SUCCESS || !state.isTerminal || cancelRequested.get())
+        ) {
+            if (state.state == AgentPhase.SUCCESS || !state.isTerminal) {
+                return existing
+            }
+        }
+        val toCommit = if (cancelRequested.get() && state.state == AgentPhase.SUCCESS) {
+            state.withPhase(AgentPhase.FAILED, "cancelled")
+        } else {
+            state
+        }
+        _taskState.value = toCommit
+        memory?.writeTaskState(toCommit, durable = durable)
         // Sync AgentState off the hot path without blocking tick callers that already hold mutex.
         appScope.launch(Dispatchers.Default) {
             stateManager?.syncFromTask(
-                task = state,
+                task = toCommit,
                 observation = observation,
                 lastAction = lastAction,
                 lastActionResult = lastActionResult,
                 emitEvent = true,
             )
-            if (state.isTerminal) {
+            if (toCommit.isTerminal) {
                 // keep last snapshot for UI briefly; clear on next startTask
             }
         }
-        return state
+        return toCommit
     }
 
     private fun clearPendingPlan(clearActive: Boolean = true) {

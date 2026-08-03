@@ -8,7 +8,7 @@ import me.rerere.rikkahub.data.accessibility.UISnapshot
 import me.rerere.rikkahub.service.SolaceAccessibilityService
 import me.rerere.rikkahub.utils.isSolaceAccessibilityEnabledInSystemSettings
 import me.rerere.rikkahub.utils.openAccessibilitySettings
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Single implementation of phone control primitives.
@@ -19,17 +19,26 @@ import java.util.concurrent.atomic.AtomicBoolean
 class PhoneControlCore(
     private val context: Context,
 ) {
-    private val runtimeExclusive = AtomicBoolean(false)
+    /**
+     * Runtime 独占令牌：>0 表示占用中。
+     * 只有持有相同 token 的 [endRuntimeExclusive] 才能解除，避免旧任务 finally 清掉新任务的占用。
+     */
+    private val exclusiveToken = AtomicInteger(0)
+    private val tokenSeq = AtomicInteger(0)
 
-    fun beginRuntimeExclusive() {
-        runtimeExclusive.set(true)
+    /** @return 占用令牌，结束时必须原样传给 [endRuntimeExclusive] */
+    fun beginRuntimeExclusive(): Int {
+        val token = tokenSeq.incrementAndGet().coerceAtLeast(1)
+        exclusiveToken.set(token)
+        return token
     }
 
-    fun endRuntimeExclusive() {
-        runtimeExclusive.set(false)
+    fun endRuntimeExclusive(token: Int) {
+        if (token <= 0) return
+        exclusiveToken.compareAndSet(token, 0)
     }
 
-    fun isRuntimeExclusive(): Boolean = runtimeExclusive.get()
+    fun isRuntimeExclusive(): Boolean = exclusiveToken.get() != 0
 
     fun serviceOrNull(openSettingsIfMissing: Boolean = false): SolaceAccessibilityService? {
         val service = SolaceAccessibilityService.instance
@@ -46,7 +55,7 @@ class PhoneControlCore(
 
     /** Tool path: reject while Runtime owns the device. */
     fun guardToolsAllowed(): CoreResult? {
-        if (runtimeExclusive.get()) {
+        if (isRuntimeExclusive()) {
             return CoreResult(false, ERROR_DEVICE_BUSY)
         }
         return null

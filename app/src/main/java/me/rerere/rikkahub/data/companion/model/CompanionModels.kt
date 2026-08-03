@@ -50,7 +50,7 @@ enum class CompanionRelationshipStage {
 
 @Serializable
 data class CompanionRelationshipContext(
-    val tone: String = "polite",
+    val tone: String = "neutral",
     val initiative: String = "low",
     val care: String = "low",
 )

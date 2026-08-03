@@ -62,7 +62,11 @@ const val COMPANION_BUBBLE_MAX_CHARS = 40
  */
 class CompanionPetRenderer : PetRenderer {
     @Composable
-    override fun Content(state: CompanionPetState, onClick: () -> Unit) {
+    override fun Content(
+        state: CompanionPetState,
+        onClick: () -> Unit,
+        besidePet: @Composable () -> Unit,
+    ) {
         val speaking = state.bubbleText.isNotBlank()
         val glow = emotionGlowColor(state.emotion)
         val motion = rememberCompanionAvatarMotion(emotion = state.emotion, speaking = speaking)
@@ -71,17 +75,18 @@ class CompanionPetRenderer : PetRenderer {
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(4.dp)
-                .clickable(onClick = onClick),
+            modifier = Modifier.padding(4.dp),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable(onClick = onClick),
+            ) {
                 Box(contentAlignment = Alignment.Center) {
                     Canvas(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .offset(y = 4.dp)
-                            .size(width = 48.dp, height = 12.dp)
+                            .offset(y = 3.dp)
+                            .size(width = 34.dp, height = 8.dp)
                             .graphicsLayer {
                                 translationY = motion.bobY * 0.3f
                                 alpha = 0.3f
@@ -107,7 +112,7 @@ class CompanionPetRenderer : PetRenderer {
                                 scaleY = motion.scale
                             },
                     ) {
-                        Canvas(modifier = Modifier.size(84.dp)) {
+                        Canvas(modifier = Modifier.size(58.dp)) {
                             val r = size.minDimension / 2f
                             drawCircle(
                                 brush = Brush.radialGradient(
@@ -125,11 +130,13 @@ class CompanionPetRenderer : PetRenderer {
                         CompanionAvatarFace(
                             name = state.assistantName.ifBlank { "Solace" },
                             avatar = state.avatar,
-                            modifier = Modifier.size(68.dp),
+                            modifier = Modifier.size(46.dp),
                         )
                     }
                 }
             }
+
+            besidePet()
 
             AnimatedVisibility(
                 visible = speaking,
@@ -185,7 +192,7 @@ private fun CompanionAvatarFace(
             is Avatar.Image -> {
                 val context = LocalContext.current
                 val density = LocalDensity.current
-                val px = with(density) { 136.dp.roundToPx() }
+                val px = with(density) { 92.dp.roundToPx() }
                 val request = remember(avatar.url, px) {
                     ImageRequest.Builder(context)
                         .data(avatar.url)
@@ -203,15 +210,15 @@ private fun CompanionAvatarFace(
                 BasicText(
                     text = avatar.content,
                     autoSize = TextAutoSize.StepBased(
-                        minFontSize = 18.sp,
-                        maxFontSize = 40.sp,
+                        minFontSize = 14.sp,
+                        maxFontSize = 28.sp,
                     ),
                     style = TextStyle(
                         textAlign = TextAlign.Center,
                         lineHeight = 0.9.em,
                     ),
                     maxLines = 1,
-                    modifier = Modifier.padding(6.dp),
+                    modifier = Modifier.padding(4.dp),
                 )
             }
             is Avatar.Dummy -> {
@@ -224,8 +231,8 @@ private fun CompanionAvatarFace(
                     BasicText(
                         text = name.take(1).ifBlank { "S" }.uppercase(),
                         autoSize = TextAutoSize.StepBased(
-                            minFontSize = 18.sp,
-                            maxFontSize = 36.sp,
+                            minFontSize = 14.sp,
+                            maxFontSize = 26.sp,
                         ),
                         style = TextStyle(
                             color = Color.White.copy(alpha = 0.92f),
@@ -259,10 +266,10 @@ private fun rememberCompanionAvatarMotion(
         else -> 1300
     }
     val bobAmp = when {
-        speaking -> 6f
-        emotion == CompanionEmotionState.PLAYFUL -> 6f
-        emotion == CompanionEmotionState.CONCERNED -> 2f
-        else -> 3.5f
+        speaking -> 4f
+        emotion == CompanionEmotionState.PLAYFUL -> 4f
+        emotion == CompanionEmotionState.CONCERNED -> 1.5f
+        else -> 2.5f
     }
     val swayAmp = when {
         speaking -> 2.5f

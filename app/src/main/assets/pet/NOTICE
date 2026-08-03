@@ -1,0 +1,20 @@
+# Pet assets notice
+
+SVG emotion frames under `skins/` (and legacy `svg/`) are adapted from the
+unofficial [Harzva/WellAgentPets](https://github.com/Harzva/WellAgentPets)
+collection, provided under that repository's MIT license and NOTICE terms.
+
+Skin packs bundled in this app:
+
+| Pack id   | Source collection                         |
+|-----------|-------------------------------------------|
+| pink      | pink/animated (blink / heart / dance / moon) |
+| pink_alt  | pink/animated (bonnet / flower / ribbon / witch) |
+| orange    | orange/animated (blink / wave / party / sleep) |
+| dark      | dark/wizard (frames 01 / 06 / 12 / 18)    |
+
+- Not affiliated with Anthropic, Claude, or Claude Code.
+- Product names and marks belong to their respective owners.
+- This app does not claim trademark rights to those marks.
+
+Local shell files (`index.html`, `pet.css`, `pet.js`) are original to this project.

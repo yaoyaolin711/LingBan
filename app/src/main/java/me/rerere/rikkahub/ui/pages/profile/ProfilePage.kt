@@ -38,7 +38,6 @@ import me.rerere.hugeicons.stroke.Megaphone01
 import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.ServerStack01
 import me.rerere.hugeicons.stroke.Settings03
-import me.rerere.hugeicons.stroke.Share04
 import me.rerere.hugeicons.stroke.Sun01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -241,12 +240,6 @@ fun ProfilePage() {
                         leadingContent = { Icon(HugeIcons.Sun01, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_theme_setting)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_theme_setting_desc)) },
-                    )
-                    item(
-                        onClick = { nav.navigate(Screen.Setting) },
-                        leadingContent = { Icon(HugeIcons.Share04, null, tint = colors.primary) },
-                        headlineContent = { Text(stringResource(R.string.settings)) },
-                        supportingContent = { Text(stringResource(R.string.profile_page_subtitle)) },
                     )
                     item(
                         onClick = { nav.navigate(Screen.SettingAbout) },

@@ -10,6 +10,7 @@ import me.rerere.tts.provider.providers.GeminiTTSProvider
 import me.rerere.tts.provider.providers.GroqTTSProvider
 import me.rerere.tts.provider.providers.MiMoTTSProvider
 import me.rerere.tts.provider.providers.MiniMaxTTSProvider
+import me.rerere.tts.provider.providers.MosslandTTSProvider
 import me.rerere.tts.provider.providers.OpenAITTSProvider
 import me.rerere.tts.provider.providers.QwenTTSProvider
 import me.rerere.tts.provider.providers.StepTTSProvider
@@ -28,6 +29,7 @@ class TTSManager(private val context: Context) {
     private val stepProvider = StepTTSProvider()
     private val elevenLabsProvider = ElevenLabsTTSProvider()
     private val fishAudioProvider = FishAudioTTSProvider()
+    private val mosslandProvider = MosslandTTSProvider()
 
     fun generateSpeech(
         providerSetting: TTSProviderSetting,
@@ -44,6 +46,7 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.MiMo -> miMoProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.ElevenLabs -> elevenLabsProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.FishAudio -> fishAudioProvider.generateSpeech(context, providerSetting, request)
+            is TTSProviderSetting.Mossland -> mosslandProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.Step -> stepProvider.generateSpeech(context, providerSetting, request)
         }
     }
@@ -64,6 +67,7 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.MiMo -> miMoProvider.promptGuidance
             is TTSProviderSetting.ElevenLabs -> elevenLabsProvider.promptGuidance
             is TTSProviderSetting.FishAudio -> fishAudioProvider.promptGuidance
+            is TTSProviderSetting.Mossland -> mosslandProvider.promptGuidance
             is TTSProviderSetting.Step -> stepProvider.promptGuidance
         }
     }

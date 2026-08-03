@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.data.agent
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,10 +52,22 @@ class AgentTaskQueue(
             )
         )
 
-        val deferred = CompletableDeferred<AgentRunResult>()
-        mutex.withLock {
-            cancelInternal(reason = "superseded", emitEvent = true)
+        // Stop any previous device job and wait until it fully exits before starting a new one.
+        // Joining outside the mutex avoids deadlocking the job's finally block.
+        cancelAndJoin(reason = "superseded")
 
+        val deferred = CompletableDeferred<AgentRunResult>()
+        var leftoverJob: Job? = null
+        mutex.withLock {
+            // Another concurrent submit may have started between join and here.
+            if (runningJob?.isActive == true) {
+                leftoverJob = runningJob
+                cancelInternal(reason = "superseded", emitEvent = true)
+            }
+        }
+        runCatching { leftoverJob?.join() }
+
+        mutex.withLock {
             activeTaskId = taskId
             activeGoal = goal
             activeConversationId = conversationId
@@ -63,8 +76,8 @@ class AgentTaskQueue(
             val effectiveMode = ExecutionMode.RULE
 
             val job = appScope.launch {
+                val exclusiveToken = core.beginRuntimeExclusive()
                 try {
-                    core.beginRuntimeExclusive()
                     runtime.eventConversationId = conversationId
                     eventBus.tryEmit(
                         AgentRuntimeEvent.TaskStarted(
@@ -105,6 +118,18 @@ class AgentTaskQueue(
                         )
                     }
                     deferred.complete(result)
+                } catch (e: CancellationException) {
+                    val result = AgentRunResult(
+                        taskId = taskId,
+                        goal = goal,
+                        success = false,
+                        summary = "cancelled",
+                        phase = AgentPhase.FAILED,
+                        conversationId = conversationId,
+                    )
+                    // TaskCancelled is emitted by cancelInternal; avoid duplicate Failed noise.
+                    deferred.complete(result)
+                    throw e
                 } catch (e: Exception) {
                     val result = AgentRunResult(
                         taskId = taskId,
@@ -124,7 +149,8 @@ class AgentTaskQueue(
                     )
                     deferred.complete(result)
                 } finally {
-                    core.endRuntimeExclusive()
+                    // 仅释放本任务的占用令牌，避免清掉后续新任务的独占
+                    core.endRuntimeExclusive(exclusiveToken)
                     if (activeTaskId == taskId) {
                         activeTaskId = null
                         activeGoal = ""
@@ -139,10 +165,23 @@ class AgentTaskQueue(
 
     fun cancel(reason: String = "cancelled") {
         appScope.launch {
-            mutex.withLock {
+            cancelAndJoin(reason)
+        }
+    }
+
+    /**
+     * Cancel the active device task and wait until its Job fully stops.
+     * Callers that start a new chat turn must use this (not fire-and-forget [cancel]).
+     */
+    suspend fun cancelAndJoin(reason: String = "cancelled") {
+        val jobToJoin = mutex.withLock {
+            val job = runningJob
+            if (job != null || activeTaskId != null) {
                 cancelInternal(reason = reason, emitEvent = true)
             }
+            job
         }
+        runCatching { jobToJoin?.join() }
     }
 
     private fun cancelInternal(reason: String, emitEvent: Boolean) {
@@ -152,7 +191,7 @@ class AgentTaskQueue(
         runtime.cancel(reason)
         runningJob?.cancel()
         runningJob = null
-        core.endRuntimeExclusive()
+        // 占用由 Job finally 用 token 释放，这里不再无条件 end，防止清掉新任务占用
         if (emitEvent && prevId != null) {
             eventBus.tryEmit(
                 AgentRuntimeEvent.TaskCancelled(

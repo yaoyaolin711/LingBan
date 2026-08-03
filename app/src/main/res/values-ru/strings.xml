@@ -1103,7 +1103,7 @@
   <string name="setting_page_preferences">Настройки</string>
   <string name="setting_page_preferences_desc">Тема, уведомления, интерфейс и общие настройки</string>
   <string name="setting_page_preferences_theme">Тема</string>
-  <string name="setting_page_preferences_theme_desc">Динамические цвета, тема, тёмный режим AMOLED</string>
+  <string name="setting_page_preferences_theme_desc">Режим цвета, динамические цвета, тема, тёмный режим AMOLED</string>
   <string name="setting_page_preferences_notification">Уведомления</string>
   <string name="setting_page_preferences_notification_desc">Уведомления об обновлениях и генерации сообщений</string>
   <string name="setting_page_preferences_general">Общие</string>

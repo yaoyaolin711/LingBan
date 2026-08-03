@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -29,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -76,6 +78,8 @@ import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.datastore.BubbleGlassStyle
+import me.rerere.rikkahub.data.datastore.resolvedBubbleGlassStyle
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.MessageNode
@@ -360,43 +364,67 @@ private fun MessagePartsBlock(
             is MessagePartBlock.ContentBlock -> key(block.index) {
                 when (val part = block.part) {
                     is UIMessagePart.Text -> {
+                        val glassStyle = settings.displaySetting.resolvedBubbleGlassStyle()
+                        val customTextColor = when (role) {
+                            MessageRole.USER -> settings.displaySetting.userMessageTextColorArgb?.let {
+                                Color(it.toInt())
+                            }
+                            else -> settings.displaySetting.assistantMessageTextColorArgb?.let {
+                                Color(it.toInt())
+                            }
+                        } ?: if (glassStyle == BubbleGlassStyle.DARK_FROST) {
+                            Color.White.copy(alpha = 0.94f)
+                        } else {
+                            null
+                        }
+                        val markdownContent = @Composable {
+                            MarkdownBlock(
+                                content = part.text.replaceRegexes(
+                                    assistant = assistant,
+                                    scope = if (role == MessageRole.USER) {
+                                        AssistantAffectScope.USER
+                                    } else {
+                                        AssistantAffectScope.ASSISTANT
+                                    },
+                                    visual = true,
+                                ),
+                                onClickCitation = handleClickCitation,
+                            )
+                        }
+                        val coloredMarkdown = @Composable {
+                            if (customTextColor != null) {
+                                CompositionLocalProvider(LocalContentColor provides customTextColor) {
+                                    ProvideTextStyle(LocalTextStyle.current.copy(color = customTextColor)) {
+                                        markdownContent()
+                                    }
+                                }
+                            } else {
+                                markdownContent()
+                            }
+                        }
                         val textContent = @Composable {
                             if (role == MessageRole.USER) {
                                 SolaceUserBubble(
                                     modifier = if (loading) Modifier else Modifier.animateContentSize(),
                                     opacity = settings.displaySetting.bubbleOpacity,
-                                    frosted = settings.displaySetting.frostedBubble,
+                                    glassStyle = glassStyle,
                                     customColor = settings.displaySetting.userBubbleColorArgb?.let {
-                                        androidx.compose.ui.graphics.Color(it.toInt())
+                                        Color(it.toInt())
                                     },
                                     onClick = { onUserMessageClick?.invoke() },
                                 ) {
-                                    MarkdownBlock(
-                                        content = part.text.replaceRegexes(
-                                            assistant = assistant,
-                                            scope = AssistantAffectScope.USER,
-                                            visual = true,
-                                        ),
-                                        onClickCitation = handleClickCitation
-                                    )
+                                    coloredMarkdown()
                                 }
                             } else {
                                 SolaceAssistantBubble(
                                     modifier = if (loading) Modifier else Modifier.animateContentSize(),
                                     opacity = settings.displaySetting.bubbleOpacity,
-                                    frosted = settings.displaySetting.frostedBubble,
+                                    glassStyle = glassStyle,
                                     customColor = settings.displaySetting.assistantBubbleColorArgb?.let {
-                                        androidx.compose.ui.graphics.Color(it.toInt())
+                                        Color(it.toInt())
                                     },
                                 ) {
-                                    MarkdownBlock(
-                                        content = part.text.replaceRegexes(
-                                            assistant = assistant,
-                                            scope = AssistantAffectScope.ASSISTANT,
-                                            visual = true,
-                                        ),
-                                        onClickCitation = handleClickCitation,
-                                    )
+                                    coloredMarkdown()
                                 }
                             }
                         }
