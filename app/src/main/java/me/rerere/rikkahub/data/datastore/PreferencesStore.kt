@@ -680,8 +680,8 @@ fun BubbleGlassStyle.displayName(): String = when (this) {
 
 fun BubbleGlassStyle.description(): String = when (this) {
     BubbleGlassStyle.NONE -> "使用主题默认气泡填充"
-    BubbleGlassStyle.LIGHT_FROST -> "浅色半透明 + 高光描边"
-    BubbleGlassStyle.DARK_FROST -> "深色雾面 + 细亮边，接近毛玻璃面板"
+    BubbleGlassStyle.LIGHT_FROST -> "浅色薄透玻璃，通透轻盈"
+    BubbleGlassStyle.DARK_FROST -> "深色厚重雾面，磨砂感更强"
 }
 
 @Serializable
@@ -754,6 +754,8 @@ data class DisplaySetting(
     val bubbleGlassStyle: BubbleGlassStyle = BubbleGlassStyle.NONE,
     /** 聊天气泡填充方式 */
     val bubbleFillStyle: BubbleFillStyle = BubbleFillStyle.GRADIENT,
+    /** 是否显示气泡描边（有边框 / 无边框） */
+    val showBubbleBorder: Boolean = true,
     /** 用户气泡自定义 ARGB；null 表示跟随主题 */
     val userBubbleColorArgb: Long? = null,
     /** 助手气泡自定义 ARGB；null 表示跟随主题渐变 */

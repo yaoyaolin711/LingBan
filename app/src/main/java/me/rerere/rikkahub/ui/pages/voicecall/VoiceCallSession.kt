@@ -96,6 +96,7 @@ class VoiceCallSession(
     private var lastTranscriptChangeAt = 0L
     private var lastStableAutoSubmitAt = 0L
     private var lastLoudAt = 0L
+    private val bargeInDetector = BargeInEnergyDetector(appContext, scope)
 
     fun start() {
         if (started) return
@@ -251,12 +252,13 @@ class VoiceCallSession(
         }
     }
 
-    /** Barge-in while speaking / thinking. */
+    /** Barge-in while speaking / thinking (manual or auto energy detect during Speaking). */
     fun interrupt() {
         when (_ui.value.phase) {
             VoiceCallPhase.Speaking, VoiceCallPhase.Thinking -> {
                 awaitingGeneration = false
                 submitting = false
+                bargeInDetector.stop()
                 speakWatchJob?.cancel()
                 tts.stop()
                 scope.launch { chatService.stopGeneration(conversationId) }
@@ -272,6 +274,7 @@ class VoiceCallSession(
         started = false
         awaitingGeneration = false
         submitting = false
+        bargeInDetector.stop()
         generationJob?.cancel()
         speakWatchJob?.cancel()
         asrCollectJob?.cancel()
@@ -513,6 +516,7 @@ class VoiceCallSession(
         VoiceCallDiag.log(TAG, "speakReply len=${textToSpeak.length}")
 
         speakWatchJob?.cancel()
+        bargeInDetector.stop()
         speakWatchJob = scope.launch {
             asr.stop()
             delay(80)
@@ -520,9 +524,19 @@ class VoiceCallSession(
             withTimeoutOrNull(15_000) {
                 tts.isSpeaking.first { it }
             }
+            // Auto barge-in only while TTS is playing (not during Thinking).
+            if (_ui.value.phase == VoiceCallPhase.Speaking) {
+                bargeInDetector.start {
+                    if (_ui.value.phase == VoiceCallPhase.Speaking) {
+                        VoiceCallDiag.log(TAG, "auto barge-in → interrupt")
+                        interrupt()
+                    }
+                }
+            }
             withTimeoutOrNull(180_000) {
                 tts.isSpeaking.first { !it }
             }
+            bargeInDetector.stop()
             if (_ui.value.phase == VoiceCallPhase.Speaking) {
                 setPhase(VoiceCallPhase.Listening, "正在聆听…")
                 beginListening(restart = true)

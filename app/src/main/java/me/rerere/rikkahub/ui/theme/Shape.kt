@@ -20,14 +20,14 @@ data class SolaceShapes(
     val glassTile: Shape = RoundedCornerShape(22.dp),
     val bubbleUser: Shape = RoundedCornerShape(
         topStart = 22.dp,
-        topEnd = 22.dp,
+        topEnd = 8.dp,
         bottomStart = 22.dp,
-        bottomEnd = 8.dp,
+        bottomEnd = 22.dp,
     ),
     val bubbleAssistant: Shape = RoundedCornerShape(
-        topStart = 22.dp,
+        topStart = 8.dp,
         topEnd = 22.dp,
-        bottomStart = 8.dp,
+        bottomStart = 22.dp,
         bottomEnd = 22.dp,
     ),
     val pill: Shape = RoundedCornerShape(50),

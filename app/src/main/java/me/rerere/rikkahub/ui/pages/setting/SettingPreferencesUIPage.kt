@@ -236,6 +236,40 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                         },
                     )
                     item(
+                        headlineContent = { Text("气泡边框") },
+                        supportingContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    if (displaySetting.showBubbleBorder) {
+                                        "描边勾勒气泡轮廓"
+                                    } else {
+                                        "无描边，更干净的块面"
+                                    }
+                                )
+                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                    SegmentedButton(
+                                        selected = displaySetting.showBubbleBorder,
+                                        onClick = {
+                                            updateDisplaySetting(displaySetting.copy(showBubbleBorder = true))
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                    ) {
+                                        Text("有边框")
+                                    }
+                                    SegmentedButton(
+                                        selected = !displaySetting.showBubbleBorder,
+                                        onClick = {
+                                            updateDisplaySetting(displaySetting.copy(showBubbleBorder = false))
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                    ) {
+                                        Text("无边框")
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    item(
                         headlineContent = { Text("用户气泡颜色") },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

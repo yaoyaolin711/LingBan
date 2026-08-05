@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -34,11 +35,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -138,91 +142,178 @@ fun ChatMessage(
     val navController = LocalNavController.current
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
+
+    val enableSentenceSend = assistant?.enableSentenceSend == true &&
+        message.role == MessageRole.ASSISTANT
+    val fullText = remember(message.parts) {
+        message.parts.filterIsInstance<UIMessagePart.Text>().joinToString("") { it.text }
+    }
+    val cps = assistant?.sentenceCharsPerSecond?.coerceIn(2f, 30f) ?: 10f
+    var startedWhileLoading by remember(message.id) { mutableStateOf(false) }
+    LaunchedEffect(message.id, loading) {
+        if (loading) {
+            startedWhileLoading = true
+        }
+    }
+    var revealedSentenceCount by remember(message.id) { mutableIntStateOf(0) }
+    var revealedSentences by remember(message.id) { mutableStateOf<List<String>>(emptyList()) }
+    var isRevealing by remember(message.id) { mutableStateOf(false) }
+
+    val shouldAnimateSentenceSend = enableSentenceSend && lastMessage &&
+        (loading || startedWhileLoading)
+
+    LaunchedEffect(message.id, fullText, loading, enableSentenceSend, cps, lastMessage, startedWhileLoading) {
+        if (!enableSentenceSend) {
+            revealedSentences = emptyList()
+            isRevealing = false
+            return@LaunchedEffect
+        }
+        if (!shouldAnimateSentenceSend) {
+            revealedSentences = SentenceReveal.splitSentences(fullText)
+            isRevealing = false
+            return@LaunchedEffect
+        }
+        while (true) {
+            val available = SentenceReveal.availableSentences(
+                text = fullText,
+                includeIncomplete = !loading,
+            )
+            if (revealedSentenceCount < available.size) {
+                isRevealing = true
+                // 首句立即展示，后续句按上一句长度等待（模拟打字节奏）
+                if (revealedSentenceCount > 0) {
+                    delay(SentenceReveal.delayMs(available[revealedSentenceCount - 1], cps))
+                }
+                revealedSentenceCount++
+                revealedSentences = available.take(revealedSentenceCount)
+                continue
+            }
+            revealedSentences = available
+            if (!loading) {
+                revealedSentences = SentenceReveal.splitSentences(fullText)
+                isRevealing = false
+                break
+            }
+            isRevealing = true
+            awaitCancellation()
+        }
+    }
+
+    val displayParts = remember(message.parts, revealedSentences, enableSentenceSend, fullText, shouldAnimateSentenceSend) {
+        if (!enableSentenceSend) {
+            message.parts
+        } else {
+            val sentences = if (shouldAnimateSentenceSend) {
+                revealedSentences
+            } else {
+                SentenceReveal.splitSentences(fullText)
+            }
+            SentenceReveal.expandToSentenceBubbles(message.parts, sentences)
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        if (!message.parts.isEmptyUIMessage()) {
+        val isUser = message.role == MessageRole.USER
+        val showMessageBody = !message.parts.isEmptyUIMessage()
+
+        if (showMessageBody) {
+            // 分句模式：每个气泡自带头像；普通模式：整条消息共用一个侧边头像
+            val avatarPerBubble = enableSentenceSend && !isUser
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
             ) {
-                ChatMessageAssistantAvatar(
-                    message = message,
-                    model = model,
-                    assistant = assistant,
-                    loading = loading,
-                    modifier = Modifier.weight(1f)
-                )
-                ChatMessageUserAvatar(
-                    message = message,
-                    avatar = settings.userAvatar,
-                    nickname = settings.userNickname,
-                    modifier = Modifier.weight(1f)
-                )
+                if (!isUser && !avatarPerBubble) {
+                    ChatMessageAssistantAvatar(
+                        message = message,
+                        model = model,
+                        assistant = assistant,
+                        loading = loading || isRevealing,
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    ProvideTextStyle(textStyle) {
+                        MessagePartsBlock(
+                            assistant = assistant,
+                            role = message.role,
+                            parts = displayParts,
+                            annotations = message.annotations,
+                            loading = loading || isRevealing,
+                            model = model,
+                            message = message,
+                            avatarBesideEachBubble = avatarPerBubble,
+                            onToolApproval = onToolApproval,
+                            onToolAnswer = onToolAnswer,
+                            onUserMessageClick = if (isUser) onEdit else null,
+                        )
+
+                        message.translation?.let { translation ->
+                            CollapsibleTranslationText(
+                                content = translation,
+                                onClickCitation = {}
+                            )
+                        }
+                    }
+
+                    val showActions = if (lastMessage) {
+                        !loading && !isRevealing
+                    } else {
+                        message.parts.isEmptyUIMessage().not()
+                    }
+
+                    AnimatedVisibility(
+                        visible = showActions,
+                        enter = slideInVertically { it / 2 } + fadeIn(),
+                        exit = slideOutVertically { it / 2 } + fadeOut()
+                    ) {
+                        Column(
+                            modifier = Modifier.animateContentSize()
+                        ) {
+                            ChatMessageActionButtons(
+                                message = message,
+                                onRegenerate = onRegenerate,
+                                node = node,
+                                onUpdate = onUpdate,
+                                onOpenActionSheet = {
+                                    showActionsSheet = true
+                                },
+                                onTranslate = onTranslate,
+                                onClearTranslation = onClearTranslation
+                            )
+                        }
+                    }
+
+                    EditedFilesList(
+                        parts = message.parts,
+                        assistant = assistant,
+                    )
+
+                    ProvideTextStyle(textStyle) {
+                        ChatMessageNerdLine(message = message)
+                    }
+                }
+
+                if (isUser) {
+                    Spacer(modifier = Modifier.size(8.dp))
+                    ChatMessageUserAvatar(
+                        message = message,
+                        avatar = settings.userAvatar,
+                        nickname = settings.userNickname,
+                    )
+                }
             }
         }
-        ProvideTextStyle(textStyle) {
-            MessagePartsBlock(
-                assistant = assistant,
-                role = message.role,
-                parts = message.parts,
-                annotations = message.annotations,
-                loading = loading,
-                model = model,
-                onToolApproval = onToolApproval,
-                onToolAnswer = onToolAnswer,
-                onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
-            )
-
-            message.translation?.let { translation ->
-                CollapsibleTranslationText(
-                    content = translation,
-                    onClickCitation = {}
-                )
-            }
-        }
-
-        val showActions = if (lastMessage) {
-            !loading
-        } else {
-            message.parts.isEmptyUIMessage().not()
-        }
-
-        AnimatedVisibility(
-            visible = showActions,
-            enter = slideInVertically { it / 2 } + fadeIn(),
-            exit = slideOutVertically { it / 2 } + fadeOut()
-        ) {
-            Column(
-                modifier = Modifier.animateContentSize()
-            ) {
-                ChatMessageActionButtons(
-                    message = message,
-                    onRegenerate = onRegenerate,
-                    node = node,
-                    onUpdate = onUpdate,
-                    onOpenActionSheet = {
-                        showActionsSheet = true
-                    },
-                    onTranslate = onTranslate,
-                    onClearTranslation = onClearTranslation
-                )
-            }
-        }
-
-        EditedFilesList(
-            parts = message.parts,
-            assistant = assistant,
-        )
-
-        ProvideTextStyle(textStyle) {
-            ChatMessageNerdLine(message = message)
-        }
-
     }
     if (showActionsSheet) {
         ChatMessageActionsSheet(
@@ -277,6 +368,8 @@ private fun MessagePartsBlock(
     parts: List<UIMessagePart>,
     annotations: List<UIMessageAnnotation>,
     loading: Boolean,
+    message: UIMessage,
+    avatarBesideEachBubble: Boolean = false,
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String, alwaysAllow: Boolean) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onUserMessageClick: (() -> Unit)? = null,
@@ -321,39 +414,94 @@ private fun MessagePartsBlock(
 
     // Render parts in original order (group thinking/tool as chain-of-thought)
     val groupedParts = remember(parts) { parts.groupMessageParts() }
-    groupedParts.fastForEach { block ->
+    val lastTextBlockIndex = remember(groupedParts) {
+        groupedParts.indexOfLast { block ->
+            block is MessagePartBlock.ContentBlock && block.part is UIMessagePart.Text
+        }
+    }
+    groupedParts.fastForEachIndexed { blockIndex, block ->
         when (block) {
             is MessagePartBlock.ThinkingBlock -> {
                 if (block.steps.isNotEmpty()) {
                     val isReasoningOnlyBlock = block.steps.fastAll { it is ThinkingStep.ReasoningStep }
-                    ChainOfThought(
-                        modifier = Modifier.animateContentSize(),
-                        steps = block.steps,
-                        collapsedAdaptiveWidth = isReasoningOnlyBlock,
-                        cardColors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
-                        ),
-                    ) { step ->
-                        when (step) {
-                            is ThinkingStep.ReasoningStep -> {
-                                key(step.reasoning.createdAt) {
-                                    ChatMessageReasoningStep(
-                                        reasoning = step.reasoning,
-                                        model = model,
-                                        assistant = assistant,
-                                        collapsedAdaptiveWidth = isReasoningOnlyBlock,
-                                    )
+                    // 分句模式下思维链也带侧边头像，避免只有正文有头像
+                    if (avatarBesideEachBubble && role == MessageRole.ASSISTANT) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            ChatMessageAssistantAvatar(
+                                message = message,
+                                model = model,
+                                assistant = assistant,
+                                loading = false,
+                            )
+                            Spacer(modifier = Modifier.size(8.dp))
+                            ChainOfThought(
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .animateContentSize(),
+                                steps = block.steps,
+                                collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                                cardColors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
+                                ),
+                            ) { step ->
+                                when (step) {
+                                    is ThinkingStep.ReasoningStep -> {
+                                        key(step.reasoning.createdAt) {
+                                            ChatMessageReasoningStep(
+                                                reasoning = step.reasoning,
+                                                model = model,
+                                                assistant = assistant,
+                                                collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                                            )
+                                        }
+                                    }
+
+                                    is ThinkingStep.ToolStep -> {
+                                        key(step.tool.toolCallId.ifBlank { step.hashCode().toString() }) {
+                                            ChatMessageToolStep(
+                                                tool = step.tool,
+                                                loading = loading && !step.tool.isExecuted,
+                                                onToolApproval = onToolApproval,
+                                                onToolAnswer = onToolAnswer,
+                                            )
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    } else {
+                        ChainOfThought(
+                            modifier = Modifier.animateContentSize(),
+                            steps = block.steps,
+                            collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                            cardColors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
+                            ),
+                        ) { step ->
+                            when (step) {
+                                is ThinkingStep.ReasoningStep -> {
+                                    key(step.reasoning.createdAt) {
+                                        ChatMessageReasoningStep(
+                                            reasoning = step.reasoning,
+                                            model = model,
+                                            assistant = assistant,
+                                            collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                                        )
+                                    }
+                                }
 
-                            is ThinkingStep.ToolStep -> {
-                                key(step.tool.toolCallId.ifBlank { step.hashCode().toString() }) {
-                                    ChatMessageToolStep(
-                                        tool = step.tool,
-                                        loading = loading && !step.tool.isExecuted,
-                                        onToolApproval = onToolApproval,
-                                        onToolAnswer = onToolAnswer,
-                                    )
+                                is ThinkingStep.ToolStep -> {
+                                    key(step.tool.toolCallId.ifBlank { step.hashCode().toString() }) {
+                                        ChatMessageToolStep(
+                                            tool = step.tool,
+                                            loading = loading && !step.tool.isExecuted,
+                                            onToolApproval = onToolApproval,
+                                            onToolAnswer = onToolAnswer,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -402,6 +550,7 @@ private fun MessagePartsBlock(
                                 markdownContent()
                             }
                         }
+                        val bubbleLoading = loading && blockIndex == lastTextBlockIndex
                         val textContent = @Composable {
                             if (role == MessageRole.USER) {
                                 SolaceUserBubble(
@@ -412,6 +561,7 @@ private fun MessagePartsBlock(
                                     customColor = settings.displaySetting.userBubbleColorArgb?.let {
                                         Color(it.toInt())
                                     },
+                                    showBorder = settings.displaySetting.showBubbleBorder,
                                     onClick = { onUserMessageClick?.invoke() },
                                 ) {
                                     coloredMarkdown()
@@ -425,8 +575,41 @@ private fun MessagePartsBlock(
                                     customColor = settings.displaySetting.assistantBubbleColorArgb?.let {
                                         Color(it.toInt())
                                     },
+                                    showBorder = settings.displaySetting.showBubbleBorder,
                                 ) {
                                     coloredMarkdown()
+                                }
+                            }
+                        }
+
+                        val bubbleWithOptionalAvatar = @Composable {
+                            if (avatarBesideEachBubble && role == MessageRole.ASSISTANT) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top,
+                                ) {
+                                    ChatMessageAssistantAvatar(
+                                        message = message,
+                                        model = model,
+                                        assistant = assistant,
+                                        loading = bubbleLoading,
+                                    )
+                                    Spacer(modifier = Modifier.size(8.dp))
+                                    Box(modifier = Modifier.weight(1f, fill = false)) {
+                                        if (loading) {
+                                            textContent()
+                                        } else {
+                                            SelectionContainer {
+                                                textContent()
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (loading) {
+                                textContent()
+                            } else {
+                                SelectionContainer {
+                                    textContent()
                                 }
                             }
                         }
@@ -435,13 +618,7 @@ private fun MessagePartsBlock(
                         // 内部可选择的 Text 会频繁注册/注销，与 Compose 选择工具栏在绘制阶段
                         // 对 selectable 列表的排序产生并发修改，导致 ConcurrentModificationException。
                         // 生成结束后内容稳定，再启用文本选择。
-                        if (loading) {
-                            textContent()
-                        } else {
-                            SelectionContainer {
-                                textContent()
-                            }
-                        }
+                        bubbleWithOptionalAvatar()
                     }
 
                     is UIMessagePart.Video -> {

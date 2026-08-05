@@ -457,6 +457,56 @@ internal fun AssistantBasicContent(
             FormItem(
                 modifier = Modifier.padding(8.dp),
                 label = {
+                    Text("分句发送")
+                },
+                description = {
+                    Text("启用后，AI 回复按句拆成多个气泡逐条出现，营造更自然的对话节奏（仍为单条消息落库）")
+                },
+                tail = {
+                    Switch(
+                        checked = assistant.enableSentenceSend,
+                        onCheckedChange = {
+                            onUpdate(
+                                assistant.copy(
+                                    enableSentenceSend = it
+                                )
+                            )
+                        }
+                    )
+                }
+            )
+            if (assistant.enableSentenceSend) {
+                val cps = assistant.sentenceCharsPerSecond.coerceIn(2f, 30f)
+                val msPerChar = (1000f / cps).roundToInt()
+                FormItem(
+                    modifier = Modifier.padding(8.dp),
+                    label = {
+                        Text("打字速度")
+                    },
+                    description = {
+                        Text(
+                            "控制每句展示前的等待，模拟打字节奏\n" +
+                                "当前速度：每秒 ${cps.toFixed(1)} 字符 · 等待：${msPerChar}ms/字符"
+                        )
+                    }
+                ) {
+                    Slider(
+                        value = cps,
+                        onValueChange = {
+                            onUpdate(
+                                assistant.copy(
+                                    sentenceCharsPerSecond = it.coerceIn(2f, 30f)
+                                )
+                            )
+                        },
+                        valueRange = 2f..30f,
+                    )
+                }
+            }
+            HorizontalDivider()
+            FormItem(
+                modifier = Modifier.padding(8.dp),
+                label = {
                     Text(stringResource(R.string.assistant_page_thinking_budget))
                 },
             ) {

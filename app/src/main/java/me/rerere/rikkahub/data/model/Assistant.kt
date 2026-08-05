@@ -31,6 +31,10 @@ data class Assistant(
     // 超限时自动生成滚动摘要并注入 system，避免静默遗忘
     val enableAutoContextSummary: Boolean = true,
     val streamOutput: Boolean = true,
+    /** 聊天页将 AI 长回复按句延迟展示（仍落库为单条消息） */
+    val enableSentenceSend: Boolean = false,
+    /** 分句展示速度：每秒字符数，用于计算句间等待 */
+    val sentenceCharsPerSecond: Float = 10f,
     val enableMemory: Boolean = false,
     val useGlobalMemory: Boolean = false, // 使用全局共享记忆而非助手隔离记忆
     val enableRecentChatsReference: Boolean = false,
