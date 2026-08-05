@@ -5,9 +5,11 @@ import me.rerere.hugeicons.stroke.BookOpen01
 import me.rerere.hugeicons.stroke.Brain02
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Code
+import me.rerere.hugeicons.stroke.HeartCheck
 import me.rerere.hugeicons.stroke.Message02
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Puzzle
+import me.rerere.hugeicons.stroke.VolumeHigh
 import me.rerere.hugeicons.stroke.Wrench01
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -140,6 +142,22 @@ fun AssistantDetailPage(id: String) {
                         leadingContent = { Icon(HugeIcons.BookOpen01, null) },
                         supportingContent = { Text(stringResource(R.string.assistant_detail_local_tools_desc)) },
                         headlineContent = { Text(stringResource(R.string.assistant_page_tab_local_tools)) },
+                        trailingContent = { Icon(HugeIcons.ArrowRight01, null) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.AssistantVoice(id)) },
+                        leadingContent = { Icon(HugeIcons.VolumeHigh, null) },
+                        supportingContent = { Text("聊天朗读与语音通话声线") },
+                        headlineContent = { Text("声音设置") },
+                        trailingContent = { Icon(HugeIcons.ArrowRight01, null) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.SettingIntimate) },
+                        leadingContent = { Icon(HugeIcons.HeartCheck, null) },
+                        supportingContent = {
+                            Text("AI 伴侣向的亲密互动扩展，当前展示功能说明与规划方向")
+                        },
+                        headlineContent = { Text("亲密互动") },
                         trailingContent = { Icon(HugeIcons.ArrowRight01, null) },
                     )
                 }

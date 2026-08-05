@@ -345,7 +345,7 @@ private fun ChatPageContent(
                     },
                     onUpdateTitle = {
                         vm.updateTitle(it)
-                    }
+                    },
                 )
             },
             bottomBar = {
@@ -444,9 +444,13 @@ private fun ChatPageContent(
                 onDeclineCarryoverOffer = { messageId ->
                     vm.declineCarryoverOffer(messageId)
                 },
+                onPackContextAndNewChat = { onRequestNewChat() },
+                onGroupModeChange = { mode -> vm.setGroupMode(mode) },
+                onPauseGroupDiscussion = { vm.pauseGroupDiscussion() },
             )
         }
 
+        val contextUsage = rememberContextUsageInfo(conversation)
         ChatInput(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -529,6 +533,9 @@ private fun ChatPageContent(
             },
             onMoreClick = {
                 showFilesSheet = true
+            },
+            toolbarLeadingContent = {
+                ContextUsageGauge(usage = contextUsage)
             },
         )
         } // Box
@@ -794,6 +801,7 @@ private fun TopBar(
                     }
                 },
                 color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -806,7 +814,7 @@ private fun TopBar(
                         value = assistant.avatar,
                         modifier = Modifier.size(36.dp),
                     )
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Text(
                             text = conversation.title.ifBlank {
                                 stringResource(R.string.chat_page_new_chat)
@@ -817,14 +825,20 @@ private fun TopBar(
                             color = colors.text,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        val companionLabel = assistant.name.ifBlank {
-                            stringResource(R.string.assistant_page_default_assistant)
+                        val companionLabel = if (conversation.isGroup) {
+                            stringResource(
+                                R.string.group_chat_members_count,
+                                conversation.groupMembers.size,
+                            )
+                        } else {
+                            assistant.name.ifBlank {
+                                stringResource(R.string.assistant_page_default_assistant)
+                            }.let { name ->
+                                stringResource(R.string.chat_page_companion_status, name)
+                            }
                         }
                         Text(
-                            text = stringResource(
-                                R.string.chat_page_companion_status,
-                                companionLabel,
-                            ),
+                            text = companionLabel,
                             overflow = TextOverflow.Ellipsis,
                             maxLines = 1,
                             color = colors.secondaryText,

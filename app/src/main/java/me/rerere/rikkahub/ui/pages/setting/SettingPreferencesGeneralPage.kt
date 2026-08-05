@@ -69,7 +69,7 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
             item {
                 var createNewConversationOnStart by rememberSharedPreferenceBoolean(
                     "create_new_conversation_on_start",
-                    true
+                    false
                 )
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),

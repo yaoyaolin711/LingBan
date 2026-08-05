@@ -16,6 +16,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,6 +29,7 @@ import com.dokar.sonner.ToastType
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
+import me.rerere.rikkahub.data.model.ChatTtsSource
 import me.rerere.rikkahub.data.model.VoiceCallTtsResolveResult
 import me.rerere.rikkahub.data.model.VoiceTier
 import me.rerere.rikkahub.data.model.resolveVoiceCallDisplay
@@ -56,6 +58,13 @@ fun VoiceSelectionPage(vm: SettingVM = koinViewModel()) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val display = resolveVoiceCallDisplay(settings, assistant.voiceCall)
     val resolve = resolveVoiceCallTts(settings, assistant.voiceCall)
+
+    DisposableEffect(Unit) {
+        onDispose {
+            tts.stop()
+            tts.clearOverride()
+        }
+    }
 
     LaunchedEffect(Unit) {
         tts.error.collectLatest { err ->
@@ -130,6 +139,14 @@ fun VoiceSelectionPage(vm: SettingVM = koinViewModel()) {
                         style = typography.labelLarge,
                         color = colors.primary,
                     )
+                    if (assistant.chatTtsSource == ChatTtsSource.SameAsVoiceCall) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "提示：此助手的聊天小喇叭已设为「与通话声线相同」，改这里也会影响聊天朗读。",
+                            style = typography.bodySmall,
+                            color = colors.secondaryText,
+                        )
+                    }
                 }
             }
 

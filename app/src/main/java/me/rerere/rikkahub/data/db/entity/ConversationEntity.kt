@@ -40,4 +40,12 @@ data class ConversationEntity(
     val sessionOverview: String = "",
     @ColumnInfo("carryover_overview", defaultValue = "")
     val carryoverOverview: String = "",
+    @ColumnInfo("is_group", defaultValue = "0")
+    val isGroup: Boolean = false,
+    @ColumnInfo("group_members", defaultValue = "[]")
+    val groupMembers: String = "[]",
+    @ColumnInfo("group_mode", defaultValue = "mention_first")
+    val groupMode: String = "mention_first",
+    @ColumnInfo("floor_state", defaultValue = "{}")
+    val floorState: String = "{}",
 )

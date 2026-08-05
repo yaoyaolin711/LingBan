@@ -129,6 +129,35 @@ android {
     }
 }
 
+tasks.register("renameReleaseApks") {
+    group = "build"
+    description = "Rename release APK outputs with Solace prefix"
+    doLast {
+        val releaseDir = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        if (!releaseDir.exists()) return@doLast
+        val version = android.defaultConfig.versionName ?: "dev"
+        releaseDir.listFiles { file ->
+            file.isFile && file.extension == "apk"
+        }?.forEach { apk ->
+            val suffix = when {
+                apk.name.contains("arm64-v8a") -> "arm64-v8a"
+                apk.name.contains("x86_64") -> "x86_64"
+                apk.name.contains("universal") -> "universal"
+                else -> "release"
+            }
+            val target = releaseDir.resolve("Solace-$version-$suffix-release.apk")
+            if (target.exists()) target.delete()
+            apk.renameTo(target)
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease") {
+        finalizedBy("renameReleaseApks")
+    }
+}
+
 composeCompiler {
     stabilityConfigurationFiles.add(
         project.layout.projectDirectory.file("compose_compiler_config.conf")
@@ -185,6 +214,7 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.health.connect)
 
     // Image metadata extractor
     // https://github.com/drewnoakes/metadata-extractor

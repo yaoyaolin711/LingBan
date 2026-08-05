@@ -57,12 +57,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
 import me.rerere.asr.ASRProviderSetting
+import me.rerere.asr.SpeechRecognitionSupport
 import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_ASR_ID
 import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_TTS_ID
 import me.rerere.rikkahub.data.datastore.Settings
@@ -302,63 +304,71 @@ private fun TTSProviderList(
         onUpdateSettings(settings.copy(ttsProviders = newProviders))
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        state = lazyListState
-    ) {
-        items(settings.ttsProviders, key = { it.id }) { provider ->
-            ReorderableItem(
-                state = reorderableState,
-                key = provider.id
-            ) { isDragging ->
-                TTSProviderItem(
-                    modifier = Modifier
-                        .scale(if (isDragging) 0.95f else 1f)
-                        .fillMaxWidth(),
-                    provider = provider,
-                    dragHandle = {
-                        val haptic = LocalHapticFeedback.current
-                        IconButton(
-                            onClick = {},
-                            modifier = Modifier
-                                .longPressDraggableHandle(
-                                    onDragStarted = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                                    },
-                                    onDragStopped = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
-                                    }
+    Column(modifier = modifier.fillMaxSize()) {
+        Text(
+            text = "此处为「全局 TTS」：当助手声音设置里把聊天朗读选为「使用全局 TTS」时生效。语音通话声线请在助手 → 声音设置中单独配置。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            state = lazyListState
+        ) {
+            items(settings.ttsProviders, key = { it.id }) { provider ->
+                ReorderableItem(
+                    state = reorderableState,
+                    key = provider.id
+                ) { isDragging ->
+                    TTSProviderItem(
+                        modifier = Modifier
+                            .scale(if (isDragging) 0.95f else 1f)
+                            .fillMaxWidth(),
+                        provider = provider,
+                        dragHandle = {
+                            val haptic = LocalHapticFeedback.current
+                            IconButton(
+                                onClick = {},
+                                modifier = Modifier
+                                    .longPressDraggableHandle(
+                                        onDragStarted = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                        },
+                                        onDragStopped = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                        }
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = HugeIcons.DragDropHorizontal,
+                                    contentDescription = null
                                 )
-                        ) {
-                            Icon(
-                                imageVector = HugeIcons.DragDropHorizontal,
-                                contentDescription = null
+                            }
+                        },
+                        isSelected = settings.selectedTTSProviderId == provider.id,
+                        onSelect = {
+                            onUpdateSettings(settings.copy(selectedTTSProviderId = provider.id))
+                        },
+                        onEdit = {
+                            onEdit(provider)
+                        },
+                        onDelete = {
+                            val newProviders = settings.ttsProviders - provider
+                            val newSelectedId =
+                                if (settings.selectedTTSProviderId == provider.id) DEFAULT_SYSTEM_TTS_ID else settings.selectedTTSProviderId
+                            onUpdateSettings(
+                                settings.copy(
+                                    ttsProviders = newProviders,
+                                    selectedTTSProviderId = newSelectedId
+                                )
                             )
                         }
-                    },
-                    isSelected = settings.selectedTTSProviderId == provider.id,
-                    onSelect = {
-                        onUpdateSettings(settings.copy(selectedTTSProviderId = provider.id))
-                    },
-                    onEdit = {
-                        onEdit(provider)
-                    },
-                    onDelete = {
-                        val newProviders = settings.ttsProviders - provider
-                        val newSelectedId =
-                            if (settings.selectedTTSProviderId == provider.id) DEFAULT_SYSTEM_TTS_ID else settings.selectedTTSProviderId
-                        onUpdateSettings(
-                            settings.copy(
-                                ttsProviders = newProviders,
-                                selectedTTSProviderId = newSelectedId
-                            )
-                        )
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -582,6 +592,14 @@ private fun AddASRProviderButton(onAdd: (ASRProviderSetting) -> Unit) {
                     showBottomSheet = true
                 }
             )
+            DropdownMenuItem(
+                text = { Text("硅基流动") },
+                onClick = {
+                    currentProvider = ASRProviderSetting.SiliconFlow()
+                    showTypeMenu = false
+                    showBottomSheet = true
+                }
+            )
         }
     }
 
@@ -709,6 +727,8 @@ private fun TTSProviderItem(
                             is TTSProviderSetting.ElevenLabs -> "ElevenLabs"
                             is TTSProviderSetting.FishAudio -> "Fish Audio"
                             is TTSProviderSetting.Mossland -> "Mossland"
+                            is TTSProviderSetting.SiliconFlow -> "硅基流动"
+                            is TTSProviderSetting.Volcengine -> "火山引擎"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -851,6 +871,7 @@ private fun ASRProviderItem(
                             is ASRProviderSetting.Volcengine -> "Volcengine"
                             is ASRProviderSetting.MiMo -> "MiMo"
                             is ASRProviderSetting.Step -> "Step"
+                            is ASRProviderSetting.SiliconFlow -> "硅基流动"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -863,6 +884,19 @@ private fun ASRProviderItem(
                 )
 
                 dragHandle()
+            }
+            if (provider is ASRProviderSetting.System) {
+                val context = LocalContext.current
+                val systemAsrOk = remember(context) {
+                    SpeechRecognitionSupport.isAvailable(context)
+                }
+                if (!systemAsrOk) {
+                    Text(
+                        text = "本机系统语音识别不可用，建议改用硅基流动等云端 ASR",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),

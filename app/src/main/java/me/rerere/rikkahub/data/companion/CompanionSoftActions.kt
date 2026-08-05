@@ -37,13 +37,26 @@ class CompanionSoftActions(
         }
     }
 
-    private fun executeSoftNotify(action: ProactiveAction.SoftNotify) {
+    private suspend fun executeSoftNotify(action: ProactiveAction.SoftNotify) {
         Log.d(TAG, "notify_user: ${action.title}")
         petHost.updateEmotion(action.emotion, statusText = action.title)
-        petHost.showBubble(action.content)
+        val message = when {
+            action.isUsageCare -> intervention.generateCareMessage(
+                appName = action.appName.orEmpty(),
+                packageName = "",
+                continuousMinutes = action.continuousMinutes,
+                emotion = action.emotion,
+            )
+            action.reason != null -> intervention.generateProactiveMessage(
+                reason = action.reason,
+                emotion = action.emotion,
+            )
+            else -> action.content
+        }.ifBlank { action.content }
+        petHost.showBubble(message)
         intervention.notifyUser(
             title = action.title,
-            content = action.content,
+            content = message,
         )
     }
 

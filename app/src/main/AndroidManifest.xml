@@ -25,6 +25,13 @@
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+  <!-- Health Connect (read-only wearable / fitness data) -->
+  <uses-permission android:name="android.permission.health.READ_STEPS" />
+  <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+  <uses-permission android:name="android.permission.health.READ_SLEEP" />
+  <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+  <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+
   <uses-feature
     android:name="android.hardware.camera"
     android:required="false" />
@@ -33,6 +40,10 @@
     android:required="false" />
 
   <queries>
+    <package android:name="com.google.android.apps.healthdata" />
+    <intent>
+      <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+    </intent>
     <intent>
       <action android:name="android.intent.action.TTS_SERVICE" />
     </intent>
@@ -40,6 +51,17 @@
     <intent>
       <action android:name="android.speech.RecognitionService" />
     </intent>
+    <!-- 常见语音引擎包（国产机/GMS）便于探测 RecognitionService -->
+    <package android:name="com.google.android.googlequicksearchbox" />
+    <package android:name="com.google.android.tts" />
+    <package android:name="com.google.android.as" />
+    <package android:name="com.iflytek.speechsuite" />
+    <package android:name="com.iflytek.inputmethod" />
+    <package android:name="com.huawei.vassistant" />
+    <package android:name="com.miui.voiceassist" />
+    <package android:name="com.coloros.speechassist" />
+    <package android:name="com.vivo.agent" />
+    <package android:name="com.samsung.android.bixby.agent" />
     <!-- 用于解析屏幕使用时间里各 App 的名称(可见性受 Android 11+ 包可见性限制) -->
     <intent>
       <action android:name="android.intent.action.MAIN" />
@@ -63,6 +85,7 @@
     android:enableOnBackInvokedCallback="true"
     android:fullBackupContent="@xml/backup_rules"
     android:icon="@mipmap/ic_launcher"
+    android:roundIcon="@mipmap/ic_launcher_round"
     android:label="@string/app_name"
     android:supportsRtl="true"
     android:theme="@style/Theme.Rikkahub"
@@ -110,6 +133,29 @@
         android:name="android.app.shortcuts"
         android:resource="@xml/shortcuts" />
     </activity>
+
+    <!-- Health Connect permission rationale (Android 13-) -->
+    <activity
+      android:name=".ui.activity.HealthConnectRationaleActivity"
+      android:exported="true"
+      android:theme="@style/Theme.Rikkahub">
+      <intent-filter>
+        <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+      </intent-filter>
+    </activity>
+
+    <!-- Health Connect permission usage viewer (Android 14+) -->
+    <activity-alias
+      android:name="ViewPermissionUsageActivity"
+      android:exported="true"
+      android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+      android:targetActivity=".ui.activity.HealthConnectRationaleActivity">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+        <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+      </intent-filter>
+    </activity-alias>
+
     <activity
       android:name=".ui.activity.ShortcutHandlerActivity"
       android:exported="true"
@@ -160,6 +206,15 @@
       <property
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="digital wellbeing companion usage monitoring" />
+    </service>
+
+    <service
+      android:name=".service.VoiceCallForegroundService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="ongoing companion voice call keep-alive" />
     </service>
 
     <service

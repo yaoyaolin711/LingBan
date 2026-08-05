@@ -36,6 +36,7 @@ import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.DatabaseUtil
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.rikkahub.data.workflow.ScheduledWorkflowScheduler
 import me.rerere.workspace.WorkspaceManager
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
@@ -51,6 +52,7 @@ const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
 const val COMPANION_MONITOR_NOTIFICATION_CHANNEL_ID = "companion_monitor"
 const val COMPANION_INTERVENTION_NOTIFICATION_CHANNEL_ID = "companion_intervention"
 const val ACCESSIBILITY_GUARD_NOTIFICATION_CHANNEL_ID = "accessibility_guard"
+const val VOICE_CALL_NOTIFICATION_CHANNEL_ID = "voice_call"
 
 class RikkaHubApp : Application() {
     override fun onCreate() {
@@ -100,6 +102,9 @@ class RikkaHubApp : Application() {
 
         // Start companion usage monitor if enabled
         startCompanionMonitorIfEnabled()
+
+        // Resume scheduled workflow dispatcher if any rule is enabled
+        startScheduledWorkflowsIfEnabled()
 
         // Eagerly create companion floating avatar host (observes enableCompanion)
         runCatching { get<me.rerere.rikkahub.overlay.pet.CompanionPetHost>() }
@@ -272,6 +277,17 @@ class RikkaHubApp : Application() {
             .setVibrationEnabled(true)
             .build()
         notificationManager.createNotificationChannel(accessibilityGuardChannel)
+
+        val voiceCallChannel = NotificationChannelCompat
+            .Builder(
+                VOICE_CALL_NOTIFICATION_CHANNEL_ID,
+                NotificationManagerCompat.IMPORTANCE_LOW
+            )
+            .setName("语音通话")
+            .setVibrationEnabled(false)
+            .setShowBadge(false)
+            .build()
+        notificationManager.createNotificationChannel(voiceCallChannel)
     }
 
     private fun checkAccessibilityKeepAlive() {
@@ -304,6 +320,19 @@ class RikkaHubApp : Application() {
                 }
             }.onFailure {
                 Log.e(TAG, "startCompanionMonitorIfEnabled failed", it)
+            }
+        }
+    }
+
+    private fun startScheduledWorkflowsIfEnabled() {
+        get<AppScope>().launch {
+            runCatching {
+                val settings = get<SettingsStore>().settingsFlowRaw.first()
+                get<ScheduledWorkflowScheduler>().sync(
+                    settings.scheduledWorkflows.any { it.enabled }
+                )
+            }.onFailure {
+                Log.e(TAG, "startScheduledWorkflowsIfEnabled failed", it)
             }
         }
     }

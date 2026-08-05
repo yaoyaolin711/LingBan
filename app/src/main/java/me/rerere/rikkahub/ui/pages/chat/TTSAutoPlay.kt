@@ -7,8 +7,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import me.rerere.ai.core.MessageRole
 import me.rerere.rikkahub.data.ai.isCarryoverOffer
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.context.LocalTTSState
+import me.rerere.rikkahub.ui.hooks.speakForChat
 import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallGate
 import me.rerere.rikkahub.utils.extractQuotedContentAsText
 import me.rerere.rikkahub.utils.removeBracketedContent
@@ -35,7 +37,8 @@ fun TTSAutoPlay(vm: ChatVM, setting: Settings, conversation: Conversation) {
                         textToSpeak = textToSpeak.removeBracketedContent() ?: textToSpeak
                     }
                     if (textToSpeak.isNotBlank()) {
-                        tts.speak(textToSpeak)
+                        val assistant = updatedSetting.getCurrentAssistant()
+                        tts.speakForChat(updatedSetting, assistant, textToSpeak)
                     }
                 }
             }

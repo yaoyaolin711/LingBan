@@ -4,6 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNames
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.getSelectedTTSProvider
 import me.rerere.tts.provider.TTSProviderSetting
 import kotlin.uuid.Uuid
 
@@ -53,6 +54,10 @@ enum class VoiceTtsBackend {
     /** Mossland / MOSI Studio cloned or library voice_id. */
     @SerialName("mossland")
     Mossland,
+
+    /** 火山引擎 / 豆包语音合成（官方音色或复刻 voice_type）。 */
+    @SerialName("volcengine")
+    Volcengine,
 }
 
 @Serializable
@@ -60,7 +65,7 @@ data class CustomVoiceProfile(
     val id: Uuid = Uuid.random(),
     /** User-facing name, e.g. "妈妈的声音" */
     val name: String,
-    /** Must be a custom-capable backend: MiniMax / ElevenLabs / FishAudio / Mossland */
+    /** Must be a custom-capable backend: MiniMax / ElevenLabs / FishAudio / Mossland / Volcengine */
     val backend: VoiceTtsBackend,
     /** MiniMax voice_id / ElevenLabs voiceId / Fish reference_id / Mossland voice_id */
     val voiceId: String,
@@ -109,8 +114,8 @@ object VoicePresets {
     /**
      * Classification (based on project TTS integrations):
      * - Local: System TTS
-     * - Preset (no custom voice): Qwen
-     * - Custom (supports voice id / reference / clone): MiniMax, ElevenLabs, Fish Audio, Mossland
+     * - Preset (no custom voice): Qwen, Volcengine system timbres
+     * - Custom (supports voice id / reference / clone): MiniMax, ElevenLabs, Fish Audio, Mossland, Volcengine
      */
     val all: List<VoicePreset> = listOf(
         // —— Local ——
@@ -184,6 +189,46 @@ object VoicePresets {
             backend = VoiceTtsBackend.Qwen,
             voiceId = "Chelsie",
             model = "qwen3-tts-flash",
+            requiresApiKey = true,
+        ),
+        VoicePreset(
+            id = "std_volc_wanqu",
+            tier = VoiceTier.Preset,
+            displayName = "湾区大叔",
+            description = "预设 · 火山引擎 / 豆包",
+            backend = VoiceTtsBackend.Volcengine,
+            voiceId = "zh_female_wanqudashu_moon_bigtts",
+            model = "volcano_tts",
+            requiresApiKey = true,
+        ),
+        VoicePreset(
+            id = "std_volc_shuangkuai",
+            tier = VoiceTier.Preset,
+            displayName = "爽快思思",
+            description = "预设 · 火山引擎 / 豆包",
+            backend = VoiceTtsBackend.Volcengine,
+            voiceId = "zh_female_shuangkuaisisi_moon_bigtts",
+            model = "volcano_tts",
+            requiresApiKey = true,
+        ),
+        VoicePreset(
+            id = "std_volc_qingse",
+            tier = VoiceTier.Preset,
+            displayName = "清新女声",
+            description = "预设 · 火山引擎 / 豆包",
+            backend = VoiceTtsBackend.Volcengine,
+            voiceId = "zh_female_qingxin",
+            model = "volcano_tts",
+            requiresApiKey = true,
+        ),
+        VoicePreset(
+            id = "std_volc_bv001",
+            tier = VoiceTier.Preset,
+            displayName = "通用女声 BV001",
+            description = "预设 · 火山引擎经典音色",
+            backend = VoiceTtsBackend.Volcengine,
+            voiceId = "BV001_streaming",
+            model = "volcano_tts",
             requiresApiKey = true,
         ),
 
@@ -287,6 +332,17 @@ object VoicePresets {
             requiresApiKey = true,
             supportsCustomVoice = true,
         ),
+        VoicePreset(
+            id = "custom_volcengine_voice",
+            tier = VoiceTier.Custom,
+            displayName = "火山引擎自定义",
+            description = "自定义 · 填写官方 voice_type 或复刻 speaker id",
+            backend = VoiceTtsBackend.Volcengine,
+            voiceId = "",
+            model = "volcano_tts",
+            requiresApiKey = true,
+            supportsCustomVoice = true,
+        ),
     )
 
     fun forTier(tier: VoiceTier): List<VoicePreset> = all.filter { it.tier == tier }
@@ -308,6 +364,7 @@ object VoicePresets {
         VoiceTtsBackend.ElevenLabs,
         VoiceTtsBackend.FishAudio,
         VoiceTtsBackend.Mossland,
+        VoiceTtsBackend.Volcengine,
     )
 }
 
@@ -489,6 +546,32 @@ private fun resolvePresetVoice(
                 )
             }
         }
+
+        VoiceTtsBackend.Volcengine -> {
+            val existing = settings.ttsProviders.filterIsInstance<TTSProviderSetting.Volcengine>().firstOrNull()
+            val appId = existing?.appId.orEmpty()
+            val accessToken = existing?.accessToken.orEmpty()
+            if (appId.isBlank() || accessToken.isBlank()) {
+                VoiceCallTtsResolveResult.NeedsApiKey(
+                    VoiceTtsBackend.Volcengine,
+                    "火山引擎",
+                    preset,
+                )
+            } else if (voiceId.isBlank()) {
+                VoiceCallTtsResolveResult.Unavailable("请填写火山引擎 voice_type / speaker id")
+            } else {
+                VoiceCallTtsResolveResult.Ready(
+                    (existing ?: TTSProviderSetting.Volcengine()).copy(
+                        name = "VoiceCall · ${preset.displayName}",
+                        appId = appId,
+                        accessToken = accessToken,
+                        cluster = preset.model.ifBlank { existing?.cluster.orEmpty().ifBlank { "volcano_tts" } },
+                        voiceType = voiceId,
+                        encoding = "mp3",
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -559,6 +642,28 @@ fun Settings.withVoiceCallApiKey(backend: VoiceTtsBackend, apiKey: String): Sett
                 providers.add(TTSProviderSetting.Mossland(apiKey = key, name = "Mossland TTS"))
             }
         }
+        VoiceTtsBackend.Volcengine -> {
+            // Accept "AppID|AccessToken" or plain AccessToken (keeps existing AppID).
+            val parts = key.split('|', limit = 2).map { it.trim() }.filter { it.isNotEmpty() }
+            val appIdPart = parts.getOrNull(0).orEmpty().takeIf { parts.size >= 2 }.orEmpty()
+            val tokenPart = if (parts.size >= 2) parts[1] else parts.firstOrNull().orEmpty()
+            val idx = providers.indexOfFirst { it is TTSProviderSetting.Volcengine }
+            if (idx >= 0) {
+                val current = providers[idx] as TTSProviderSetting.Volcengine
+                providers[idx] = current.copy(
+                    appId = appIdPart.ifBlank { current.appId },
+                    accessToken = tokenPart.ifBlank { current.accessToken },
+                )
+            } else {
+                providers.add(
+                    TTSProviderSetting.Volcengine(
+                        name = "火山引擎 TTS",
+                        appId = appIdPart,
+                        accessToken = tokenPart,
+                    )
+                )
+            }
+        }
     }
     return copy(ttsProviders = providers)
 }
@@ -585,4 +690,39 @@ fun Settings.withAssistantVoiceCall(
             if (assistant.id == assistantId) assistant.copy(voiceCall = voiceCall) else assistant
         }
     )
+}
+
+/**
+ * Resolve TTS for chat-page speaker / autoplay / Speak events.
+ * Respects [Assistant.chatTtsSource] so chat朗读 and 语音通话 can share or diverge.
+ */
+fun resolveChatTts(
+    settings: Settings,
+    assistant: Assistant,
+): VoiceCallTtsResolveResult {
+    return when (assistant.chatTtsSource) {
+        ChatTtsSource.SameAsVoiceCall -> resolveVoiceCallTts(settings, assistant.voiceCall)
+        ChatTtsSource.Global -> {
+            val provider = settings.getSelectedTTSProvider()
+                ?: return VoiceCallTtsResolveResult.Unavailable("请先在「设置 → 语音」中配置并选择 TTS")
+            VoiceCallTtsResolveResult.Ready(provider)
+        }
+    }
+}
+
+fun resolveChatTtsLabel(
+    settings: Settings,
+    assistant: Assistant,
+): String {
+    return when (assistant.chatTtsSource) {
+        ChatTtsSource.SameAsVoiceCall -> {
+            val display = resolveVoiceCallDisplay(settings, assistant.voiceCall)
+            "与通话相同 · ${display.displayName}"
+        }
+        ChatTtsSource.Global -> {
+            val name = settings.getSelectedTTSProvider()?.name?.takeIf { it.isNotBlank() }
+                ?: "未选择"
+            "全局 TTS · $name"
+        }
+    }
 }

@@ -9,6 +9,9 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.util.InstantSerializer
 import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANT_ID
+import me.rerere.rikkahub.data.groupchat.FloorState
+import me.rerere.rikkahub.data.groupchat.GroupChatMode
+import me.rerere.rikkahub.data.groupchat.GroupMember
 import java.time.Instant
 import kotlin.uuid.Uuid
 
@@ -45,6 +48,11 @@ data class Conversation(
      * Injected into the system prompt for continuity.
      */
     val carryoverOverview: String? = null,
+    /** True when this conversation is a multi-assistant group chat. */
+    val isGroup: Boolean = false,
+    val groupMembers: List<GroupMember> = emptyList(),
+    val groupMode: GroupChatMode = GroupChatMode.MENTION_FIRST,
+    val floorState: FloorState = FloorState(),
     @Transient
     val newConversation: Boolean = false
 ) {

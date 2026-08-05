@@ -87,4 +87,15 @@ val repositoryModule = module {
     single {
         me.rerere.rikkahub.data.workflow.WorkflowManager(get(), get())
     }
+
+    single {
+        me.rerere.rikkahub.data.health.HealthConnectRepository(context = get())
+    }
+
+    single {
+        me.rerere.rikkahub.data.life.LifeContextResolver(
+            context = get(),
+            healthConnectRepository = get(),
+        )
+    }
 }

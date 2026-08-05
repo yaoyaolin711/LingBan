@@ -69,6 +69,12 @@ data class Assistant(
     val companionActionLevel: CompanionActionLevel = CompanionActionLevel.MESSAGE_ONLY,
     val companionCharacter: CompanionCharacterCard? = null,
     val voiceCall: AssistantVoiceCallSettings = AssistantVoiceCallSettings(),
+    /**
+     * 聊天页小喇叭 / 自动朗读 使用哪套 TTS：
+     * - [ChatTtsSource.SameAsVoiceCall]：与语音通话声线一致（默认，配置 Moss 等一次两边通）
+     * - [ChatTtsSource.Global]：使用「设置 → 语音」里选中的全局 TTS
+     */
+    val chatTtsSource: ChatTtsSource = ChatTtsSource.SameAsVoiceCall,
     val modeInjectionIds: Set<Uuid> = emptySet(),      // 关联的模式注入 ID
     val lorebookIds: Set<Uuid> = emptySet(),            // 关联的 Lorebook ID
     val enabledSkills: Set<String> = emptySet(),        // 启用的 skill 名称列表
@@ -106,6 +112,18 @@ enum class CompanionOverlayStyle {
 
     @SerialName("pixel_pet")
     PIXEL_PET,
+}
+
+/** 聊天朗读 TTS 来源（与语音通话声线独立可配） */
+@Serializable
+enum class ChatTtsSource {
+    /** 与本助手「语音通话声线」相同 */
+    @SerialName("voice_call")
+    SameAsVoiceCall,
+
+    /** 使用设置页全局选中的 TTS Provider */
+    @SerialName("global")
+    Global,
 }
 
 /**

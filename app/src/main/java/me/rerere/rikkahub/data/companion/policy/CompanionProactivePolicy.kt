@@ -31,6 +31,9 @@ object CompanionProactivePolicy {
                 title = title,
                 content = usageCareNotifyFallback(emotion, appName, continuousMinutes),
                 emotion = emotion,
+                isUsageCare = true,
+                appName = appName,
+                continuousMinutes = continuousMinutes,
             )
         }
 
@@ -41,6 +44,9 @@ object CompanionProactivePolicy {
                 title = title,
                 content = usageCareNotifyFallback(emotion, appName, continuousMinutes),
                 emotion = emotion,
+                isUsageCare = true,
+                appName = appName,
+                continuousMinutes = continuousMinutes,
             )
         }
 
@@ -86,6 +92,7 @@ object CompanionProactivePolicy {
                 title = title,
                 content = softNotifyFallback(emotion, reason),
                 emotion = emotion,
+                reason = reason,
             )
         }
 
@@ -96,6 +103,7 @@ object CompanionProactivePolicy {
                 title = title,
                 content = softNotifyFallback(emotion, reason),
                 emotion = emotion,
+                reason = reason,
             )
         }
 
@@ -109,6 +117,7 @@ object CompanionProactivePolicy {
                     title = title,
                     content = softNotifyFallback(emotion, reason),
                     emotion = emotion,
+                    reason = reason,
                 )
             }
             if (quietHours) {
@@ -116,6 +125,7 @@ object CompanionProactivePolicy {
                     title = title,
                     content = softNotifyFallback(emotion, reason),
                     emotion = emotion,
+                    reason = reason,
                 )
             }
         }
@@ -125,6 +135,7 @@ object CompanionProactivePolicy {
                 title = title,
                 content = softNotifyFallback(emotion, reason),
                 emotion = emotion,
+                reason = reason,
             )
         }
 

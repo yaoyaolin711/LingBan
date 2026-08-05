@@ -47,12 +47,24 @@ import me.rerere.rikkahub.data.ai.DEFAULT_AUTO_SUMMARY_TARGET_TOKENS
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.SessionOverviewHelper
+import me.rerere.rikkahub.data.groupchat.GroupChatMode
+import me.rerere.rikkahub.data.groupchat.GroupChatOrchestrator
+import me.rerere.rikkahub.data.groupchat.GroupMember
+import me.rerere.rikkahub.data.groupchat.HardGatePolicy
+import me.rerere.rikkahub.data.groupchat.LlmSoftScheduler
+import me.rerere.rikkahub.data.groupchat.groupSpeakerSystemAddon
+import me.rerere.rikkahub.data.groupchat.messagesForGroupSpeaker
+import me.rerere.rikkahub.data.groupchat.parseGroupMentions
+import me.rerere.rikkahub.data.groupchat.resolvedGroupMembers
+import me.rerere.rikkahub.data.groupchat.toGroupTranscript
+import me.rerere.rikkahub.data.groupchat.withSpeaker
 import me.rerere.rikkahub.data.ai.carryoverOfferSourceTitle
 import me.rerere.rikkahub.data.ai.isCarryoverOffer
 import me.rerere.rikkahub.data.ai.withoutCarryoverOffers
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.createConversationTools
 import me.rerere.rikkahub.data.ai.tools.buildRecallChatHistoryTool
+import me.rerere.rikkahub.data.ai.tools.createScheduledWorkflowTools
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
@@ -89,6 +101,7 @@ import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.workflow.WorkflowManager
+import me.rerere.rikkahub.data.workflow.ScheduledWorkflowManager
 import me.rerere.rikkahub.data.workflow.WorkflowRuntimeBundle
 import me.rerere.rikkahub.data.workflow.WorkflowScheduler
 import me.rerere.rikkahub.data.model.Conversation
@@ -171,12 +184,15 @@ class ChatService(
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
     private val workflowManager: WorkflowManager,
+    private val scheduledWorkflowManager: ScheduledWorkflowManager,
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
     private val companionFacade: CompanionFacade,
     private val agentManagerLazy: Lazy<AgentManager>,
+    private val groupSoftScheduler: LlmSoftScheduler,
 ) {
     private val agentManager: AgentManager get() = agentManagerLazy.value
+    private val groupOrchestrator = GroupChatOrchestrator(groupSoftScheduler, HardGatePolicy.DEFAULT)
 
     /** Resolve AgentManager only when needed; never fail normal chat on DI errors. */
     private fun agentManagerOrNull(): AgentManager? = runCatching { agentManagerLazy.value }
@@ -445,13 +461,28 @@ class ChatService(
                 val assistant = settings.getAssistantById(currentConversation.assistantId)
                     ?: settings.getCurrentAssistant()
                 val processedContent = preprocessUserInputParts(content, assistant)
+                val userText = processedContent.filterIsInstance<UIMessagePart.Text>()
+                    .joinToString("\n") { it.text }
+                val members = currentConversation.resolvedGroupMembers(settings)
+                val mentions = if (currentConversation.isGroup) {
+                    parseGroupMentions(userText, members)
+                } else {
+                    emptyList()
+                }
 
                 // 添加消息到列表
+                val userMessage = UIMessage(
+                    role = MessageRole.USER,
+                    parts = processedContent,
+                    mentions = mentions,
+                )
                 val newConversation = currentConversation.copy(
-                    messageNodes = currentConversation.messageNodes + UIMessage(
-                        role = MessageRole.USER,
-                        parts = processedContent,
-                    ).toMessageNode(),
+                    messageNodes = currentConversation.messageNodes + userMessage.toMessageNode(),
+                    floorState = if (currentConversation.isGroup) {
+                        currentConversation.floorState.resetForUserTurn(mentions)
+                    } else {
+                        currentConversation.floorState
+                    },
                 )
                 saveConversation(conversationId, newConversation)
 
@@ -466,9 +497,80 @@ class ChatService(
             } catch (e: Exception) {
                 e.printStackTrace()
                 addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
+                // Voice call / other listeners await this to leave Thinking phase
+                runCatching { _generationDoneFlow.emit(conversationId) }
             }
         }
         session.setJob(job)
+    }
+
+    suspend fun runScheduledWorkflow(
+        ruleId: Uuid,
+        workflowId: Uuid,
+        assistantId: Uuid,
+        ruleName: String,
+        triggerKey: String,
+    ) {
+        val settings = settingsStore.settingsFlow.first()
+        val assistant = settings.getAssistantById(assistantId) ?: return
+        if (workflowId !in assistant.enabledWorkflowIds) return
+
+        val baseConversation = conversationRepo.getRecentConversations(assistantId, limit = 1)
+            .firstOrNull()
+            ?: Conversation.ofId(
+                id = Uuid.random(),
+                assistantId = assistantId,
+                newConversation = true,
+            ).updateCurrentMessages(assistant.presetMessages)
+        val conversationId = baseConversation.id
+
+        addConversationReference(conversationId)
+        try {
+            val exists = conversationRepo.existsConversationById(conversationId)
+            if (!exists) {
+                saveConversation(conversationId, baseConversation)
+            }
+
+            // Ensure session state matches the conversation's assistantId / preset messages.
+            val loadedConversation = conversationRepo.getConversationById(conversationId) ?: baseConversation
+            val session = getOrCreateSession(conversationId)
+            updateConversation(conversationId, loadedConversation)
+
+            val previousJob = session.getJob()
+            previousJob?.cancel()
+            agentManagerOrNull()?.cancelAndJoin("scheduled_workflow")
+            runCatching { previousJob?.join() }
+            finishInterruptedPendingTools(conversationId)
+
+            val triggerText = buildString {
+                append("定时工作流触发：")
+                append(ruleName.ifBlank { "未命名规则" })
+                append("\ntrigger_key=")
+                append(triggerKey)
+                append("\nrule_id=")
+                append(ruleId)
+            }
+            val processedContent = preprocessUserInputParts(
+                listOf(UIMessagePart.Text(triggerText)),
+                assistant,
+            )
+            val currentConversation = getConversationFlow(conversationId).value
+            val userMessage = UIMessage(
+                role = MessageRole.USER,
+                parts = processedContent,
+            )
+            val newConversation = currentConversation.copy(
+                messageNodes = currentConversation.messageNodes + userMessage.toMessageNode(),
+            )
+            saveConversation(conversationId, newConversation)
+            handleMessageComplete(
+                conversationId = conversationId,
+                forcedWorkflowId = workflowId,
+            )
+            runCatching { _generationDoneFlow.emit(conversationId) }
+        } finally {
+            removeConversationReference(conversationId)
+        }
     }
 
     private fun preprocessUserInputParts(parts: List<UIMessagePart>, assistant: Assistant): List<UIMessagePart> {
@@ -529,6 +631,7 @@ class ChatService(
                 throw e
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
+                runCatching { _generationDoneFlow.emit(conversationId) }
             }
         }
 
@@ -616,14 +719,204 @@ class ChatService(
         session.setJob(job)
     }
 
+    // ---- 群聊地板权调度 ----
+
+    suspend fun createGroupConversation(
+        memberAssistantIds: List<Uuid>,
+        mode: GroupChatMode = GroupChatMode.MENTION_FIRST,
+        title: String = "",
+    ): Uuid {
+        require(memberAssistantIds.size >= 2) { "Group chat needs at least 2 assistants" }
+        val settings = settingsStore.settingsFlow.value
+        val members = memberAssistantIds.distinct().map { id ->
+            val assistant = settings.getAssistantById(id)
+            GroupMember(
+                assistantId = id,
+                displayName = assistant?.name.orEmpty(),
+                chatModelId = assistant?.chatModelId,
+            )
+        }
+        val id = Uuid.random()
+        val conversation = Conversation.ofId(
+            id = id,
+            assistantId = members.first().assistantId,
+            newConversation = true,
+        ).copy(
+            title = title.ifBlank { "Group Chat" },
+            isGroup = true,
+            groupMembers = members,
+            groupMode = mode,
+        )
+        updateConversation(id, conversation)
+        saveConversation(id, conversation)
+        return id
+    }
+
+    fun setGroupMode(conversationId: Uuid, mode: GroupChatMode) {
+        updateConversationState(conversationId) { it.copy(groupMode = mode) }
+        appScope.launch {
+            val conv = getConversationFlow(conversationId).value
+            saveConversation(conversationId, conv)
+        }
+    }
+
+    fun pauseGroupDiscussion(conversationId: Uuid) {
+        val session = getOrCreateSession(conversationId)
+        session.getJob()?.cancel()
+        updateConversationState(conversationId) {
+            it.copy(floorState = it.floorState.pause())
+        }
+        appScope.launch {
+            saveConversation(conversationId, getConversationFlow(conversationId).value)
+        }
+    }
+
+    private suspend fun handleGroupMessageComplete(conversationId: Uuid) {
+        val settings = settingsStore.settingsFlow.first()
+        var conversation = getConversationFlow(conversationId).value
+        if (!conversation.isGroup || conversation.groupMembers.size < 2) {
+            Log.w(TAG, "handleGroupMessageComplete: not a valid group")
+            return
+        }
+        val members = conversation.resolvedGroupMembers(settings)
+        updateConversation(conversationId, conversation.copy(chatSuggestions = emptyList()))
+
+        val initialMentions = conversation.floorState.pendingMentions
+        val finalFloor = groupOrchestrator.runTurn(
+            mode = conversation.groupMode,
+            members = members,
+            initialFloor = conversation.floorState,
+            initialMentions = initialMentions,
+            transcriptProvider = {
+                getConversationFlow(conversationId).value.toGroupTranscript(settings)
+            },
+            onSpeak = { speakerId ->
+                generateGroupSpeakerReply(conversationId, speakerId, settings)
+                val latest = getConversationFlow(conversationId).value.currentMessages
+                    .lastOrNull { it.role == MessageRole.ASSISTANT && it.speakerId == speakerId }
+                val text = latest?.toText().orEmpty()
+                parseGroupMentions(text, members)
+            },
+        )
+        conversation = getConversationFlow(conversationId).value.copy(floorState = finalFloor)
+        saveConversation(conversationId, conversation)
+        launchWithConversationReference(conversationId) {
+            generateTitle(conversationId, conversation)
+        }
+    }
+
+    private suspend fun generateGroupSpeakerReply(
+        conversationId: Uuid,
+        speakerId: Uuid,
+        settings: Settings,
+    ) {
+        val conversation = getConversationFlow(conversationId).value
+        val members = conversation.resolvedGroupMembers(settings)
+        val member = members.firstOrNull { it.assistantId == speakerId }
+            ?: error("Unknown group speaker $speakerId")
+        val assistant = settings.getAssistantById(speakerId)
+            ?: error("Assistant not found for speaker $speakerId")
+        val model = settings.findModelById(
+            member.chatModelId ?: assistant.chatModelId ?: settings.chatModelId
+        ) ?: error("Model not found for speaker $speakerId")
+
+        val speakerName = member.displayName.ifBlank { assistant.name }.ifBlank { "Assistant" }
+        val addon = groupSpeakerSystemAddon(speakerName, members)
+        val basePrompt = conversation.customSystemPrompt?.takeIf { it.isNotBlank() }
+            ?: assistant.systemPrompt
+        val mergedPrompt = basePrompt + "\n" + addon
+
+        val messages = conversation.messagesForGroupSpeaker(speakerId, settings)
+        val senderName = speakerName
+        val session = getOrCreateSession(conversationId)
+
+        runCatching {
+            generationHandler.generateText(
+                settings = settings,
+                model = model,
+                processingStatus = session.processingStatus,
+                messages = messages,
+                assistant = assistant.copy(
+                    // Prefer text replies in group; tools/device control stay on 1:1 chats
+                    localTools = emptyList(),
+                    enableWebSearch = false,
+                    mcpServers = emptySet(),
+                    enabledSkills = emptySet(),
+                    enabledWorkflowIds = emptySet(),
+                ),
+                conversationSystemPrompt = mergedPrompt,
+                conversationModeInjectionIds = emptySet(),
+                conversationLorebookIds = emptySet(),
+                companionPromptBundle = null,
+                workspaceCwd = null,
+                rollingSummary = conversation.rollingSummary,
+                carryoverOverview = null,
+                workflowBundle = null,
+                memories = emptyList(),
+                inputTransformers = emptyList(),
+                outputTransformers = outputTransformers,
+                tools = emptyList(),
+            ).onCompletion {
+                val updated = getConversationFlow(conversationId).value.copy(
+                    messageNodes = getConversationFlow(conversationId).value.messageNodes.map { node ->
+                        node.copy(messages = node.messages.map { it.finishReasoning() })
+                    },
+                    updateAt = Instant.now(),
+                )
+                updateConversation(conversationId, updated)
+                appEventBus.emit(
+                    AppEvent.ChatGenerationEnded(
+                        conversationId = conversationId,
+                        senderName = senderName,
+                        contentPreview = updated.currentMessages.lastOrNull()
+                            ?.toText()?.take(50)?.trim() ?: "",
+                    )
+                )
+            }.collect { chunk ->
+                when (chunk) {
+                    is GenerationChunk.Messages -> {
+                        val stamped = chunk.messages.map { msg ->
+                            if (msg.role == MessageRole.ASSISTANT && msg.speakerId == null) {
+                                msg.withSpeaker(speakerId)
+                            } else {
+                                msg
+                            }
+                        }
+                        val updatedConversation = getConversationFlow(conversationId).value
+                            .updateCurrentMessages(stamped)
+                        updateConversation(conversationId, updatedConversation)
+                        stamped.lastOrNull()?.let { lastMessage ->
+                            appEventBus.tryEmit(
+                                AppEvent.ChatGenerationUpdate(conversationId, lastMessage, senderName)
+                            )
+                        }
+                    }
+                }
+            }
+        }.onFailure {
+            if (it is CancellationException) throw it
+            appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
+            Log.e(TAG, "generateGroupSpeakerReply failed", it)
+            addError(it, conversationId, title = context.getString(R.string.error_title_generation))
+            throw it
+        }.onSuccess {
+            saveConversation(conversationId, getConversationFlow(conversationId).value)
+        }
+    }
+
     // ---- 处理消息补全 ----
 
     private suspend fun handleMessageComplete(
         conversationId: Uuid,
-        messageRange: ClosedRange<Int>? = null
+        messageRange: ClosedRange<Int>? = null,
+        forcedWorkflowId: Uuid? = null,
     ) {
         val settings = settingsStore.settingsFlow.first()
         val initialConversation = getConversationFlow(conversationId).value
+        if (initialConversation.isGroup) {
+            handleGroupMessageComplete(conversationId)
+            return
+        }
         val assistant = settings.getAssistantById(initialConversation.assistantId)
             ?: settings.getCurrentAssistant()
         val model = settings.findModelById(assistant.chatModelId ?: settings.chatModelId) ?: return
@@ -705,6 +998,7 @@ class ChatService(
                 assistant = assistant,
                 userText = latestUserText,
                 deviceRouteTaken = false,
+                forcedWorkflowId = forcedWorkflowId,
             )
 
             // start generating
@@ -780,6 +1074,7 @@ class ChatService(
                             workspaceId = assistant.workspaceId?.toString(),
                         )
                     )
+                    addAll(createScheduledWorkflowTools(scheduledWorkflowManager))
                     if (assistant.enabledSkills.isNotEmpty()) {
                         addAll(
                             createSkillTools(

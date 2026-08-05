@@ -41,7 +41,6 @@ import org.koin.android.ext.android.inject
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "CompanionMonitor"
 
@@ -55,8 +54,15 @@ class CompanionMonitorService : Service() {
 
     companion object {
         const val ACTION_START = "me.rerere.rikkahub.action.COMPANION_MONITOR_START"
+        /** User tapped Stop in notification — disable features and stop */
         const val ACTION_STOP = "me.rerere.rikkahub.action.COMPANION_MONITOR_STOP"
+        /** Stop service only without mutating settings */
+        const val ACTION_FORCE_STOP = "me.rerere.rikkahub.action.COMPANION_MONITOR_FORCE_STOP"
         const val NOTIFICATION_ID = 3001
+        private const val PREFS_NAME = "companion_monitor_state"
+        private const val PREFS_USAGE_PREFIX = "usage_last_"
+        /** Morning/evening catch-up window after the scheduled hour (hours) */
+        private const val GREETING_CATCHUP_HOURS = 2
 
         fun start(context: Context) {
             val intent = Intent(context, CompanionMonitorService::class.java).apply {
@@ -70,11 +76,12 @@ class CompanionMonitorService : Service() {
             runCatching {
                 context.stopService(Intent(context, CompanionMonitorService::class.java))
             }.onFailure {
-                Log.w(TAG, "stopService failed, try ACTION_STOP", it)
+                Log.w(TAG, "stopService failed, try ACTION_FORCE_STOP", it)
                 runCatching {
+                    // Must NOT use ACTION_STOP — that path clears user settings
                     context.startService(
                         Intent(context, CompanionMonitorService::class.java).apply {
-                            action = ACTION_STOP
+                            action = ACTION_FORCE_STOP
                         }
                     )
                 }
@@ -103,12 +110,19 @@ class CompanionMonitorService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var monitorJob: Job? = null
-    private val lastInterventionAt = ConcurrentHashMap<String, Long>()
+    private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_FORCE_STOP -> {
+                monitorJob?.cancel()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
             ACTION_STOP -> {
                 serviceScope.launch {
                     settingsStore.update { current ->
@@ -220,10 +234,10 @@ class CompanionMonitorService : Service() {
 
         val now = System.currentTimeMillis()
         val cooldownMs = assist.effectiveCooldownMinutes() * 60_000L
-        val last = lastInterventionAt[foreground.packageName] ?: 0L
+        val last = prefs.getLong(PREFS_USAGE_PREFIX + foreground.packageName, 0L)
         if (now - last < cooldownMs) return
 
-        lastInterventionAt[foreground.packageName] = now
+        prefs.edit().putLong(PREFS_USAGE_PREFIX + foreground.packageName, now).apply()
         Log.i(TAG, "usage care: ${foreground.packageName} ${foreground.continuousMinutes}m")
 
         val assistant = settings.getCurrentAssistant()
@@ -261,11 +275,11 @@ class CompanionMonitorService : Service() {
 
         val resolvedReason = when {
             assist.morningGreetingEnabled &&
-                hour == assist.morningHour.coerceIn(0, 23) &&
+                isWithinGreetingWindow(hour, assist.morningHour.coerceIn(0, 23)) &&
                 assist.lastMorningDate != today -> ProactiveChatReason.MORNING
 
             assist.eveningGreetingEnabled &&
-                hour == assist.eveningHour.coerceIn(0, 23) &&
+                isWithinGreetingWindow(hour, assist.eveningHour.coerceIn(0, 23)) &&
                 assist.lastEveningDate != today -> ProactiveChatReason.EVENING
 
             else -> {
@@ -363,6 +377,13 @@ class CompanionMonitorService : Service() {
         val today = LocalDate.now(ZoneId.systemDefault()).toString()
         val count = if (assist.proactiveDayKey == today) assist.proactiveDayCount else 0
         return count < assist.maxProactivePerDay.coerceAtLeast(1)
+    }
+
+    /** Exact hour or within catch-up window if the service was down at the scheduled hour. */
+    private fun isWithinGreetingWindow(currentHour: Int, targetHour: Int): Boolean {
+        if (currentHour == targetHour) return true
+        val end = (targetHour + GREETING_CATCHUP_HOURS).coerceAtMost(23)
+        return currentHour in (targetHour + 1)..end
     }
 
     private suspend fun markProactiveConsumed() {

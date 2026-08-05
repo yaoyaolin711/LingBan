@@ -25,9 +25,13 @@ class PromptBuilder {
         messages: List<UIMessage>,
         relationshipContext: CompanionRelationshipContext? = null,
         behaviorPolicy: CompanionBehaviorPolicy? = null,
+        healthContext: String? = null,
+        lifeContext: String? = null,
     ): CompanionPromptBundle {
         val resolvedPolicy = behaviorPolicy ?: state.toDefaultBehaviorPolicy()
         val stateContext = stateContextBuilder.build(state, resolvedPolicy)
+        val resolvedHealth = healthContext?.trim().orEmpty()
+        val resolvedLife = lifeContext?.trim().orEmpty()
         val cacheKey = buildCacheKey(
             conversationId = conversationId,
             assistant = assistant,
@@ -38,6 +42,8 @@ class PromptBuilder {
             relationshipContext = relationshipContext,
             behaviorPolicy = resolvedPolicy,
             stateContext = stateContext,
+            healthContext = resolvedHealth,
+            lifeContext = resolvedLife,
         )
         val blocks = buildList {
             character?.toCharacterPromptBlock()?.let { addIfEnabled(it) }
@@ -47,6 +53,8 @@ class PromptBuilder {
             addIfEnabled(state.toLongMemoryPromptBlock())
             addIfEnabled(state.toMediumMemoryPromptBlock())
             addIfEnabled(stateContext.toCompanionStateContextPromptBlock())
+            addIfEnabled(resolvedHealth.toHealthContextPromptBlock())
+            addIfEnabled(resolvedLife.toLifeContextPromptBlock())
             addIfEnabled(resolvedPolicy.toBehaviorPolicyPromptBlock())
             character?.toPostHistoryBlock()?.let { addIfEnabled(it) }
         }.sortedBy { it.order }
@@ -66,6 +74,8 @@ class PromptBuilder {
         relationshipContext: CompanionRelationshipContext?,
         behaviorPolicy: CompanionBehaviorPolicy?,
         stateContext: String,
+        healthContext: String,
+        lifeContext: String,
     ): String {
         val recentWindowSignature = messages
             .takeLast(4)
@@ -89,6 +99,10 @@ class PromptBuilder {
             append((behaviorPolicy ?: state.toDefaultBehaviorPolicy()).hashCode())
             append(':')
             append(stateContext.hashCode())
+            append(':')
+            append(healthContext.hashCode())
+            append(':')
+            append(lifeContext.hashCode())
             append(':')
             append(messages.size)
             append(':')
@@ -258,6 +272,30 @@ class PromptBuilder {
             role = MessageRole.USER,
             order = 47,
             cacheKey = "companion_state:${hashCode()}",
+            content = this,
+            enabled = isNotBlank(),
+        )
+    }
+
+    private fun String.toHealthContextPromptBlock(): CompanionPromptBlock {
+        return CompanionPromptBlock(
+            type = "health_context",
+            position = InjectionPosition.AFTER_SYSTEM_PROMPT,
+            role = MessageRole.USER,
+            order = 48,
+            cacheKey = "health_context:${hashCode()}",
+            content = this,
+            enabled = isNotBlank(),
+        )
+    }
+
+    private fun String.toLifeContextPromptBlock(): CompanionPromptBlock {
+        return CompanionPromptBlock(
+            type = "life_context",
+            position = InjectionPosition.AFTER_SYSTEM_PROMPT,
+            role = MessageRole.USER,
+            order = 49,
+            cacheKey = "life_context:${hashCode()}",
             content = this,
             enabled = isNotBlank(),
         )

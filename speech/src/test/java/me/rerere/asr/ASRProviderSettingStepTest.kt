@@ -14,7 +14,7 @@ class ASRProviderSettingStepTest {
         assertEquals("stepaudio-2.5-asr", setting.model)
         assertEquals("auto", setting.language)
         assertEquals(16000, setting.sampleRate)
-        assertEquals(30, setting.segmentDurationSec)
+        assertEquals(5, setting.segmentDurationSec)
         assertEquals(true, setting.enableItn)
         assertEquals(false, setting.enableTimestamp)
         assertTrue(setting.hotwords.isEmpty())

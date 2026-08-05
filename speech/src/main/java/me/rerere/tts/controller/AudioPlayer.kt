@@ -3,6 +3,8 @@ package me.rerere.tts.controller
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -32,17 +34,27 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class AudioPlayer(context: Context) {
-    private val player = ExoPlayer.Builder(context).build()
+    private val player = ExoPlayer.Builder(context).build().also { exo ->
+        val attrs = AudioAttributes.Builder()
+            .setUsage(C.USAGE_ASSISTANT)
+            .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+            .build()
+        exo.setAudioAttributes(attrs, /* handleAudioFocus= */ true)
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
     private var positionJob: Job? = null
+    private var playRetryJob: Job? = null
 
     fun pause() = player.pause()
     fun resume() = player.play()
-    fun stop() = player.stop()
+    fun stop() {
+        playRetryJob?.cancel()
+        player.stop()
+    }
     fun clear() = player.clearMediaItems()
     fun release() = player.release()
     fun seekBy(ms: Long) = player.seekTo(player.currentPosition + ms)
@@ -61,6 +73,7 @@ class AudioPlayer(context: Context) {
         val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
             .createMediaSource(MediaItem.fromUri(Uri.EMPTY))
 
+        playRetryJob?.cancel()
         player.setMediaSource(mediaSource)
         player.prepare()
         player.play()
@@ -90,9 +103,25 @@ class AudioPlayer(context: Context) {
                                 positionMs = player.currentPosition
                             )
                         }
-                        if (isPlaying) startPositionUpdates() else stopPositionUpdates()
+                        if (isPlaying) {
+                            startPositionUpdates()
+                        } else {
+                            stopPositionUpdates()
+                            // Focus handoff race (e.g. ASR just abandoned EXCLUSIVE) — retry play once.
+                            playRetryJob?.cancel()
+                            playRetryJob = scope.launch {
+                                delay(80)
+                                if (cont.isActive &&
+                                    player.playbackState == Player.STATE_READY &&
+                                    !player.isPlaying
+                                ) {
+                                    player.play()
+                                }
+                            }
+                        }
                     }
                     Player.STATE_ENDED -> {
+                        playRetryJob?.cancel()
                         stopPositionUpdates()
                         _playbackState.update {
                             it.copy(
@@ -112,6 +141,7 @@ class AudioPlayer(context: Context) {
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                playRetryJob?.cancel()
                 player.removeListener(this)
                 stopPositionUpdates()
                 _playbackState.update { it.copy(status = PlaybackStatus.Error, errorMessage = error.message) }
@@ -126,6 +156,7 @@ class AudioPlayer(context: Context) {
         }
         player.addListener(listener)
         cont.invokeOnCancellation {
+            playRetryJob?.cancel()
             player.removeListener(listener)
             player.stop()
             stopPositionUpdates()
@@ -191,4 +222,3 @@ class AudioPlayer(context: Context) {
         ((value.toInt() shr 8) and 0xFF).toByte()
     )
 }
-

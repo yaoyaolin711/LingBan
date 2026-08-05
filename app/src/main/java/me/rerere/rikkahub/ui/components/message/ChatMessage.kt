@@ -408,6 +408,7 @@ private fun MessagePartsBlock(
                                     modifier = if (loading) Modifier else Modifier.animateContentSize(),
                                     opacity = settings.displaySetting.bubbleOpacity,
                                     glassStyle = glassStyle,
+                                    fillStyle = settings.displaySetting.bubbleFillStyle,
                                     customColor = settings.displaySetting.userBubbleColorArgb?.let {
                                         Color(it.toInt())
                                     },
@@ -420,6 +421,7 @@ private fun MessagePartsBlock(
                                     modifier = if (loading) Modifier else Modifier.animateContentSize(),
                                     opacity = settings.displaySetting.bubbleOpacity,
                                     glassStyle = glassStyle,
+                                    fillStyle = settings.displaySetting.bubbleFillStyle,
                                     customColor = settings.displaySetting.assistantBubbleColorArgb?.let {
                                         Color(it.toInt())
                                     },

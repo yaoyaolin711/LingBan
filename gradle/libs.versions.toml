@@ -30,6 +30,7 @@ quickjs = "3.2.3"
 room = "2.8.4"
 koin-bom = "4.2.2"
 datastore = "1.2.1"
+healthConnect = "1.1.0"
 serialization-json = "1.11.0"
 kotlin-coroutines-core = "1.11.0"
 kotlinx-datetime = "0.8.0"
@@ -110,6 +111,7 @@ androidx-room-testing = { group = "androidx.room", name = "room-testing", versio
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+androidx-health-connect = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workmanager" }
 jetbrains-markdown = { module = "com.github.rikkahub:markdown", version.ref = "markdown" }
 metadata-extractor = { module = "com.drewnoakes:metadata-extractor", version.ref = "metadataExtractor" }

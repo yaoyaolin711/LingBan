@@ -82,13 +82,14 @@ class ChatVM(
         // 添加对话引用
         chatService.addConversationReference(_conversationId)
 
-        // 初始化对话
+        // 初始化后仅记住已落库/有内容的会话，避免空「新聊天」覆盖上次真实会话
         viewModelScope.launch {
             chatService.initializeConversation(_conversationId)
+            val conv = chatService.getConversationFlow(_conversationId).value
+            if (!conv.newConversation || conv.messageNodes.isNotEmpty()) {
+                context.writeStringPreference("lastConversationId", _conversationId.toString())
+            }
         }
-
-        // 记住对话ID, 方便下次启动恢复
-        context.writeStringPreference("lastConversationId", _conversationId.toString())
     }
 
     override fun onCleared() {
@@ -175,6 +176,7 @@ class ChatVM(
         analytics?.logEvent("ai_send_message", null)
 
         chatService.sendMessage(_conversationId, content, answer)
+        context.writeStringPreference("lastConversationId", _conversationId.toString())
     }
 
     fun handleMessageEdit(parts: List<UIMessagePart>, messageId: Uuid) {
@@ -328,6 +330,14 @@ class ChatVM(
 
     fun declineCarryoverOffer(messageId: Uuid) {
         chatService.declineCarryoverOffer(_conversationId, messageId)
+    }
+
+    fun setGroupMode(mode: me.rerere.rikkahub.data.groupchat.GroupChatMode) {
+        chatService.setGroupMode(_conversationId, mode)
+    }
+
+    fun pauseGroupDiscussion() {
+        chatService.pauseGroupDiscussion(_conversationId)
     }
 
     fun discardSessionCarryover() {

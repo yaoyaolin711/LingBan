@@ -64,10 +64,13 @@ import kotlinx.serialization.Serializable
 import me.rerere.highlight.Highlighter
 import me.rerere.highlight.LocalHighlighter
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
 import me.rerere.rikkahub.data.db.MigrationState
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.data.repository.ConversationRepository
+import kotlinx.coroutines.flow.first
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
 import me.rerere.rikkahub.ui.components.ui.CivilChatConsentDialog
 import me.rerere.rikkahub.ui.components.ui.TTSController
@@ -78,11 +81,12 @@ import me.rerere.rikkahub.ui.context.LocalSharedTransitionScope
 import me.rerere.rikkahub.ui.context.LocalTTSState
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.Navigator
-import me.rerere.rikkahub.ui.hooks.readBooleanPreference
 import me.rerere.rikkahub.ui.hooks.readStringPreference
 import me.rerere.rikkahub.ui.hooks.rememberCustomAsrState
 import me.rerere.rikkahub.ui.hooks.rememberCustomTtsState
+import me.rerere.rikkahub.ui.hooks.speakForChat
 import me.rerere.rikkahub.ui.pages.assistant.AssistantPage
+import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantVoicePage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
@@ -119,6 +123,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesThemePage
 import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesNotificationPage
 import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesGeneralPage
 import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesUIPage
+import me.rerere.rikkahub.ui.pages.setting.SettingScheduledWorkflowPage
 import me.rerere.rikkahub.ui.pages.setting.SettingThemePage
 import me.rerere.rikkahub.ui.pages.setting.SettingDisclaimerPage
 import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
@@ -134,12 +139,15 @@ import me.rerere.rikkahub.ui.pages.voicecall.CustomVoiceEditPage
 import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallPage
 import me.rerere.rikkahub.ui.pages.voicecall.VoiceSelectionPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
+import me.rerere.rikkahub.ui.pages.setting.SettingHealthConnectPage
+import me.rerere.rikkahub.ui.pages.setting.SettingIntimatePage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
 import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
+import me.rerere.rikkahub.overlay.VoiceCallFloatHost
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.openAccessibilitySettings
 import me.rerere.rikkahub.utils.openUsageAccessSettings
@@ -154,10 +162,23 @@ class RouteActivity : ComponentActivity() {
     private val highlighter by inject<Highlighter>()
     private val okHttpClient by inject<OkHttpClient>()
     private val settingsStore by inject<SettingsStore>()
+    private val conversationRepo by inject<ConversationRepository>()
     private var navStack: MutableList<NavKey>? = null
 
     // Volume key listener registry — last registered handler wins
     internal val volumeKeyListeners = mutableListOf<(isVolumeUp: Boolean) -> Boolean>()
+
+    /** Resolve latest persisted chat for current assistant (DB first, then lastConversationId). */
+    private suspend fun resolveLatestConversationId(): String? {
+        val settings = settingsStore.settingsFlowRaw.first()
+        val assistantId = settings.getCurrentAssistant().id
+        val recent = conversationRepo.getRecentConversations(assistantId, limit = 1).firstOrNull()
+        if (recent != null) return recent.id.toString()
+
+        val lastId = readStringPreference("lastConversationId") ?: return null
+        val uuid = runCatching { Uuid.parse(lastId) }.getOrNull() ?: return null
+        return if (conversationRepo.existsConversationById(uuid)) lastId else null
+    }
 
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -242,6 +263,11 @@ class RouteActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(VoiceCallFloatHost.EXTRA_VOICE_CALL_CONVERSATION_ID)?.let { id ->
+            navStack?.add(Screen.VoiceCall(id))
+            return
+        }
         // Navigate to the chat screen if a conversation ID is provided
         intent.getStringExtra("conversationId")?.let { text ->
             navStack?.add(Screen.Chat(text))
@@ -260,7 +286,10 @@ class RouteActivity : ComponentActivity() {
         LaunchedEffect(tts) {
             eventBus.events.collect { event ->
                 when (event) {
-                    is AppEvent.Speak -> tts.speak(event.text)
+                    is AppEvent.Speak -> {
+                        val s = settingsStore.settingsFlow.value
+                        tts.speakForChat(s, s.getCurrentAssistant(), event.text)
+                    }
                     is AppEvent.OpenUsageAccessSettings -> this@RouteActivity.openUsageAccessSettings()
                     is AppEvent.OpenAccessibilitySettings -> this@RouteActivity.openAccessibilitySettings()
                     is AppEvent.McpOAuthCallback -> Unit // 由 McpManager 消费
@@ -278,10 +307,19 @@ class RouteActivity : ComponentActivity() {
 
         ShareHandler(backStack)
 
-        // 冷启动: 通知 / open_solace 带 conversationId
+        // 冷启动: 通知 / 语音通话 / 指定会话优先；否则统一进入当前助手最新会话
         LaunchedEffect(Unit) {
+            intent.getStringExtra(VoiceCallFloatHost.EXTRA_VOICE_CALL_CONVERSATION_ID)?.let { id ->
+                backStack.add(Screen.VoiceCall(id))
+                return@LaunchedEffect
+            }
             intent.getStringExtra("conversationId")?.let { id ->
                 backStack.add(Screen.Chat(id))
+                return@LaunchedEffect
+            }
+            val resumeId = resolveLatestConversationId()
+            if (resumeId != null && backStack.none { it is Screen.Chat || it is Screen.VoiceCall }) {
+                backStack.add(Screen.Chat(resumeId))
             }
         }
 
@@ -351,6 +389,10 @@ class RouteActivity : ComponentActivity() {
                                 )
                             }
 
+                            entry<Screen.GroupChatCreate> {
+                                me.rerere.rikkahub.ui.pages.chat.GroupChatCreatePage()
+                            }
+
                             entry<Screen.ShareHandler> { key ->
                                 ShareHandlerPage(
                                     text = key.text,
@@ -398,6 +440,10 @@ class RouteActivity : ComponentActivity() {
                                 AssistantLocalToolPage(key.id)
                             }
 
+                            entry<Screen.AssistantVoice> { key ->
+                                AssistantVoicePage(key.id)
+                            }
+
                             entry<Screen.AssistantInjections> { key ->
                                 AssistantExtensionsPage(key.id)
                             }
@@ -440,6 +486,10 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.SettingPreferencesUI> {
                                 SettingPreferencesUIPage()
+                            }
+
+                            entry<Screen.SettingScheduledWorkflow> {
+                                SettingScheduledWorkflowPage()
                             }
 
                             entry<Screen.SettingProvider> {
@@ -502,6 +552,14 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.SettingWeb> {
                                 SettingWebPage()
+                            }
+
+                            entry<Screen.SettingHealthConnect> {
+                                SettingHealthConnectPage()
+                            }
+
+                            entry<Screen.SettingIntimate> {
+                                SettingIntimatePage()
                             }
 
                             entry<Screen.Debug> {
@@ -636,6 +694,9 @@ sealed interface Screen : NavKey {
     ) : Screen
 
     @Serializable
+    data object GroupChatCreate : Screen
+
+    @Serializable
     data class ShareHandler(val text: String, val streamUri: String? = null) : Screen
 
     @Serializable
@@ -669,6 +730,9 @@ sealed interface Screen : NavKey {
     data class AssistantLocalTool(val id: String) : Screen
 
     @Serializable
+    data class AssistantVoice(val id: String) : Screen
+
+    @Serializable
     data class AssistantInjections(val id: String) : Screen
 
     @Serializable
@@ -700,6 +764,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object SettingPreferencesUI : Screen
+
+    @Serializable
+    data object SettingScheduledWorkflow : Screen
 
     @Serializable
     data object SettingProvider : Screen
@@ -745,6 +812,12 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object SettingWeb : Screen
+
+    @Serializable
+    data object SettingHealthConnect : Screen
+
+    @Serializable
+    data object SettingIntimate : Screen
 
     @Serializable
     data object Debug : Screen

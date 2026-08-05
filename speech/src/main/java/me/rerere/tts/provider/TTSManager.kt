@@ -13,8 +13,10 @@ import me.rerere.tts.provider.providers.MiniMaxTTSProvider
 import me.rerere.tts.provider.providers.MosslandTTSProvider
 import me.rerere.tts.provider.providers.OpenAITTSProvider
 import me.rerere.tts.provider.providers.QwenTTSProvider
+import me.rerere.tts.provider.providers.SiliconFlowTTSProvider
 import me.rerere.tts.provider.providers.StepTTSProvider
 import me.rerere.tts.provider.providers.SystemTTSProvider
+import me.rerere.tts.provider.providers.VolcengineTTSProvider
 import me.rerere.tts.provider.providers.XAITTSProvider
 
 class TTSManager(private val context: Context) {
@@ -30,6 +32,8 @@ class TTSManager(private val context: Context) {
     private val elevenLabsProvider = ElevenLabsTTSProvider()
     private val fishAudioProvider = FishAudioTTSProvider()
     private val mosslandProvider = MosslandTTSProvider()
+    private val siliconFlowProvider = SiliconFlowTTSProvider()
+    private val volcengineProvider = VolcengineTTSProvider()
 
     fun generateSpeech(
         providerSetting: TTSProviderSetting,
@@ -48,6 +52,8 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.FishAudio -> fishAudioProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.Mossland -> mosslandProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.Step -> stepProvider.generateSpeech(context, providerSetting, request)
+            is TTSProviderSetting.SiliconFlow -> siliconFlowProvider.generateSpeech(context, providerSetting, request)
+            is TTSProviderSetting.Volcengine -> volcengineProvider.generateSpeech(context, providerSetting, request)
         }
     }
 
@@ -69,6 +75,8 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.FishAudio -> fishAudioProvider.promptGuidance
             is TTSProviderSetting.Mossland -> mosslandProvider.promptGuidance
             is TTSProviderSetting.Step -> stepProvider.promptGuidance
+            is TTSProviderSetting.SiliconFlow -> siliconFlowProvider.promptGuidance
+            is TTSProviderSetting.Volcengine -> volcengineProvider.promptGuidance
         }
     }
 }

@@ -29,7 +29,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowDown01
 import me.rerere.hugeicons.stroke.Call
 import me.rerere.hugeicons.stroke.CallEnd01
 import me.rerere.hugeicons.stroke.Mic01
@@ -55,22 +55,20 @@ import me.rerere.rikkahub.ui.components.solace.CompanionAvatarSize
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionRecordAudio
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
-import me.rerere.rikkahub.ui.context.LocalASRState
 import me.rerere.rikkahub.ui.context.LocalNavController
-import me.rerere.rikkahub.ui.context.LocalTTSState
 import me.rerere.rikkahub.ui.pages.chat.ChatVM
 import me.rerere.rikkahub.ui.theme.SolaceTheme
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.uuid.Uuid
 
 @Composable
 fun VoiceCallPage(conversationId: Uuid) {
     val vm: ChatVM = koinViewModel(parameters = { parametersOf(conversationId.toString()) })
     val nav = LocalNavController.current
-    val asr = LocalASRState.current
-    val tts = LocalTTSState.current
-    val scope = rememberCoroutineScope()
+    val coordinator = koinInject<VoiceCallCoordinator>()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val assistant = settings.getCurrentAssistant()
     val colors = SolaceTheme.colorScheme
@@ -79,27 +77,28 @@ fun VoiceCallPage(conversationId: Uuid) {
     val asrPermission = rememberPermissionState(PermissionRecordAudio)
     PermissionManager(permissionState = asrPermission)
 
-    val session = remember(conversationId) {
-        VoiceCallSession(
-            scope = scope,
-            chatVM = vm,
-            asr = asr,
-            tts = tts,
-            conversationId = conversationId,
-        )
-    }
-    val ui by session.ui.collectAsStateWithLifecycle()
+    val ui by coordinator.ui.collectAsStateWithLifecycle()
+    val active by coordinator.active.collectAsStateWithLifecycle()
+    val activeConversationId by coordinator.conversationId.collectAsStateWithLifecycle()
+    var showDiag by remember { mutableStateOf(false) }
 
-    var callStarted by remember { mutableStateOf(false) }
+    // True when leaving via minimize/hangup so onDispose does not double-hangUp.
+    val intentionalLeave = remember { AtomicBoolean(false) }
+
     val voiceReady = resolveVoiceCallTts(settings, assistant.voiceCall) is VoiceCallTtsResolveResult.Ready
+    val callLiveForThisConversation =
+        active && activeConversationId == conversationId &&
+            ui.phase != VoiceCallPhase.Ended &&
+            ui.phase != VoiceCallPhase.Idle &&
+            ui.phase != VoiceCallPhase.NeedsSetup
 
     fun openVoiceSelection() {
         nav.navigate(Screen.VoiceSelection)
     }
 
     fun tryStartCall() {
-        if (callStarted) {
-            session.applyVoiceAndListen()
+        if (callLiveForThisConversation) {
+            coordinator.applyVoiceAndListen()
             return
         }
         if (!asrPermission.allRequiredPermissionsGranted) {
@@ -108,23 +107,51 @@ fun VoiceCallPage(conversationId: Uuid) {
         }
         when (resolveVoiceCallTts(vm.settings.value, vm.settings.value.getCurrentAssistant().voiceCall)) {
             is VoiceCallTtsResolveResult.Ready -> {
-                callStarted = true
-                session.start()
+                coordinator.ensureStarted(conversationId)
             }
             else -> openVoiceSelection()
         }
     }
 
+    fun minimizeAndExit() {
+        if (coordinator.isInCall && activeConversationId == conversationId) {
+            intentionalLeave.set(true)
+            coordinator.minimize()
+            nav.popBackStack()
+        } else {
+            nav.popBackStack()
+        }
+    }
+
     fun hangUpAndExit() {
-        session.hangUp()
+        intentionalLeave.set(true)
+        coordinator.hangUp()
         nav.popBackStack()
     }
 
-    BackHandler { hangUpAndExit() }
+    // Back / system gesture: minimize (keep talking) instead of hang up.
+    BackHandler {
+        if (callLiveForThisConversation) {
+            minimizeAndExit()
+        } else {
+            nav.popBackStack()
+        }
+    }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(conversationId) {
+        intentionalLeave.set(false)
+        if (activeConversationId == conversationId && active) {
+            coordinator.expand()
+        }
         onDispose {
-            session.hangUp()
+            // Leaving without explicit minimize/hangup (e.g. unexpected teardown): hang up.
+            if (!intentionalLeave.get() &&
+                coordinator.conversationId.value == conversationId &&
+                coordinator.active.value &&
+                !coordinator.minimized.value
+            ) {
+                coordinator.hangUp()
+            }
         }
     }
 
@@ -135,8 +162,9 @@ fun VoiceCallPage(conversationId: Uuid) {
     }
 
     // Local system voices can start immediately; cloud voices wait for explicit start.
-    LaunchedEffect(asrPermission.allRequiredPermissionsGranted, settings) {
-        if (callStarted) return@LaunchedEffect
+    LaunchedEffect(asrPermission.allRequiredPermissionsGranted, settings, active) {
+        if (callLiveForThisConversation) return@LaunchedEffect
+        if (active && activeConversationId == conversationId) return@LaunchedEffect
         if (!asrPermission.allRequiredPermissionsGranted) return@LaunchedEffect
         val display = resolveVoiceCallDisplay(settings, assistant.voiceCall)
         if (!display.requiresApiKey &&
@@ -172,6 +200,14 @@ fun VoiceCallPage(conversationId: Uuid) {
                     }
                 },
                 actions = {
+                    if (VoiceCallDiag.ENABLED) {
+                        VoiceCallDebugFab(visible = true, onOpen = { showDiag = true })
+                    }
+                    if (callLiveForThisConversation) {
+                        IconButton(onClick = { minimizeAndExit() }) {
+                            Icon(HugeIcons.ArrowDown01, contentDescription = "缩小到悬浮窗")
+                        }
+                    }
                     IconButton(onClick = { openVoiceSelection() }) {
                         Icon(HugeIcons.Settings01, contentDescription = "Voice settings")
                     }
@@ -179,6 +215,20 @@ fun VoiceCallPage(conversationId: Uuid) {
             )
         },
     ) { padding ->
+        if (showDiag) {
+            VoiceCallDebugDialog(
+                onDismiss = { showDiag = false },
+                onForceSubmit = {
+                    VoiceCallDiag.log("UI", "force submit clicked")
+                    coordinator.finishUtterance()
+                },
+                onForceRelisten = {
+                    VoiceCallDiag.log("UI", "force relisten clicked")
+                    coordinator.applyVoiceAndListen()
+                },
+                onClearLog = { VoiceCallDiag.clear() },
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -186,7 +236,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             CompanionAvatar(
                 name = assistant.name.ifBlank { "AI" },
@@ -198,7 +248,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                 statusLabel = ui.statusMessage.ifBlank { phaseLabel(ui.phase) },
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Text(
                 text = phaseLabel(ui.phase),
@@ -217,7 +267,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             AmplitudeBars(
                 amplitudes = ui.amplitudes,
@@ -227,7 +277,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                     .height(48.dp),
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             val caption = when {
                 ui.partialTranscript.isNotBlank() -> ui.partialTranscript
@@ -254,22 +304,59 @@ fun VoiceCallPage(conversationId: Uuid) {
             Spacer(Modifier.weight(1f))
 
             when (ui.phase) {
-                VoiceCallPhase.NeedsSetup, VoiceCallPhase.Idle -> {
+                VoiceCallPhase.NeedsSetup, VoiceCallPhase.Idle, VoiceCallPhase.Ended, VoiceCallPhase.Error -> {
+                    val asrSetupNeeded = ui.errorMessage?.let {
+                        me.rerere.asr.SpeechRecognitionSupport.isHardFailure(it)
+                    } == true ||
+                        ui.statusMessage.contains("系统语音") ||
+                        ui.statusMessage.contains("云端 ASR")
                     Text(
-                        text = if (!voiceReady) {
-                            "先选择并配置通话声线"
-                        } else {
-                            "声线已就绪，可以开始通话"
+                        text = when {
+                            asrSetupNeeded -> "当前设备系统语音识别不可用，请配置云端 ASR"
+                            !voiceReady -> "先选择并配置通话声线"
+                            ui.phase == VoiceCallPhase.Error ->
+                                ui.errorMessage ?: ui.statusMessage.ifBlank { "出错了" }
+                            else -> "声线已就绪，可以开始通话"
                         },
                         style = typography.bodyMedium,
                         color = colors.secondaryText,
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(28.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (asrSetupNeeded) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                FilledIconButton(
+                                    onClick = {
+                                        if (callLiveForThisConversation) {
+                                            intentionalLeave.set(true)
+                                            coordinator.hangUp()
+                                        }
+                                        nav.navigate(Screen.SettingSpeech)
+                                    },
+                                    modifier = Modifier.size(64.dp),
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = colors.surfaceContainerHigh,
+                                        contentColor = colors.text,
+                                    ),
+                                ) {
+                                    Icon(
+                                        HugeIcons.Mic01,
+                                        contentDescription = "配置 ASR",
+                                        modifier = Modifier.size(26.dp),
+                                    )
+                                }
+                                Text(
+                                    text = "配置语音识别",
+                                    style = typography.labelMedium,
+                                    color = colors.secondaryText,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             FilledIconButton(
                                 onClick = { openVoiceSelection() },
@@ -288,7 +375,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                                 modifier = Modifier.padding(top = 8.dp),
                             )
                         }
-                        if (voiceReady) {
+                        if (voiceReady && !asrSetupNeeded) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 FilledIconButton(
                                     onClick = { tryStartCall() },
@@ -309,7 +396,7 @@ fun VoiceCallPage(conversationId: Uuid) {
                             }
                         }
                     }
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
 
                 else -> {
@@ -322,10 +409,33 @@ fun VoiceCallPage(conversationId: Uuid) {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             FilledIconButton(
+                                onClick = { minimizeAndExit() },
+                                modifier = Modifier.size(64.dp),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = colors.surfaceContainerHigh,
+                                    contentColor = colors.text,
+                                ),
+                            ) {
+                                Icon(
+                                    HugeIcons.ArrowDown01,
+                                    contentDescription = "缩小",
+                                    modifier = Modifier.size(26.dp),
+                                )
+                            }
+                            Text(
+                                text = "缩小",
+                                style = typography.labelMedium,
+                                color = colors.secondaryText,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            FilledIconButton(
                                 onClick = {
                                     when (ui.phase) {
-                                        VoiceCallPhase.Listening -> session.finishUtterance()
-                                        VoiceCallPhase.Speaking, VoiceCallPhase.Thinking -> session.interrupt()
+                                        VoiceCallPhase.Listening -> coordinator.finishUtterance()
+                                        VoiceCallPhase.Speaking, VoiceCallPhase.Thinking -> coordinator.interrupt()
                                         else -> Unit
                                     }
                                 },

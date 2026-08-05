@@ -20,6 +20,7 @@ import me.rerere.hugeicons.stroke.Notification01
 import me.rerere.hugeicons.stroke.PaintBoard
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Sun01
+import me.rerere.hugeicons.stroke.TimeQuarterPass
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -81,6 +82,12 @@ fun SettingPreferencesPage() {
                         leadingContent = { Icon(HugeIcons.PaintBoard, null) },
                         headlineContent = { Text(stringResource(R.string.setting_page_preferences_ui)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_preferences_ui_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.SettingScheduledWorkflow) },
+                        leadingContent = { Icon(HugeIcons.TimeQuarterPass, null) },
+                        headlineContent = { Text("定时工作流") },
+                        supportingContent = { Text("统一配置工作流的定时触发时间、目标助手和执行顺序") },
                     )
                 }
             }

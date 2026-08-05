@@ -311,6 +311,74 @@ sealed class TTSProviderSetting {
         }
     }
 
+    /**
+     * 硅基流动 SiliconFlow TTS（OpenAI 兼容 `/audio/speech`）。
+     *
+     * 官方文档: https://docs.siliconflow.com/cn/userguide/capabilities/text-to-speech
+     * 控制台模型广场筛选「语音」标签获取当前可用模型与音色。
+     */
+    @Serializable
+    @SerialName("siliconflow")
+    data class SiliconFlow(
+        override var id: Uuid = Uuid.random(),
+        override var name: String = "硅基流动 TTS",
+        val apiKey: String = "",
+        val baseUrl: String = "https://api.siliconflow.cn/v1",
+        val model: String = "FunAudioLLM/CosyVoice2-0.5B",
+        /** 系统预置音色需带模型前缀，例如 FunAudioLLM/CosyVoice2-0.5B:alex */
+        val voice: String = "FunAudioLLM/CosyVoice2-0.5B:alex",
+        /** mp3 | opus | wav | pcm */
+        val responseFormat: String = "mp3",
+        /** 0.25 - 4.0，默认 1.0 */
+        val speed: Float = 1.0f,
+        /** 增益 dB，-10 ~ 10，默认 0 */
+        val gain: Float = 0.0f,
+    ) : TTSProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): TTSProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
+
+    /**
+     * 火山引擎 / 豆包语音合成（HTTP v1 一次性合成）。
+     *
+     * 控制台获取 AppID + Access Token；音色填 voice_type（官方音色或复刻 speaker id）。
+     * 文档: https://www.volcengine.com/docs/6561/79823
+     */
+    @Serializable
+    @SerialName("volcengine")
+    data class Volcengine(
+        override var id: Uuid = Uuid.random(),
+        override var name: String = "火山引擎 TTS",
+        val appId: String = "",
+        val accessToken: String = "",
+        val baseUrl: String = "https://openspeech.bytedance.com/api/v1/tts",
+        /** 业务集群，标准音色默认 volcano_tts */
+        val cluster: String = "volcano_tts",
+        /** 音色类型 / 复刻 speaker id */
+        val voiceType: String = "zh_female_wanqudashu_moon_bigtts",
+        /** mp3 | wav | pcm | ogg_opus */
+        val encoding: String = "mp3",
+        val speedRatio: Float = 1.0f,
+        val sampleRate: Int = 24000,
+    ) : TTSProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): TTSProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
+
     companion object {
         val Types by lazy {
             listOf(
@@ -326,6 +394,8 @@ sealed class TTSProviderSetting {
                 Step::class,
                 FishAudio::class,
                 Mossland::class,
+                SiliconFlow::class,
+                Volcengine::class,
             )
         }
     }

@@ -35,6 +35,8 @@ import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV1Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV2Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV3Migration
 import me.rerere.rikkahub.data.device.CompanionAssistSetting
+import me.rerere.rikkahub.data.health.HealthConnectSetting
+import me.rerere.rikkahub.data.life.LifeContextSetting
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.CustomVoiceProfile
@@ -44,6 +46,7 @@ import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.sync.s3.S3Config
+import me.rerere.rikkahub.data.workflow.ScheduledWorkflowRule
 import me.rerere.rikkahub.ui.theme.CustomTheme
 import me.rerere.rikkahub.ui.theme.PresetThemes
 import me.rerere.rikkahub.utils.JsonInstant
@@ -103,6 +106,7 @@ class SettingsStore(
         val OCR_LAN_SERVICE_URL = stringPreferencesKey("ocr_lan_service_url")
         val OCR_LAN_FALLBACK_TO_MODEL = booleanPreferencesKey("ocr_lan_fallback_to_model")
         val COMPRESS_MODEL = stringPreferencesKey("compress_model")
+        val GROUP_SCHEDULER_MODEL = stringPreferencesKey("group_scheduler_model")
         val COMPRESS_PROMPT = stringPreferencesKey("compress_prompt")
 
         // 提供商
@@ -146,6 +150,12 @@ class SettingsStore(
         // 伴侣使用关怀 / 本机设备控制
         val COMPANION_ASSIST = stringPreferencesKey("companion_assist")
 
+        // Health Connect 只读穿戴数据
+        val HEALTH_CONNECT = stringPreferencesKey("health_connect")
+
+        // 作息感知（屏幕使用估计休息窗）
+        val LIFE_CONTEXT = stringPreferencesKey("life_context")
+
         // 用户勾选「始终允许」的工具名（之后不再弹审批）
         val AUTO_APPROVED_TOOLS = stringPreferencesKey("auto_approved_tools")
 
@@ -153,6 +163,7 @@ class SettingsStore(
         val MODE_INJECTIONS = stringPreferencesKey("mode_injections")
         val LOREBOOKS = stringPreferencesKey("lorebooks")
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
+        val SCHEDULED_WORKFLOWS = stringPreferencesKey("scheduled_workflows")
 
         // 备份提醒
         val BACKUP_REMINDER_CONFIG = stringPreferencesKey("backup_reminder_config")
@@ -199,6 +210,7 @@ class SettingsStore(
                 ocrLanFallbackToModel = preferences[OCR_LAN_FALLBACK_TO_MODEL] != false,
                 compressModelId = preferences[COMPRESS_MODEL]?.let { Uuid.parse(it) } ?: DEFAULT_AUTO_MODEL_ID,
                 compressPrompt = preferences[COMPRESS_PROMPT] ?: DEFAULT_COMPRESS_PROMPT,
+                groupSchedulerModelId = preferences[GROUP_SCHEDULER_MODEL]?.let { Uuid.parse(it) },
                 assistantId = preferences[SELECT_ASSISTANT]?.let { Uuid.parse(it) }
                     ?: DEFAULT_ASSISTANT_ID,
                 assistantTags = preferences[ASSISTANT_TAGS]?.let {
@@ -251,6 +263,9 @@ class SettingsStore(
                 quickMessages = preferences[QUICK_MESSAGES]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
+                scheduledWorkflows = preferences[SCHEDULED_WORKFLOWS]?.let {
+                    JsonInstant.decodeFromString(it)
+                } ?: emptyList(),
                 webServerEnabled = preferences[WEB_SERVER_ENABLED] == true,
                 webServerPort = preferences[WEB_SERVER_PORT] ?: 8080,
                 webServerJwtEnabled = preferences[WEB_SERVER_JWT_ENABLED] == true,
@@ -259,6 +274,12 @@ class SettingsStore(
                 companionAssist = preferences[COMPANION_ASSIST]?.let {
                     runCatching { JsonInstant.decodeFromString<CompanionAssistSetting>(it) }.getOrNull()
                 } ?: CompanionAssistSetting(),
+                healthConnect = preferences[HEALTH_CONNECT]?.let {
+                    runCatching { JsonInstant.decodeFromString<HealthConnectSetting>(it) }.getOrNull()
+                } ?: HealthConnectSetting(),
+                lifeContext = preferences[LIFE_CONTEXT]?.let {
+                    runCatching { JsonInstant.decodeFromString<LifeContextSetting>(it) }.getOrNull()
+                } ?: LifeContextSetting(),
                 autoApprovedTools = preferences[AUTO_APPROVED_TOOLS]?.let {
                     runCatching { JsonInstant.decodeFromString<List<String>>(it).toSet() }.getOrNull()
                 } ?: emptySet(),
@@ -414,6 +435,9 @@ class SettingsStore(
             preferences[OCR_LAN_FALLBACK_TO_MODEL] = settings.ocrLanFallbackToModel
             preferences[COMPRESS_MODEL] = settings.compressModelId.toString()
             preferences[COMPRESS_PROMPT] = settings.compressPrompt
+            settings.groupSchedulerModelId?.let {
+                preferences[GROUP_SCHEDULER_MODEL] = it.toString()
+            } ?: preferences.remove(GROUP_SCHEDULER_MODEL)
 
             preferences[PROVIDERS] = JsonInstant.encodeToString(settings.providers)
 
@@ -440,12 +464,15 @@ class SettingsStore(
             preferences[MODE_INJECTIONS] = JsonInstant.encodeToString(settings.modeInjections)
             preferences[LOREBOOKS] = JsonInstant.encodeToString(settings.lorebooks)
             preferences[QUICK_MESSAGES] = JsonInstant.encodeToString(settings.quickMessages)
+            preferences[SCHEDULED_WORKFLOWS] = JsonInstant.encodeToString(settings.scheduledWorkflows)
             preferences[WEB_SERVER_ENABLED] = settings.webServerEnabled
             preferences[WEB_SERVER_PORT] = settings.webServerPort
             preferences[WEB_SERVER_JWT_ENABLED] = settings.webServerJwtEnabled
             preferences[WEB_SERVER_ACCESS_PASSWORD] = settings.webServerAccessPassword
             preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
             preferences[COMPANION_ASSIST] = JsonInstant.encodeToString(settings.companionAssist)
+            preferences[HEALTH_CONNECT] = JsonInstant.encodeToString(settings.healthConnect)
+            preferences[LIFE_CONTEXT] = JsonInstant.encodeToString(settings.lifeContext)
             preferences[AUTO_APPROVED_TOOLS] = JsonInstant.encodeToString(settings.autoApprovedTools.toList())
             preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
@@ -573,6 +600,8 @@ data class Settings(
     val ocrLanFallbackToModel: Boolean = true,
     val compressModelId: Uuid = Uuid.random(),
     val compressPrompt: String = DEFAULT_COMPRESS_PROMPT,
+    /** Model used by group-chat floor SoftScheduler; null → fastModelId. */
+    val groupSchedulerModelId: Uuid? = null,
     val assistantId: Uuid = DEFAULT_ASSISTANT_ID,
     val providers: List<ProviderSetting> = DEFAULT_PROVIDERS,
     val assistants: List<Assistant> = DEFAULT_ASSISTANTS,
@@ -592,12 +621,17 @@ data class Settings(
     val modeInjections: List<PromptInjection.ModeInjection> = DEFAULT_MODE_INJECTIONS,
     val lorebooks: List<Lorebook> = emptyList(),
     val quickMessages: List<QuickMessage> = emptyList(),
+    val scheduledWorkflows: List<ScheduledWorkflowRule> = emptyList(),
     val webServerEnabled: Boolean = false,
     val webServerPort: Int = 8080,
     val webServerJwtEnabled: Boolean = false,
     val webServerAccessPassword: String = "",
     val webServerLocalhostOnly: Boolean = false,
     val companionAssist: CompanionAssistSetting = CompanionAssistSetting(),
+    /** Health Connect 只读穿戴数据（步数/心率/睡眠等） */
+    val healthConnect: HealthConnectSetting = HealthConnectSetting(),
+    /** 作息感知：根据屏幕使用 / HC 估计过夜休息窗 */
+    val lifeContext: LifeContextSetting = LifeContextSetting(),
     /** Tool names the user permanently auto-approved (skip needsApproval). */
     val autoApprovedTools: Set<String> = emptySet(),
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
@@ -651,6 +685,59 @@ fun BubbleGlassStyle.description(): String = when (this) {
 }
 
 @Serializable
+enum class BubbleFillStyle {
+    @SerialName("gradient")
+    GRADIENT,
+
+    @SerialName("solid")
+    SOLID,
+}
+
+fun BubbleFillStyle.displayName(): String = when (this) {
+    BubbleFillStyle.GRADIENT -> "渐变色"
+    BubbleFillStyle.SOLID -> "纯色"
+}
+
+fun BubbleFillStyle.description(): String = when (this) {
+    BubbleFillStyle.GRADIENT -> "气泡使用更柔和的渐变填充"
+    BubbleFillStyle.SOLID -> "气泡使用统一的纯色填充"
+}
+
+@Serializable
+enum class ChatBubbleSpacing {
+    /** 紧凑 */
+    @SerialName("low")
+    LOW,
+
+    /** 适中（默认） */
+    @SerialName("medium")
+    MEDIUM,
+
+    /** 宽松 */
+    @SerialName("high")
+    HIGH,
+}
+
+fun ChatBubbleSpacing.displayName(): String = when (this) {
+    ChatBubbleSpacing.LOW -> "低"
+    ChatBubbleSpacing.MEDIUM -> "中"
+    ChatBubbleSpacing.HIGH -> "高"
+}
+
+fun ChatBubbleSpacing.description(): String = when (this) {
+    ChatBubbleSpacing.LOW -> "气泡之间更紧凑"
+    ChatBubbleSpacing.MEDIUM -> "默认间距"
+    ChatBubbleSpacing.HIGH -> "气泡之间更宽松"
+}
+
+/** Vertical gap between chat message bubbles, in dp. */
+fun ChatBubbleSpacing.spacingDp(): Float = when (this) {
+    ChatBubbleSpacing.LOW -> 6f
+    ChatBubbleSpacing.MEDIUM -> 12f
+    ChatBubbleSpacing.HIGH -> 20f
+}
+
+@Serializable
 data class DisplaySetting(
     val userAvatar: Avatar = Avatar.Dummy,
     val userNickname: String = "",
@@ -665,10 +752,14 @@ data class DisplaySetting(
     val frostedBubble: Boolean = false,
     /** 聊天气泡磨砂样式 */
     val bubbleGlassStyle: BubbleGlassStyle = BubbleGlassStyle.NONE,
+    /** 聊天气泡填充方式 */
+    val bubbleFillStyle: BubbleFillStyle = BubbleFillStyle.GRADIENT,
     /** 用户气泡自定义 ARGB；null 表示跟随主题 */
     val userBubbleColorArgb: Long? = null,
     /** 助手气泡自定义 ARGB；null 表示跟随主题渐变 */
     val assistantBubbleColorArgb: Long? = null,
+    /** 聊天气泡之间的垂直间距档位 */
+    val chatBubbleSpacing: ChatBubbleSpacing = ChatBubbleSpacing.MEDIUM,
     /** 用户消息文字自定义 ARGB；null 表示跟随主题 */
     val userMessageTextColorArgb: Long? = null,
     /** 助手消息文字自定义 ARGB；null 表示跟随主题 */

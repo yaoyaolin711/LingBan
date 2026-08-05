@@ -185,6 +185,13 @@ class AssistantDetailVM(
         }
     }
 
+    /** Make this assistant the current one (for VoiceSelection / chat TTS resolve). */
+    fun setAsCurrentAssistant() {
+        viewModelScope.launch {
+            settingsStore.update { it.copy(assistantId = assistantId) }
+        }
+    }
+
     fun addMemory(memory: AssistantMemory) {
         viewModelScope.launch {
             val memoryAssistantId = if (assistant.value.useGlobalMemory) {

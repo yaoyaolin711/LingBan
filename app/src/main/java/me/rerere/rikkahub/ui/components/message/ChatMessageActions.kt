@@ -55,11 +55,16 @@ import me.rerere.hugeicons.stroke.Translate
 import me.rerere.hugeicons.stroke.VolumeHigh
 import me.rerere.hugeicons.stroke.WebDesign01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.model.MessageNode
+import me.rerere.rikkahub.data.model.VoiceCallTtsResolveResult
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.LocalTTSState
+import me.rerere.rikkahub.ui.hooks.speakForChat
 import me.rerere.rikkahub.utils.copyMessageToClipboard
+import com.dokar.sonner.ToastType
 import me.rerere.rikkahub.utils.extractQuotedContentAsText
 import me.rerere.rikkahub.utils.removeBracketedContent
 import me.rerere.rikkahub.utils.toLocalString
@@ -125,6 +130,7 @@ fun ColumnScope.ChatMessageActionButtons(
 
         if (message.role == MessageRole.ASSISTANT) {
             val tts = LocalTTSState.current
+            val toaster = LocalToaster.current
             val isSpeaking by tts.isSpeaking.collectAsState()
             val isAvailable by tts.isAvailable.collectAsState()
             Icon(
@@ -133,7 +139,7 @@ fun ColumnScope.ChatMessageActionButtons(
                 modifier = Modifier
                     .clip(CircleShape)
                     .clickable(
-                        enabled = isAvailable,
+                        enabled = isAvailable || !isSpeaking,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = LocalIndication.current,
                         onClick = {
@@ -146,7 +152,20 @@ fun ColumnScope.ChatMessageActionButtons(
                                 if (settings.displaySetting.ttsOnlyReadOutsideBrackets) {
                                     textToSpeak = textToSpeak.removeBracketedContent() ?: textToSpeak
                                 }
-                                tts.speak(textToSpeak)
+                                if (textToSpeak.isBlank()) return@clickable
+                                val assistant = settings.getCurrentAssistant()
+                                when (val r = tts.speakForChat(settings, assistant, textToSpeak)) {
+                                    is VoiceCallTtsResolveResult.Ready -> Unit
+                                    is VoiceCallTtsResolveResult.NeedsApiKey -> {
+                                        toaster.show(
+                                            "请先填写 ${r.providerLabel} API Key（助手声音设置 / 语音通话声线）",
+                                            type = ToastType.Warning,
+                                        )
+                                    }
+                                    is VoiceCallTtsResolveResult.Unavailable -> {
+                                        toaster.show(r.message, type = ToastType.Error)
+                                    }
+                                }
                             } else {
                                 tts.stop()
                             }
@@ -154,7 +173,7 @@ fun ColumnScope.ChatMessageActionButtons(
                     )
                     .padding(8.dp)
                     .size(16.dp),
-                tint = if (isAvailable) actionIconColor else actionIconColor.copy(alpha = 0.38f)
+                tint = if (isAvailable || !isSpeaking) actionIconColor else actionIconColor.copy(alpha = 0.38f)
             )
 
             // Translation button

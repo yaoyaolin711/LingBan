@@ -85,6 +85,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.data.datastore.spacingDp
 import me.rerere.rikkahub.data.ai.isCarryoverOffer
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
@@ -135,6 +136,9 @@ fun ChatList(
     onVoiceCall: (() -> Unit)? = null,
     onAcceptCarryoverOffer: ((Uuid) -> Unit)? = null,
     onDeclineCarryoverOffer: ((Uuid) -> Unit)? = null,
+    onPackContextAndNewChat: (() -> Unit)? = null,
+    onGroupModeChange: ((me.rerere.rikkahub.data.groupchat.GroupChatMode) -> Unit)? = null,
+    onPauseGroupDiscussion: (() -> Unit)? = null,
 ) {
     AnimatedContent(
         targetState = previewMode,
@@ -176,6 +180,9 @@ fun ChatList(
                 onVoiceCall = onVoiceCall,
                 onAcceptCarryoverOffer = onAcceptCarryoverOffer,
                 onDeclineCarryoverOffer = onDeclineCarryoverOffer,
+                onPackContextAndNewChat = onPackContextAndNewChat,
+                onGroupModeChange = onGroupModeChange,
+                onPauseGroupDiscussion = onPauseGroupDiscussion,
             )
         }
     }
@@ -208,6 +215,9 @@ private fun ChatListNormal(
     onVoiceCall: (() -> Unit)? = null,
     onAcceptCarryoverOffer: ((Uuid) -> Unit)? = null,
     onDeclineCarryoverOffer: ((Uuid) -> Unit)? = null,
+    onPackContextAndNewChat: (() -> Unit)? = null,
+    onGroupModeChange: ((me.rerere.rikkahub.data.groupchat.GroupChatMode) -> Unit)? = null,
+    onPauseGroupDiscussion: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val loadingState by rememberUpdatedState(loading)
@@ -248,6 +258,9 @@ private fun ChatListNormal(
             onDismiss = { showSizeWarningDialog = false }
         )
     }
+
+    val contextUsage = rememberContextUsageInfo(conversation)
+    var showContextFullOffer by rememberSaveable(conversation.id) { mutableStateOf(true) }
 
     val assistant = remember(settings.assistants, conversation.assistantId) {
         settings.getAssistantById(conversation.assistantId)
@@ -300,11 +313,32 @@ private fun ChatListNormal(
                 state = state,
                 contentPadding = PaddingValues(16.dp) + PaddingValues(bottom = 32.dp + innerPadding.calculateBottomPadding()),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(
+                    settings.displaySetting.chatBubbleSpacing.spacingDp().dp,
+                ),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = innerPadding.calculateTopPadding()),
             ) {
+            if (contextUsage.isFull && showContextFullOffer && onPackContextAndNewChat != null) {
+                item(key = "context_full_offer", contentType = "context_offer") {
+                    ContextFullOfferCard(
+                        onPackAndNewChat = onPackContextAndNewChat,
+                        onDismiss = { showContextFullOffer = false },
+                    )
+                }
+            }
+
+            if (conversation.isGroup) {
+                item(key = "group_status", contentType = "group_status") {
+                    GroupChatStatusBar(
+                        conversation = conversation,
+                        onModeChange = onGroupModeChange ?: {},
+                        onPause = { onPauseGroupDiscussion?.invoke() },
+                    )
+                }
+            }
+
             if (conversation.messageNodes.isEmpty()) {
                 item(key = "companion_welcome", contentType = "welcome") {
                     CompanionChatWelcome(
@@ -340,10 +374,15 @@ private fun ChatListNormal(
                                 onDecline = { onDeclineCarryoverOffer?.invoke(message.id) },
                             )
                         } else {
+                        val speakerAssistant = if (conversation.isGroup) {
+                            message.speakerId?.let { settings.getAssistantById(it) } ?: assistant
+                        } else {
+                            assistant
+                        }
                         ChatMessage(
                             node = node,
                             model = node.currentMessage.modelId?.let(modelById::get),
-                            assistant = assistant,
+                            assistant = speakerAssistant,
                             loading = loading && index == lastMessageIndex,
                             onRegenerate = {
                                 onRegenerate(node.currentMessage)

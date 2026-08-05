@@ -366,6 +366,10 @@ class ConversationRepository(
             rollingSummaryCoveredCount = conversation.rollingSummaryCoveredCount,
             sessionOverview = conversation.sessionOverview ?: "",
             carryoverOverview = conversation.carryoverOverview ?: "",
+            isGroup = conversation.isGroup,
+            groupMembers = JsonInstant.encodeToString(conversation.groupMembers),
+            groupMode = conversation.groupMode.name.lowercase(),
+            floorState = JsonInstant.encodeToString(conversation.floorState),
         )
     }
 
@@ -391,6 +395,22 @@ class ConversationRepository(
             rollingSummaryCoveredCount = conversationEntity.rollingSummaryCoveredCount,
             sessionOverview = conversationEntity.sessionOverview.ifEmpty { null },
             carryoverOverview = conversationEntity.carryoverOverview.ifEmpty { null },
+            isGroup = conversationEntity.isGroup,
+            groupMembers = runCatching {
+                JsonInstant.decodeFromString<List<me.rerere.rikkahub.data.groupchat.GroupMember>>(
+                    conversationEntity.groupMembers
+                )
+            }.getOrDefault(emptyList()),
+            groupMode = when (conversationEntity.groupMode.lowercase()) {
+                "free_discussion", "free discussion" ->
+                    me.rerere.rikkahub.data.groupchat.GroupChatMode.FREE_DISCUSSION
+                else -> me.rerere.rikkahub.data.groupchat.GroupChatMode.MENTION_FIRST
+            },
+            floorState = runCatching {
+                JsonInstant.decodeFromString<me.rerere.rikkahub.data.groupchat.FloorState>(
+                    conversationEntity.floorState
+                )
+            }.getOrDefault(me.rerere.rikkahub.data.groupchat.FloorState()),
         )
     }
 

@@ -110,7 +110,7 @@ sealed class ASRProviderSetting {
         // 每多少秒自动 flush 一次当前缓冲区 (上传识别)。设为 0 表示禁用自动分段,
         // 仅在用户主动 stop() 时整体上传 (注意 MiMo 单次请求 raw 上限约 7.5MB,
         // 16kHz/16bit/mono 下约 234 秒)。
-        val segmentDurationSec: Int = 30,
+        val segmentDurationSec: Int = 5,
     ) : ASRProviderSetting() {
         override fun copyProvider(
             id: Uuid,
@@ -150,7 +150,7 @@ sealed class ASRProviderSetting {
         val language: String = "auto",
         val sampleRate: Int = 16000,
         // 每多少秒自动 flush 一次 (上传识别)。0 = 仅 stop() 时整体上传
-        val segmentDurationSec: Int = 30,
+        val segmentDurationSec: Int = 5,
         // 逆文本归一化 (Inverse Text Normalization): 把 "三百" -> "300" 等
         val enableItn: Boolean = true,
         // 是否返回词级时间戳 (rikkahub 当前不消费时间戳, 默认关闭节省 token)
@@ -196,6 +196,37 @@ sealed class ASRProviderSetting {
         }
     }
 
+    /**
+     * 硅基流动 SiliconFlow ASR（OpenAI 兼容 `/audio/transcriptions`）。
+     *
+     * multipart 上传音频文件，非 WebSocket 流式。客户端按 [segmentDurationSec]
+     * 切段，PCM 包成 WAV 后 POST，返回 JSON `{ "text": "..." }`。
+     *
+     * 文档: https://docs.siliconflow.com/en/api-reference/audio/create-audio-transcriptions
+     */
+    @Serializable
+    @SerialName("siliconflow")
+    data class SiliconFlow(
+        override val id: Uuid = Uuid.random(),
+        override val name: String = "硅基流动 ASR",
+        val apiKey: String = "",
+        val baseUrl: String = "https://api.siliconflow.cn/v1",
+        val model: String = "FunAudioLLM/SenseVoiceSmall",
+        val sampleRate: Int = 16000,
+        /** 每多少秒自动 flush 一次。0 = 仅 stop() 时整体上传。通话场景建议 ≤8，过大（如30）会明显拖慢。 */
+        val segmentDurationSec: Int = 5,
+    ) : ASRProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): ASRProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
+
     companion object {
         val Types by lazy {
             listOf(
@@ -205,6 +236,7 @@ sealed class ASRProviderSetting {
                 Volcengine::class,
                 MiMo::class,
                 Step::class,
+                SiliconFlow::class,
             )
         }
     }

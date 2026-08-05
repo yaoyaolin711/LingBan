@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.AiMagic
+import me.rerere.hugeicons.stroke.AiSmartwatch
 import me.rerere.hugeicons.stroke.Agreement01
 import me.rerere.hugeicons.stroke.Book01
 import me.rerere.hugeicons.stroke.Bookshelf01
@@ -29,6 +30,7 @@ import me.rerere.hugeicons.stroke.Clapping01
 import me.rerere.hugeicons.stroke.Database02
 import me.rerere.hugeicons.stroke.Favourite
 import me.rerere.hugeicons.stroke.GlobalSearch
+import me.rerere.hugeicons.stroke.HeartCheck
 import me.rerere.hugeicons.stroke.Image03
 import me.rerere.hugeicons.stroke.ImageUpload
 import me.rerere.hugeicons.stroke.LanguageCircle
@@ -209,6 +211,18 @@ fun ProfilePage() {
                         onClick = { nav.navigate(Screen.SettingFiles) },
                         leadingContent = { Icon(HugeIcons.ImageUpload, null, tint = colors.primary) },
                         headlineContent = { Text(stringResource(R.string.setting_page_chat_storage)) },
+                    )
+                    item(
+                        onClick = { nav.navigate(Screen.SettingHealthConnect) },
+                        leadingContent = { Icon(HugeIcons.AiSmartwatch, null, tint = colors.primary) },
+                        headlineContent = { Text("穿戴设备 / Health Connect") },
+                        supportingContent = { Text("只读同步步数、心率、睡眠给伴侣上下文") },
+                    )
+                    item(
+                        onClick = { nav.navigate(Screen.SettingIntimate) },
+                        leadingContent = { Icon(HugeIcons.HeartCheck, null, tint = colors.primary) },
+                        headlineContent = { Text("亲密互动") },
+                        supportingContent = { Text("AI 伴侣场景扩展说明，包含规划方向、边界与收集建议") },
                     )
                     item(
                         onClick = { nav.navigate(Screen.Stats) },

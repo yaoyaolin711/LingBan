@@ -19,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
@@ -220,6 +221,9 @@ fun AssistantExtensionsPage(id: String) {
                     }
 
                     4 -> {
+                        val scheduledCount = settings.scheduledWorkflows.count { rule ->
+                            rule.targets.any { it.assistantId == assistant.id && it.enabled }
+                        }
                         if (workflows.isEmpty()) {
                             ExtensionEmptyState(
                                 message = "还没有工作流。请先到扩展中心创建或导入。",
@@ -228,6 +232,12 @@ fun AssistantExtensionsPage(id: String) {
                             )
                         } else {
                             Column {
+                                if (scheduledCount > 0) {
+                                    Text(
+                                        text = "这个助手已被 $scheduledCount 条定时规则引用，可到“设置 -> 偏好设置 -> 定时工作流”统一管理。",
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    )
+                                }
                                 WorkflowsContent(
                                     modifier = Modifier.weight(1f),
                                     workflows = workflows,
@@ -247,6 +257,12 @@ fun AssistantExtensionsPage(id: String) {
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text(stringResource(R.string.assistant_extensions_page_goto_extensions))
+                                }
+                                TextButton(
+                                    onClick = { navController.navigate(Screen.SettingScheduledWorkflow) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text("管理定时工作流")
                                 }
                             }
                         }

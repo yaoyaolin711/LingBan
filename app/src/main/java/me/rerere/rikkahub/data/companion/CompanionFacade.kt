@@ -4,6 +4,9 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.companion.model.InteractionSuggestion
 import me.rerere.rikkahub.data.companion.model.CompanionPromptBundle
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.health.HealthConnectRepository
+import me.rerere.rikkahub.data.life.LifeContextResolver
+import me.rerere.rikkahub.data.life.RestSource
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import kotlin.uuid.Uuid
@@ -18,6 +21,8 @@ class CompanionFacade(
     private val proactiveTriggerManager: ProactiveTriggerManager,
     private val promptBuilder: PromptBuilder,
     private val promptCache: PromptCache,
+    private val healthConnectRepository: HealthConnectRepository,
+    private val lifeContextResolver: LifeContextResolver,
 ) {
     suspend fun preparePromptBundle(
         conversationId: Uuid,
@@ -31,6 +36,30 @@ class CompanionFacade(
         val character = characterManager.getCharacter(assistant)
         val persona = personaManager.getPersona(settings)
         val behaviorPolicy = behaviorPolicyManager.resolvePolicyAsync(state)
+
+        val lifeSnapshot = if (settings.lifeContext.enabled) {
+            runCatching { lifeContextResolver.readSnapshot(settings) }.getOrNull()
+        } else {
+            null
+        }
+        val lifeContext = lifeContextResolver.formatForPrompt(lifeSnapshot)
+
+        val healthContext = if (settings.healthConnect.enabled) {
+            runCatching {
+                val summary = healthConnectRepository.readDailySummary(settings.healthConnect)
+                // 休息窗已由 life_context 表达时，避免 health 块重复堆睡眠
+                val healthSetting = if (lifeSnapshot?.source == RestSource.HEALTH_CONNECT &&
+                    lifeSnapshot.isInjectable
+                ) {
+                    settings.healthConnect.copy(includeSleep = false)
+                } else {
+                    settings.healthConnect
+                }
+                healthConnectRepository.formatSummaryForPrompt(summary, healthSetting)
+            }.getOrDefault("")
+        } else {
+            ""
+        }
         val previewBundle = promptBuilder.buildBundle(
             conversationId = conversationId,
             assistant = assistant,
@@ -40,6 +69,8 @@ class CompanionFacade(
             messages = messages,
             relationshipContext = state.relationshipState.relationshipContext,
             behaviorPolicy = behaviorPolicy,
+            healthContext = healthContext,
+            lifeContext = lifeContext,
         )
         promptCache.get(previewBundle.cacheKey)?.let { return it }
         return promptCache.put(conversationId, previewBundle)

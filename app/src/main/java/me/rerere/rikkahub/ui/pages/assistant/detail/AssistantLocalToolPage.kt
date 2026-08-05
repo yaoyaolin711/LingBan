@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import com.composables.icons.lucide.Lucide
 import com.dokar.sonner.ToastType
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.accessibility.AccessibilityKeepAlive
 import me.rerere.rikkahub.data.datastore.SettingsStore
@@ -51,6 +53,8 @@ import me.rerere.rikkahub.data.device.CompanionAssistSetting
 import me.rerere.rikkahub.data.device.DeviceShellExecutor
 import me.rerere.rikkahub.data.device.ShizukuBootstrap
 import me.rerere.rikkahub.data.companion.policy.CompanionActionLevel
+import me.rerere.rikkahub.data.life.LifeContextResolver
+import me.rerere.rikkahub.data.life.LifeContextSetting
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.CompanionOverlayStyle
 import me.rerere.rikkahub.data.model.CompanionPixelPetSkin
@@ -67,8 +71,12 @@ import me.rerere.rikkahub.ui.components.ui.chipUnshrinkable
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionInfo
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
+import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowRight01
+import me.rerere.hugeicons.stroke.HeartCheck
 import me.rerere.rikkahub.utils.canDrawOverlays
 import me.rerere.rikkahub.utils.hasUsageStatsPermission
 import me.rerere.rikkahub.utils.isSolaceAccessibilityEnabled
@@ -113,11 +121,17 @@ fun AssistantLocalToolPage(id: String) {
             innerPadding = innerPadding,
             assistant = assistant,
             companionAssist = settings.companionAssist,
+            lifeContext = settings.lifeContext,
             autoApprovedTools = settings.autoApprovedTools,
             onUpdate = { vm.update(it) },
             onUpdateCompanion = { next ->
                 scope.launch {
                     settingsStore.update { it.copy(companionAssist = next) }
+                }
+            },
+            onUpdateLifeContext = { next ->
+                scope.launch {
+                    settingsStore.update { it.copy(lifeContext = next) }
                 }
             },
             onUpdateAutoApprovedTools = { transform ->
@@ -136,15 +150,19 @@ private fun AssistantLocalToolContent(
     innerPadding: PaddingValues,
     assistant: Assistant,
     companionAssist: CompanionAssistSetting,
+    lifeContext: LifeContextSetting,
     autoApprovedTools: Set<String>,
     onUpdate: (Assistant) -> Unit,
     onUpdateCompanion: (CompanionAssistSetting) -> Unit,
+    onUpdateLifeContext: (LifeContextSetting) -> Unit,
     onUpdateAutoApprovedTools: ((Set<String>) -> Set<String>) -> Unit,
 ) {
     val context = LocalContext.current
     val toaster = LocalToaster.current
+    val nav = LocalNavController.current
     val scope = rememberCoroutineScope()
     val settingsStore = koinInject<SettingsStore>()
+    val lifeContextResolver = koinInject<LifeContextResolver>()
     val permissionRequiredText =
         stringResource(R.string.assistant_page_local_tools_screen_time_permission_required)
 
@@ -233,6 +251,28 @@ private fun AssistantLocalToolContent(
             val settings = settingsStore.settingsFlow.value.copy(companionAssist = next)
             CompanionMonitorService.syncWithSettings(context, settings)
         }
+    }
+
+    fun updateLifeContext(enabled: Boolean) {
+        onUpdateLifeContext(lifeContext.copy(enabled = enabled))
+        if (enabled && !context.hasUsageStatsPermission()) {
+            toaster.show(message = permissionRequiredText, type = ToastType.Warning)
+            context.openUsageAccessSettings()
+        }
+    }
+
+    var restPreview by remember { mutableStateOf("—") }
+    LaunchedEffect(lifeContext.enabled) {
+        if (!lifeContext.enabled) {
+            restPreview = "已关闭"
+            return@LaunchedEffect
+        }
+        restPreview = "读取中…"
+        restPreview = runCatching {
+            val settings = settingsStore.settingsFlow.value.copy(lifeContext = lifeContext)
+            val snapshot = lifeContextResolver.readSnapshot(settings, forceRefresh = true)
+            lifeContextResolver.formatForUi(snapshot)
+        }.getOrElse { "暂无足够数据" }
     }
 
     fun updateProactiveChat(enabled: Boolean) {
@@ -521,6 +561,18 @@ private fun AssistantLocalToolContent(
             }
         }
 
+        CardGroup {
+            item(
+                onClick = { nav.navigate(Screen.SettingIntimate) },
+                leadingContent = { Icon(HugeIcons.HeartCheck, null) },
+                headlineContent = { Text("亲密互动") },
+                supportingContent = {
+                    Text("信息资源不足，暂缓开发。需要你提出建议，这将决定功能去留与方向。")
+                },
+                trailingContent = { Icon(HugeIcons.ArrowRight01, null) },
+            )
+        }
+
         if (assistant.enableCompanion) {
             ChipScrollRow(modifier = Modifier.fillMaxWidth()) {
                 listOf(
@@ -596,6 +648,23 @@ private fun AssistantLocalToolContent(
                         checked = companionAssist.monitorEnabled,
                         onCheckedChange = { enabled ->
                             updateCompanion { it.copy(monitorEnabled = enabled) }
+                        }
+                    )
+                }
+            )
+            item(
+                headlineContent = { Text("作息感知") },
+                supportingContent = {
+                    Text(
+                        "根据屏幕使用估计休息时间，注入对话并用于早安问候" +
+                            (if (lifeContext.enabled) "\n预览：$restPreview" else "")
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = lifeContext.enabled,
+                        onCheckedChange = { enabled ->
+                            updateLifeContext(enabled)
                         }
                     )
                 }

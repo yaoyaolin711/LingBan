@@ -5,15 +5,22 @@ import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getSelectedTTSProvider
+import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.VoiceCallTtsResolveResult
+import me.rerere.rikkahub.data.model.resolveChatTts
+import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallGate
 import me.rerere.rikkahub.utils.stripMarkdown
 import me.rerere.tts.controller.TtsController
 import me.rerere.tts.model.PlaybackState
@@ -24,31 +31,18 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 /**
- * Composable function to remember and manage custom TTS state.
- * Uses user-configured TTS providers instead of system TTS.
+ * Composable access to the app-scoped TTS state.
+ * Do not cleanup on Activity dispose so minimized voice calls keep speaking.
  */
 @Composable
 fun rememberCustomTtsState(): CustomTtsState {
-    val context = LocalContext.current
+    val ttsState = koinInject<CustomTtsState>()
     val settingsStore = koinInject<SettingsStore>()
     val settings by settingsStore.settingsFlow.collectAsStateWithLifecycle()
-
-    val ttsState = remember {
-        CustomTtsStateImpl(
-            context = context.applicationContext,
-            settingsStore = settingsStore
-        )
-    }
 
     DisposableEffect(settings.selectedTTSProviderId, settings.ttsProviders) {
         ttsState.updateProviderFromSettings(settings.getSelectedTTSProvider())
         onDispose { }
-    }
-
-    DisposableEffect(ttsState) {
-        onDispose {
-            ttsState.cleanup()
-        }
     }
 
     return ttsState
@@ -65,7 +59,14 @@ interface CustomTtsState {
     val totalChunks: StateFlow<Int>
     val playbackState: StateFlow<PlaybackState>
 
+    fun updateProviderFromSettings(provider: TTSProviderSetting?)
     fun speak(text: String, flushCalled: Boolean = true)
+
+    /**
+     * Speak using a one-shot provider (chat朗读).
+     * Does not change global TTS selection; restores after playback unless a voice-call override is active.
+     */
+    fun speakWithProvider(provider: TTSProviderSetting, text: String, flushCalled: Boolean = true)
     fun stop()
     fun pause()
     fun resume()
@@ -82,16 +83,29 @@ interface CustomTtsState {
     fun cleanup()
 }
 
-private class CustomTtsStateImpl(
+/** Resolve assistant chat TTS and speak; returns resolve result for error UI. */
+fun CustomTtsState.speakForChat(
+    settings: Settings,
+    assistant: Assistant,
+    text: String,
+): VoiceCallTtsResolveResult {
+    val resolved = resolveChatTts(settings, assistant)
+    when (resolved) {
+        is VoiceCallTtsResolveResult.Ready -> speakWithProvider(resolved.provider, text)
+        else -> Unit
+    }
+    return resolved
+}
+
+class CustomTtsStateImpl(
     private val context: Context,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
 ) : CustomTtsState, KoinComponent {
 
     private val ttsManager by inject<TTSManager>()
     private val controller by lazy { TtsController(context, ttsManager) }
-
-    private val scope = CoroutineScope(Dispatchers.Main)
-    private var currentJob: Job? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var restoreJob: Job? = null
 
     private var settingsProvider: TTSProviderSetting? = null
     private var overrideProvider: TTSProviderSetting? = null
@@ -103,7 +117,7 @@ private class CustomTtsStateImpl(
     override val totalChunks: StateFlow<Int> get() = controller.totalChunks
     override val playbackState: StateFlow<PlaybackState> get() = controller.playbackState
 
-    fun updateProviderFromSettings(provider: TTSProviderSetting?) {
+    override fun updateProviderFromSettings(provider: TTSProviderSetting?) {
         settingsProvider = provider
         if (overrideProvider == null) {
             controller.setProvider(provider)
@@ -111,6 +125,7 @@ private class CustomTtsStateImpl(
     }
 
     override fun setOverrideProvider(provider: TTSProviderSetting?) {
+        restoreJob?.cancel()
         overrideProvider = provider
         controller.setProvider(provider ?: settingsProvider)
     }
@@ -123,6 +138,25 @@ private class CustomTtsStateImpl(
     override fun speak(text: String, flushCalled: Boolean) {
         val processed = text.stripMarkdown()
         controller.speak(processed, flushCalled)
+    }
+
+    override fun speakWithProvider(provider: TTSProviderSetting, text: String, flushCalled: Boolean) {
+        val processed = text.stripMarkdown()
+        // Voice call owns the shared controller via override — don't steal it.
+        if (overrideProvider != null || VoiceCallGate.active) {
+            controller.speak(processed, flushCalled)
+            return
+        }
+        restoreJob?.cancel()
+        controller.setProvider(provider)
+        controller.speak(processed, flushCalled)
+        restoreJob = scope.launch {
+            withTimeoutOrNull(3_000) { isSpeaking.first { it } }
+            isSpeaking.first { !it }
+            if (overrideProvider == null && !VoiceCallGate.active) {
+                controller.setProvider(settingsProvider)
+            }
+        }
     }
 
     override fun stop() {
@@ -152,8 +186,8 @@ private class CustomTtsStateImpl(
     }
 
     override fun cleanup() {
+        restoreJob?.cancel()
         overrideProvider = null
         controller.dispose()
-        currentJob = null
     }
 }

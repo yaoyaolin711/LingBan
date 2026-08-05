@@ -49,6 +49,8 @@ fun TTSProviderConfigure(
                     is TTSProviderSetting.ElevenLabs -> "ElevenLabs"
                     is TTSProviderSetting.FishAudio -> "Fish Audio"
                     is TTSProviderSetting.Mossland -> "Mossland"
+                    is TTSProviderSetting.SiliconFlow -> "硅基流动"
+                    is TTSProviderSetting.Volcengine -> "火山引擎"
                 },
                 options = providers,
                 readOnly = true,
@@ -67,6 +69,8 @@ fun TTSProviderConfigure(
                         TTSProviderSetting.FishAudio::class -> "Fish Audio"
                         TTSProviderSetting.Mossland::class -> "Mossland"
                         TTSProviderSetting.Step::class -> "Step"
+                        TTSProviderSetting.SiliconFlow::class -> "硅基流动"
+                        TTSProviderSetting.Volcengine::class -> "火山引擎"
                         else -> providerClass.simpleName ?: "Unknown"
                     }
                 },
@@ -132,6 +136,16 @@ fun TTSProviderConfigure(
                             name = "Step TTS"
                         )
 
+                        TTSProviderSetting.SiliconFlow::class -> TTSProviderSetting.SiliconFlow(
+                            id = setting.id,
+                            name = "硅基流动 TTS"
+                        )
+
+                        TTSProviderSetting.Volcengine::class -> TTSProviderSetting.Volcengine(
+                            id = setting.id,
+                            name = "火山引擎 TTS"
+                        )
+
                         else -> setting
                     }
                     onValueChange(newSetting)
@@ -168,6 +182,8 @@ fun TTSProviderConfigure(
             is TTSProviderSetting.FishAudio -> FishAudioTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.Mossland -> MosslandTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.Step -> StepTTSConfiguration(setting, onValueChange)
+            is TTSProviderSetting.SiliconFlow -> SiliconFlowTTSConfiguration(setting, onValueChange)
+            is TTSProviderSetting.Volcengine -> VolcengineTTSConfiguration(setting, onValueChange)
         }
     }
 }
@@ -1260,6 +1276,193 @@ private fun MosslandTTSConfiguration(
             onValueChange = { onValueChange(setting.copy(voiceId = it)) },
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("voice_id") },
+        )
+    }
+}
+
+@Composable
+private fun SiliconFlowTTSConfiguration(
+    setting: TTSProviderSetting.SiliconFlow,
+    onValueChange: (TTSProviderSetting) -> Unit,
+) {
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_api_key)) },
+        description = { Text("在 cloud.siliconflow.cn 控制台创建 API Key") },
+    ) {
+        OutlinedTextField(
+            value = setting.apiKey,
+            onValueChange = { onValueChange(setting.copy(apiKey = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("sk-...") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_base_url)) },
+        description = { Text(stringResource(R.string.setting_tts_page_base_url_description)) },
+    ) {
+        OutlinedTextField(
+            value = setting.baseUrl,
+            onValueChange = { onValueChange(setting.copy(baseUrl = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("https://api.siliconflow.cn/v1") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_model)) },
+        description = { Text("模型广场筛选「语音」标签，如 FunAudioLLM/CosyVoice2-0.5B") },
+    ) {
+        OutlinedTextField(
+            value = setting.model,
+            onValueChange = { onValueChange(setting.copy(model = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("FunAudioLLM/CosyVoice2-0.5B") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_voice)) },
+        description = { Text("系统预置音色需带模型前缀，例如 …:alex / …:anna") },
+    ) {
+        OutlinedTextField(
+            value = setting.voice,
+            onValueChange = { onValueChange(setting.copy(voice = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("FunAudioLLM/CosyVoice2-0.5B:alex") },
+        )
+    }
+
+    FormItem(
+        label = { Text("Response format") },
+        description = { Text("mp3 / wav / pcm / opus") },
+    ) {
+        val formats = listOf("mp3", "wav", "pcm", "opus")
+        SelectTextField(
+            value = setting.responseFormat,
+            options = formats,
+            onValueChange = { onValueChange(setting.copy(responseFormat = it)) },
+            onOptionSelected = { onValueChange(setting.copy(responseFormat = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_speed)) },
+        description = { Text("语速 0.25 ~ 4.0，默认 1.0") },
+    ) {
+        OutlinedNumberInput(
+            value = setting.speed,
+            onValueChange = { newSpeed ->
+                onValueChange(setting.copy(speed = newSpeed.coerceIn(0.25f, 4.0f)))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.setting_tts_page_speed),
+        )
+    }
+
+    FormItem(
+        label = { Text("Gain (dB)") },
+        description = { Text("音量增益 -10 ~ 10，默认 0") },
+    ) {
+        OutlinedNumberInput(
+            value = setting.gain,
+            onValueChange = { newGain ->
+                onValueChange(setting.copy(gain = newGain.coerceIn(-10f, 10f)))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = "Gain",
+        )
+    }
+}
+
+@Composable
+private fun VolcengineTTSConfiguration(
+    setting: TTSProviderSetting.Volcengine,
+    onValueChange: (TTSProviderSetting) -> Unit,
+) {
+    FormItem(
+        label = { Text("App ID") },
+        description = { Text("火山引擎控制台开通豆包语音后获取的 AppID") },
+    ) {
+        OutlinedTextField(
+            value = setting.appId,
+            onValueChange = { onValueChange(setting.copy(appId = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("123456789") },
+        )
+    }
+
+    FormItem(
+        label = { Text("Access Token") },
+        description = { Text("控制台 Access Token；请求头 Authorization: Bearer;{token}") },
+    ) {
+        OutlinedTextField(
+            value = setting.accessToken,
+            onValueChange = { onValueChange(setting.copy(accessToken = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_base_url)) },
+        description = { Text("默认 HTTP v1 一次性合成接口") },
+    ) {
+        OutlinedTextField(
+            value = setting.baseUrl,
+            onValueChange = { onValueChange(setting.copy(baseUrl = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("https://openspeech.bytedance.com/api/v1/tts") },
+        )
+    }
+
+    FormItem(
+        label = { Text("Cluster") },
+        description = { Text("业务集群，标准音色默认 volcano_tts") },
+    ) {
+        OutlinedTextField(
+            value = setting.cluster,
+            onValueChange = { onValueChange(setting.copy(cluster = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("volcano_tts") },
+        )
+    }
+
+    FormItem(
+        label = { Text("Voice type") },
+        description = { Text("官方音色 voice_type，或复刻 speaker id") },
+    ) {
+        OutlinedTextField(
+            value = setting.voiceType,
+            onValueChange = { onValueChange(setting.copy(voiceType = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("zh_female_wanqudashu_moon_bigtts") },
+        )
+    }
+
+    FormItem(
+        label = { Text("Encoding") },
+        description = { Text("mp3 / wav / pcm / ogg_opus") },
+    ) {
+        val formats = listOf("mp3", "wav", "pcm", "ogg_opus")
+        SelectTextField(
+            value = setting.encoding,
+            options = formats,
+            onValueChange = { onValueChange(setting.copy(encoding = it)) },
+            onOptionSelected = { onValueChange(setting.copy(encoding = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_speed)) },
+        description = { Text("语速比例，默认 1.0") },
+    ) {
+        OutlinedNumberInput(
+            value = setting.speedRatio,
+            onValueChange = { onValueChange(setting.copy(speedRatio = it.coerceIn(0.5f, 2.0f))) },
+            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.setting_tts_page_speed),
         )
     }
 }

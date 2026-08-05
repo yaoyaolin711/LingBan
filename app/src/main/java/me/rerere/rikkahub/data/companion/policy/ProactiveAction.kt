@@ -36,6 +36,11 @@ sealed class ProactiveAction {
         val title: String,
         val content: String,
         val emotion: CompanionEmotionState,
+        /** 非空时由 LLM 按人设+记忆生成正文，[content] 仅作失败兜底 */
+        val reason: ProactiveChatReason? = null,
+        val isUsageCare: Boolean = false,
+        val appName: String? = null,
+        val continuousMinutes: Long = 0L,
     ) : ProactiveAction()
 
     /**

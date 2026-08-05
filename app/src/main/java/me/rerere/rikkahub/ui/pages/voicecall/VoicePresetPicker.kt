@@ -127,7 +127,7 @@ fun VoicePresetPicker(
             text = when (selectedTier) {
                 VoiceTier.Local -> "本地：系统 TTS，无需 Key，效果因手机而异。适合快速试用。"
                 VoiceTier.Preset -> "预设：仅提供系统音色（如通义 Qwen），不可自定义声线。需要对应服务商 API Key。"
-                VoiceTier.Custom -> "自定义：支持 MiniMax / ElevenLabs / Fish / Mossland。点「添加声线」进入独立填写页。"
+                VoiceTier.Custom -> "自定义：支持 MiniMax / ElevenLabs / Fish / Mossland / 火山引擎。点「添加声线」进入独立填写页。"
             },
             style = typography.bodySmall,
             color = colors.secondaryText,
@@ -260,9 +260,13 @@ fun VoicePresetPicker(
             val existingKey = existingApiKeyFor(settings, keyBackend)
             Text(
                 text = if (existingKey.isBlank()) {
-                    "接入 ${backendLabelFor(keyBackend)}（填写 API Key）"
+                    if (keyBackend == VoiceTtsBackend.Volcengine) {
+                        "接入 ${backendLabelFor(keyBackend)}（填写 AppID|AccessToken）"
+                    } else {
+                        "接入 ${backendLabelFor(keyBackend)}（填写 API Key）"
+                    }
                 } else {
-                    "更换 ${backendLabelFor(keyBackend)} API Key（已保存 ${maskApiKey(existingKey)}）"
+                    "更换 ${backendLabelFor(keyBackend)} 凭证（已保存 ${maskApiKey(existingKey)}）"
                 },
                 style = typography.labelLarge,
                 color = colors.text,
@@ -273,7 +277,13 @@ fun VoicePresetPicker(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 placeholder = {
-                    Text(if (existingKey.isBlank()) "sk-..." else "输入新 Key 以更换")
+                    Text(
+                        when {
+                            keyBackend == VoiceTtsBackend.Volcengine -> "AppID|AccessToken"
+                            existingKey.isBlank() -> "sk-..."
+                            else -> "输入新 Key 以更换"
+                        }
+                    )
                 },
                 visualTransformation = if (keyVisible) {
                     VisualTransformation.None
@@ -356,6 +366,14 @@ private fun existingApiKeyFor(settings: Settings, backend: VoiceTtsBackend): Str
             settings.ttsProviders.filterIsInstance<TTSProviderSetting.FishAudio>().firstOrNull()?.apiKey.orEmpty()
         VoiceTtsBackend.Mossland ->
             settings.ttsProviders.filterIsInstance<TTSProviderSetting.Mossland>().firstOrNull()?.apiKey.orEmpty()
+        VoiceTtsBackend.Volcengine -> {
+            val v = settings.ttsProviders.filterIsInstance<TTSProviderSetting.Volcengine>().firstOrNull()
+            when {
+                v == null -> ""
+                v.appId.isNotBlank() && v.accessToken.isNotBlank() -> "${v.appId}|${v.accessToken}"
+                else -> v.accessToken
+            }
+        }
         VoiceTtsBackend.Qwen ->
             settings.ttsProviders.filterIsInstance<TTSProviderSetting.Qwen>().firstOrNull()?.apiKey.orEmpty()
         VoiceTtsBackend.System -> ""

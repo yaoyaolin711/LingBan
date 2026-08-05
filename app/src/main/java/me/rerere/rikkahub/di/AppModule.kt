@@ -15,9 +15,11 @@ import me.rerere.rikkahub.data.companion.ProactiveTriggerManager
 import me.rerere.rikkahub.data.companion.PromptBuilder
 import me.rerere.rikkahub.data.companion.PromptCache
 import me.rerere.rikkahub.data.companion.RelationshipManager
+import me.rerere.rikkahub.data.groupchat.LlmSoftScheduler
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.device.CompanionIntervention
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.data.life.LifeContextResolver
 import me.rerere.rikkahub.data.accessibility.AccessibilityEventManager
 import me.rerere.rikkahub.data.accessibility.AgentEventBus
 import me.rerere.rikkahub.data.accessibility.ObservationCache
@@ -36,7 +38,10 @@ import me.rerere.rikkahub.data.agent.NoOpLlmTaskPlanner
 import me.rerere.rikkahub.data.agent.asForegroundCacheSource
 import me.rerere.rikkahub.data.companion.CompanionSoftActions
 import me.rerere.rikkahub.data.companion.policy.CompanionEmotionResolver
+import me.rerere.rikkahub.data.workflow.ScheduledWorkflowScheduler
+import me.rerere.rikkahub.data.workflow.ScheduledWorkflowManager
 import me.rerere.rikkahub.overlay.TaskBallManager
+import me.rerere.rikkahub.overlay.VoiceCallFloatHost
 import me.rerere.rikkahub.overlay.pet.CompanionPetHost
 import me.rerere.rikkahub.overlay.pet.CompanionPetRenderer
 import me.rerere.rikkahub.overlay.pet.PetRenderer
@@ -46,6 +51,11 @@ import kotlinx.coroutines.Dispatchers
 import androidx.room.Room
 import me.rerere.rikkahub.service.ChatNotificationManager
 import me.rerere.rikkahub.service.ChatService
+import me.rerere.rikkahub.ui.hooks.CustomAsrState
+import me.rerere.rikkahub.ui.hooks.CustomAsrStateImpl
+import me.rerere.rikkahub.ui.hooks.CustomTtsState
+import me.rerere.rikkahub.ui.hooks.CustomTtsStateImpl
+import me.rerere.rikkahub.ui.pages.voicecall.VoiceCallCoordinator
 import me.rerere.rikkahub.utils.EmojiData
 import me.rerere.rikkahub.utils.EmojiUtils
 import me.rerere.rikkahub.utils.JsonInstant
@@ -250,6 +260,9 @@ val appModule = module {
             settingsStore = get(),
             providerManager = get(),
             characterManager = get(),
+            personaManager = get(),
+            companionStateStore = get(),
+            lifeContextResolver = get(),
         )
     }
 
@@ -263,6 +276,39 @@ val appModule = module {
             settingsStore = get(),
             agentRuntimeEventBus = get(),
             agentManagerLazy = lazy { get() },
+        )
+    }
+
+    single<CustomTtsState> {
+        CustomTtsStateImpl(
+            context = get<android.app.Application>(),
+            settingsStore = get(),
+        )
+    }
+
+    single<CustomAsrState> {
+        CustomAsrStateImpl(
+            context = get<android.app.Application>(),
+            httpClient = get(),
+        )
+    }
+
+    single {
+        VoiceCallFloatHost(
+            context = get<android.app.Application>(),
+            settingsStore = get(),
+        )
+    }
+
+    single {
+        VoiceCallCoordinator(
+            context = get<android.app.Application>(),
+            appScope = get(),
+            chatService = get(),
+            settingsStore = get(),
+            asr = get(),
+            tts = get(),
+            floatHost = get(),
         )
     }
 
@@ -290,6 +336,10 @@ val appModule = module {
 
     single { ProactiveTriggerManager() }
 
+    single { ScheduledWorkflowScheduler(get()) }
+
+    single { ScheduledWorkflowManager(get(), get(), get()) }
+
     single { PromptBuilder() }
 
     single { PromptCache() }
@@ -312,6 +362,8 @@ val appModule = module {
             proactiveTriggerManager = get(),
             promptBuilder = get(),
             promptCache = get(),
+            healthConnectRepository = get(),
+            lifeContextResolver = get(),
         )
     }
 
@@ -406,10 +458,19 @@ val appModule = module {
             filesManager = get(),
             skillManager = get(),
             workflowManager = get(),
+            scheduledWorkflowManager = get(),
             workspaceRepository = get(),
             folderRepository = get(),
             companionFacade = get(),
             agentManagerLazy = lazy { get() },
+            groupSoftScheduler = get(),
+        )
+    }
+
+    single {
+        LlmSoftScheduler(
+            providerManager = get(),
+            settingsProvider = { get<me.rerere.rikkahub.data.datastore.SettingsStore>().settingsFlow.value },
         )
     }
 

@@ -164,6 +164,11 @@ fun CustomVoiceEditPage(
                                     "2. 用 POST /v1/audio/voices 创建音色，复制 voice_id\n" +
                                     "3. 模型填 moss-tts；请求发往 api.mosi.cn\n" +
                                     "4. API Key 可随时在本页更换"
+                            VoiceTtsBackend.Volcengine ->
+                                "1. 在火山引擎控制台开通豆包语音，获取 AppID 与 Access Token\n" +
+                                    "2. API Key 请填：AppID|AccessToken（用竖线分隔）\n" +
+                                    "3. voice_type 填官方音色或复刻 speaker id\n" +
+                                    "4. 模型/集群默认 volcano_tts"
                             else ->
                                 "填写服务商音色 ID，并配置对应 API Key。Key 可随时更换。"
                         },
@@ -196,7 +201,8 @@ fun CustomVoiceEditPage(
                                             model == defaultModelForBackend(VoiceTtsBackend.MiniMax) ||
                                             model == defaultModelForBackend(VoiceTtsBackend.ElevenLabs) ||
                                             model == defaultModelForBackend(VoiceTtsBackend.FishAudio) ||
-                                            model == defaultModelForBackend(VoiceTtsBackend.Mossland)
+                                            model == defaultModelForBackend(VoiceTtsBackend.Mossland) ||
+                                            model == defaultModelForBackend(VoiceTtsBackend.Volcengine)
                                         ) {
                                             model = defaultModelForBackend(b)
                                         }
@@ -227,15 +233,29 @@ fun CustomVoiceEditPage(
                             label = { Text("模型") },
                             placeholder = { Text(defaultModelForBackend(backend)) },
                             supportingText = {
-                                if (backend == VoiceTtsBackend.Mossland) {
-                                    Text("必须填官方 ID：moss-tts（不要填 MOSS-TTS-v1.5-Flash）")
+                                when (backend) {
+                                    VoiceTtsBackend.Mossland ->
+                                        Text("必须填官方 ID：moss-tts（不要填 MOSS-TTS-v1.5-Flash）")
+                                    VoiceTtsBackend.Volcengine ->
+                                        Text("集群名，默认 volcano_tts")
+                                    else -> Unit
                                 }
                             },
                         )
 
-                        Text("API Key", style = typography.labelLarge, color = colors.text)
                         Text(
-                            text = if (hasExistingKey) {
+                            text = if (backend == VoiceTtsBackend.Volcengine) "凭证" else "API Key",
+                            style = typography.labelLarge,
+                            color = colors.text,
+                        )
+                        Text(
+                            text = if (backend == VoiceTtsBackend.Volcengine) {
+                                if (hasExistingKey) {
+                                    "已保存凭证（${maskKey(existingKey)}）。留空保留，输入 AppID|AccessToken 可更换。"
+                                } else {
+                                    "请填写 AppID|AccessToken（竖线分隔）后保存。"
+                                }
+                            } else if (hasExistingKey) {
                                 "已保存 Key（${maskKey(existingKey)}）。留空保留原 Key，输入新值即可更换。"
                             } else {
                                 "尚未配置 Key，请填写后保存。"
@@ -248,8 +268,27 @@ fun CustomVoiceEditPage(
                             onValueChange = { apiKeyDraft = it },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            label = { Text(if (hasExistingKey) "更换 API Key" else "API Key") },
-                            placeholder = { Text(if (hasExistingKey) "输入新 Key 以更换" else "sk-...") },
+                            label = {
+                                Text(
+                                    when {
+                                        backend == VoiceTtsBackend.Volcengine && hasExistingKey -> "更换凭证"
+                                        backend == VoiceTtsBackend.Volcengine -> "AppID|AccessToken"
+                                        hasExistingKey -> "更换 API Key"
+                                        else -> "API Key"
+                                    }
+                                )
+                            },
+                            placeholder = {
+                                Text(
+                                    if (backend == VoiceTtsBackend.Volcengine) {
+                                        "123456789|your-access-token"
+                                    } else if (hasExistingKey) {
+                                        "输入新 Key 以更换"
+                                    } else {
+                                        "sk-..."
+                                    }
+                                )
+                            },
                             visualTransformation = if (keyVisible) {
                                 VisualTransformation.None
                             } else {
@@ -318,6 +357,14 @@ private fun existingApiKey(
         providers.filterIsInstance<TTSProviderSetting.FishAudio>().firstOrNull()?.apiKey.orEmpty()
     VoiceTtsBackend.Mossland ->
         providers.filterIsInstance<TTSProviderSetting.Mossland>().firstOrNull()?.apiKey.orEmpty()
+    VoiceTtsBackend.Volcengine -> {
+        val v = providers.filterIsInstance<TTSProviderSetting.Volcengine>().firstOrNull()
+        when {
+            v == null -> ""
+            v.appId.isNotBlank() && v.accessToken.isNotBlank() -> "${v.appId}|${v.accessToken}"
+            else -> v.accessToken
+        }
+    }
     VoiceTtsBackend.Qwen ->
         providers.filterIsInstance<TTSProviderSetting.Qwen>().firstOrNull()?.apiKey.orEmpty()
     VoiceTtsBackend.System -> ""
@@ -333,6 +380,7 @@ internal fun backendLabelFor(backend: VoiceTtsBackend): String = when (backend) 
     VoiceTtsBackend.ElevenLabs -> "ElevenLabs"
     VoiceTtsBackend.FishAudio -> "Fish"
     VoiceTtsBackend.Mossland -> "Mossland"
+    VoiceTtsBackend.Volcengine -> "火山引擎"
     VoiceTtsBackend.Qwen -> "Qwen"
     VoiceTtsBackend.System -> "系统"
 }
@@ -342,6 +390,7 @@ internal fun voiceIdLabelFor(backend: VoiceTtsBackend): String = when (backend) 
     VoiceTtsBackend.ElevenLabs -> "voiceId"
     VoiceTtsBackend.FishAudio -> "reference_id"
     VoiceTtsBackend.Mossland -> "voice_id"
+    VoiceTtsBackend.Volcengine -> "voice_type"
     else -> "音色 ID"
 }
 
@@ -350,6 +399,7 @@ internal fun voiceIdHintFor(backend: VoiceTtsBackend): String = when (backend) {
     VoiceTtsBackend.ElevenLabs -> "账号里的自定义音色 ID"
     VoiceTtsBackend.FishAudio -> "Fish Audio reference_id"
     VoiceTtsBackend.Mossland -> "例如 dee4a231-c908-4837-821d-c35fde882db0"
+    VoiceTtsBackend.Volcengine -> "官方音色或复刻 speaker id"
     else -> "音色 ID"
 }
 
@@ -358,6 +408,7 @@ internal fun defaultModelForBackend(backend: VoiceTtsBackend): String = when (ba
     VoiceTtsBackend.ElevenLabs -> "eleven_multilingual_v2"
     VoiceTtsBackend.FishAudio -> "s2.1-pro"
     VoiceTtsBackend.Mossland -> "moss-tts"
+    VoiceTtsBackend.Volcengine -> "volcano_tts"
     VoiceTtsBackend.Qwen -> "qwen3-tts-flash"
     VoiceTtsBackend.System -> ""
 }

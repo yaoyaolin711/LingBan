@@ -25,6 +25,9 @@ import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -53,7 +56,9 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.hugeicons.stroke.FileImport
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.BubbleFillStyle
 import me.rerere.rikkahub.data.datastore.BubbleGlassStyle
+import me.rerere.rikkahub.data.datastore.ChatBubbleSpacing
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.data.datastore.DisplaySetting
 import me.rerere.rikkahub.data.datastore.description
@@ -188,6 +193,30 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                         }
                     )
                     item(
+                        headlineContent = { Text("气泡填充样式") },
+                        supportingContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(displaySetting.bubbleFillStyle.description())
+                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                    BubbleFillStyle.entries.forEachIndexed { index, fillStyle ->
+                                        SegmentedButton(
+                                            selected = displaySetting.bubbleFillStyle == fillStyle,
+                                            onClick = {
+                                                updateDisplaySetting(displaySetting.copy(bubbleFillStyle = fillStyle))
+                                            },
+                                            shape = SegmentedButtonDefaults.itemShape(
+                                                index = index,
+                                                count = BubbleFillStyle.entries.size,
+                                            ),
+                                        ) {
+                                            Text(fillStyle.displayName())
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    item(
                         headlineContent = { Text("气泡磨砂样式") },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -209,23 +238,67 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                     item(
                         headlineContent = { Text("用户气泡颜色") },
                         supportingContent = {
-                            BubbleColorPresetsRow(
-                                selectedArgb = displaySetting.userBubbleColorArgb,
-                                onSelect = {
-                                    updateDisplaySetting(displaySetting.copy(userBubbleColorArgb = it))
-                                },
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                BubbleColorPresetsRow(
+                                    selectedArgb = displaySetting.userBubbleColorArgb,
+                                    onSelect = {
+                                        updateDisplaySetting(displaySetting.copy(userBubbleColorArgb = it))
+                                    },
+                                )
+                                OptionalHslColorPicker(
+                                    selectedArgb = displaySetting.userBubbleColorArgb,
+                                    themeColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    onSelect = {
+                                        updateDisplaySetting(displaySetting.copy(userBubbleColorArgb = it))
+                                    },
+                                )
+                            }
                         },
                     )
                     item(
                         headlineContent = { Text("助手气泡颜色") },
                         supportingContent = {
-                            BubbleColorPresetsRow(
-                                selectedArgb = displaySetting.assistantBubbleColorArgb,
-                                onSelect = {
-                                    updateDisplaySetting(displaySetting.copy(assistantBubbleColorArgb = it))
-                                },
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                BubbleColorPresetsRow(
+                                    selectedArgb = displaySetting.assistantBubbleColorArgb,
+                                    onSelect = {
+                                        updateDisplaySetting(displaySetting.copy(assistantBubbleColorArgb = it))
+                                    },
+                                )
+                                OptionalHslColorPicker(
+                                    selectedArgb = displaySetting.assistantBubbleColorArgb,
+                                    themeColor = MaterialTheme.colorScheme.primaryContainer,
+                                    onSelect = {
+                                        updateDisplaySetting(displaySetting.copy(assistantBubbleColorArgb = it))
+                                    },
+                                )
+                            }
+                        },
+                    )
+                    item(
+                        headlineContent = { Text("气泡间距") },
+                        supportingContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(displaySetting.chatBubbleSpacing.description())
+                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                    ChatBubbleSpacing.entries.forEachIndexed { index, spacing ->
+                                        SegmentedButton(
+                                            selected = displaySetting.chatBubbleSpacing == spacing,
+                                            onClick = {
+                                                updateDisplaySetting(
+                                                    displaySetting.copy(chatBubbleSpacing = spacing)
+                                                )
+                                            },
+                                            shape = SegmentedButtonDefaults.itemShape(
+                                                index = index,
+                                                count = ChatBubbleSpacing.entries.size,
+                                            ),
+                                        ) {
+                                            Text(spacing.displayName())
+                                        }
+                                    }
+                                }
+                            }
                         },
                     )
                     item(
@@ -591,12 +664,12 @@ private fun deleteCustomChatFontInternal(context: Context, relativePath: String)
 
 private val BubbleColorPresets: List<Pair<String, Long?>> = listOf(
     "默认" to null,
-    "香槟" to 0xFFE8D5B7,
-    "玫瑰" to 0xFFE8B4B8,
-    "天蓝" to 0xFF90CAF9,
-    "薄荷" to 0xFFA5D6A7,
-    "淡紫" to 0xFFCE93D8,
-    "暖灰" to 0xFFB0BEC5,
+    "香槟" to 0xFFE8D5B7L,
+    "玫瑰" to 0xFFE8B4B8L,
+    "天蓝" to 0xFF90CAF9L,
+    "薄荷" to 0xFFA5D6A7L,
+    "淡紫" to 0xFFCE93D8L,
+    "暖灰" to 0xFFB0BEC5L,
 )
 
 @Composable
@@ -604,13 +677,17 @@ private fun BubbleColorPresetsRow(
     selectedArgb: Long?,
     onSelect: (Long?) -> Unit,
 ) {
+    val normalizedSelected = selectedArgb?.let { it and 0xFFFFFFFFL }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BubbleColorPresets.forEach { (label, argb) ->
-            val selected = selectedArgb == argb
+            val selected = when {
+                argb == null -> normalizedSelected == null
+                else -> normalizedSelected == (argb and 0xFFFFFFFFL)
+            }
             val swatch = argb?.let { Color(it.toInt()) } ?: MaterialTheme.colorScheme.surfaceVariant
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(

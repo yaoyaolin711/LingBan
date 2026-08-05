@@ -132,6 +132,7 @@ fun ChatInput(
     onCancelClick: () -> Unit,
     onSendClick: () -> Unit,
     onLongSendClick: () -> Unit,
+    toolbarLeadingContent: (@Composable () -> Unit)? = null,
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -219,8 +220,11 @@ fun ChatInput(
                             modifier = Modifier
                                 .weight(1f)
                                 .horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            toolbarLeadingContent?.invoke()
+
                             // Model Picker
                             ModelSelector(
                                 modelId = assistant.chatModelId ?: settings.chatModelId,

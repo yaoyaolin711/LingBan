@@ -28,7 +28,11 @@ data class UIMessage(
     val finishedAt: LocalDateTime? = null,
     val modelId: Uuid? = null,
     val usage: TokenUsage? = null,
-    val translation: String? = null
+    val translation: String? = null,
+    /** Group-chat speaker: null for legacy 1:1; user messages may stay null. */
+    val speakerId: Uuid? = null,
+    /** Explicit @ targets in group chat (assistant ids). */
+    val mentions: List<Uuid> = emptyList(),
 ) {
     private fun appendChunk(chunk: MessageChunk): UIMessage {
         val choice = chunk.choices.getOrNull(0)
