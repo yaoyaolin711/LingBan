@@ -51,6 +51,7 @@ fun TTSProviderConfigure(
                     is TTSProviderSetting.Mossland -> "Mossland"
                     is TTSProviderSetting.SiliconFlow -> "硅基流动"
                     is TTSProviderSetting.Volcengine -> "火山引擎"
+                    is TTSProviderSetting.Qwen3Local -> "Qwen3 局域网"
                 },
                 options = providers,
                 readOnly = true,
@@ -71,6 +72,7 @@ fun TTSProviderConfigure(
                         TTSProviderSetting.Step::class -> "Step"
                         TTSProviderSetting.SiliconFlow::class -> "硅基流动"
                         TTSProviderSetting.Volcengine::class -> "火山引擎"
+                        TTSProviderSetting.Qwen3Local::class -> "Qwen3 局域网"
                         else -> providerClass.simpleName ?: "Unknown"
                     }
                 },
@@ -146,6 +148,11 @@ fun TTSProviderConfigure(
                             name = "火山引擎 TTS"
                         )
 
+                        TTSProviderSetting.Qwen3Local::class -> TTSProviderSetting.Qwen3Local(
+                            id = setting.id,
+                            name = "Qwen3 局域网"
+                        )
+
                         else -> setting
                     }
                     onValueChange(newSetting)
@@ -184,6 +191,7 @@ fun TTSProviderConfigure(
             is TTSProviderSetting.Step -> StepTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.SiliconFlow -> SiliconFlowTTSConfiguration(setting, onValueChange)
             is TTSProviderSetting.Volcengine -> VolcengineTTSConfiguration(setting, onValueChange)
+            is TTSProviderSetting.Qwen3Local -> Qwen3LocalTTSConfiguration(setting, onValueChange)
         }
     }
 }
@@ -1461,6 +1469,106 @@ private fun VolcengineTTSConfiguration(
         OutlinedNumberInput(
             value = setting.speedRatio,
             onValueChange = { onValueChange(setting.copy(speedRatio = it.coerceIn(0.5f, 2.0f))) },
+            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.setting_tts_page_speed),
+        )
+    }
+}
+
+@Composable
+private fun Qwen3LocalTTSConfiguration(
+    setting: TTSProviderSetting.Qwen3Local,
+    onValueChange: (TTSProviderSetting) -> Unit
+) {
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_base_url)) },
+        description = { Text("PC 上 Qwen3-TTS 服务地址，例如 http://192.168.1.100:8877") }
+    ) {
+        OutlinedTextField(
+            value = setting.baseUrl,
+            onValueChange = { onValueChange(setting.copy(baseUrl = it.trim())) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("http://192.168.1.100:8877") },
+            singleLine = true,
+        )
+    }
+
+    val modes = listOf("custom_voice", "voice_design")
+    FormItem(
+        label = { Text("Mode") },
+        description = { Text("custom_voice = 预设音色；voice_design = 自然语言描述音色") }
+    ) {
+        SelectTextField(
+            value = setting.mode,
+            options = modes,
+            onValueChange = { onValueChange(setting.copy(mode = it)) },
+            onOptionSelected = { onValueChange(setting.copy(mode = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    val speakers = listOf(
+        "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric",
+        "Ryan", "Aiden", "Ono_Anna", "Sohee",
+    )
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_voice)) },
+        description = { Text("CustomVoice 预设 speaker") }
+    ) {
+        SelectTextField(
+            value = setting.speaker,
+            options = speakers,
+            onValueChange = { onValueChange(setting.copy(speaker = it)) },
+            onOptionSelected = { onValueChange(setting.copy(speaker = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    val languageTypes = listOf("Auto", "Chinese", "English", "Japanese", "Korean")
+    FormItem(
+        label = { Text("Language") },
+        description = { Text("合成语言") }
+    ) {
+        SelectTextField(
+            value = setting.language,
+            options = languageTypes,
+            onValueChange = { onValueChange(setting.copy(language = it)) },
+            onOptionSelected = { onValueChange(setting.copy(language = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    FormItem(
+        label = { Text("Instruct") },
+        description = { Text("可选风格指令（CustomVoice）") }
+    ) {
+        OutlinedTextField(
+            value = setting.instruct,
+            onValueChange = { onValueChange(setting.copy(instruct = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("用温柔的语气说") },
+        )
+    }
+
+    FormItem(
+        label = { Text("Voice description") },
+        description = { Text("VoiceDesign 模式下的音色描述") }
+    ) {
+        OutlinedTextField(
+            value = setting.voiceDescription,
+            onValueChange = { onValueChange(setting.copy(voiceDescription = it)) },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("温柔年轻女声，略带笑意") },
+        )
+    }
+
+    FormItem(
+        label = { Text(stringResource(R.string.setting_tts_page_speed)) },
+        description = { Text(stringResource(R.string.setting_tts_page_speed_description)) }
+    ) {
+        OutlinedNumberInput(
+            value = setting.speed,
+            onValueChange = { onValueChange(setting.copy(speed = it.coerceIn(0.5f, 2.0f))) },
             modifier = Modifier.fillMaxWidth(),
             label = stringResource(R.string.setting_tts_page_speed),
         )

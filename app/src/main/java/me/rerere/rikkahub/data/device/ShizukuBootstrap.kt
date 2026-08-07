@@ -22,6 +22,10 @@ private const val TAG = "ShizukuBootstrap"
  */
 object ShizukuBootstrap {
     const val PACKAGE_NAME = "moe.shizuku.privileged.api"
+    /** Play 版长期未更新，新机型常显示不适配；优先引导 GitHub 直链安装 */
+    const val GITHUB_RELEASES_URL = "https://github.com/RikkaApps/Shizuku/releases/latest"
+    const val GITHUB_APK_URL =
+        "https://github.com/RikkaApps/Shizuku/releases/download/v13.6.0/shizuku-v13.6.0.r1086.2650830c-release.apk"
     private const val PERMISSION_REQUEST_CODE = 1001
 
     private val START_SCRIPT_CANDIDATES = listOf(
@@ -56,16 +60,15 @@ object ShizukuBootstrap {
     }
 
     fun openInstallPage(context: Context) {
-        val market = Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("market://details?id=$PACKAGE_NAME"),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val web = Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("https://shizuku.rikka.app/download/"),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(market) }
-            .recoverCatching { context.startActivity(web) }
+        val apk = Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_APK_URL))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val releases = Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_RELEASES_URL))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val official = Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(apk) }
+            .recoverCatching { context.startActivity(releases) }
+            .recoverCatching { context.startActivity(official) }
             .onFailure { Log.e(TAG, "openInstallPage failed", it) }
     }
 

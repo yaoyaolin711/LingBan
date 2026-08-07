@@ -23,6 +23,7 @@ class CompanionFacade(
     private val promptCache: PromptCache,
     private val healthConnectRepository: HealthConnectRepository,
     private val lifeContextResolver: LifeContextResolver,
+    private val memoryRepository: me.rerere.rikkahub.data.repository.MemoryRepository? = null,
 ) {
     suspend fun preparePromptBundle(
         conversationId: Uuid,
@@ -90,6 +91,22 @@ class CompanionFacade(
         if (relationshipUpdated != currentState) {
             stateStore.saveState(conversationId, relationshipUpdated)
             promptCache.invalidate(conversationId)
+        }
+
+        // Optional high-confidence Companion long facts → Room L2 (default off).
+        if (assistant.enableMemory && me.rerere.rikkahub.data.memory.CompanionMemorySyncGate.enabled) {
+            val scope = if (assistant.useGlobalMemory) {
+                me.rerere.rikkahub.data.repository.MemoryRepository.GLOBAL_MEMORY_ID
+            } else {
+                assistant.id.toString()
+            }
+            runCatching {
+                memoryRepository?.syncCompanionLongFacts(
+                    assistantId = scope,
+                    facts = relationshipUpdated.longMemoryFacts,
+                    enabled = true,
+                )
+            }
         }
 
         // Touch the lightweight caches so the next request reuses parsed sources.

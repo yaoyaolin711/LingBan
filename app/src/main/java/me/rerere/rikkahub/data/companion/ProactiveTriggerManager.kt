@@ -46,10 +46,15 @@ class ProactiveTriggerManager(
 
         val conversationKey = conversation.id.toString()
         val now = clock.now().toEpochMilliseconds()
-        val cooldownMs = settings.companionAssist.proactiveCooldownMinutes
+        val cooldownMs = settings.companionAssist.effectiveProactiveCooldownMinutes() * 60_000L
+        if (now - settings.companionAssist.lastProactiveAtEpochMs < cooldownMs) {
+            rememberStage(conversationKey, state.relationshipState.relationshipStage)
+            return null
+        }
+        val perConversationCooldownMs = settings.companionAssist.proactiveCooldownMinutes
             .coerceAtLeast(30) * 60_000L
         val lastAt = lastSuggestedAtMillis[conversationKey] ?: 0L
-        if (now - lastAt < cooldownMs) {
+        if (now - lastAt < perConversationCooldownMs) {
             rememberStage(conversationKey, state.relationshipState.relationshipStage)
             return null
         }

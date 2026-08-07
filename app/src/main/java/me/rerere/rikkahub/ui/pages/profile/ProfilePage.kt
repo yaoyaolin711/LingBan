@@ -40,6 +40,7 @@ import me.rerere.hugeicons.stroke.Megaphone01
 import me.rerere.hugeicons.stroke.Package
 import me.rerere.hugeicons.stroke.ServerStack01
 import me.rerere.hugeicons.stroke.Settings03
+import me.rerere.hugeicons.stroke.ContactBook
 import me.rerere.hugeicons.stroke.Sun01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -122,6 +123,12 @@ fun ProfilePage() {
                     modifier = Modifier.padding(horizontal = 8.dp),
                     title = { Text(stringResource(R.string.profile_group_companion)) },
                 ) {
+                    item(
+                        onClick = { nav.navigate(Screen.UserProfileMemory) },
+                        leadingContent = { Icon(HugeIcons.ContactBook, null, tint = colors.primary) },
+                        headlineContent = { Text(stringResource(R.string.user_profile_memory_title)) },
+                        supportingContent = { Text(stringResource(R.string.user_profile_memory_entry_desc)) },
+                    )
                     item(
                         onClick = { nav.navigate(Screen.Assistant) },
                         leadingContent = { Icon(HugeIcons.LookTop, null, tint = colors.primary) },

@@ -12,6 +12,7 @@ import me.rerere.tts.provider.providers.MiMoTTSProvider
 import me.rerere.tts.provider.providers.MiniMaxTTSProvider
 import me.rerere.tts.provider.providers.MosslandTTSProvider
 import me.rerere.tts.provider.providers.OpenAITTSProvider
+import me.rerere.tts.provider.providers.Qwen3LocalTTSProvider
 import me.rerere.tts.provider.providers.QwenTTSProvider
 import me.rerere.tts.provider.providers.SiliconFlowTTSProvider
 import me.rerere.tts.provider.providers.StepTTSProvider
@@ -34,6 +35,7 @@ class TTSManager(private val context: Context) {
     private val mosslandProvider = MosslandTTSProvider()
     private val siliconFlowProvider = SiliconFlowTTSProvider()
     private val volcengineProvider = VolcengineTTSProvider()
+    private val qwen3LocalProvider = Qwen3LocalTTSProvider()
 
     fun generateSpeech(
         providerSetting: TTSProviderSetting,
@@ -54,6 +56,7 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.Step -> stepProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.SiliconFlow -> siliconFlowProvider.generateSpeech(context, providerSetting, request)
             is TTSProviderSetting.Volcengine -> volcengineProvider.generateSpeech(context, providerSetting, request)
+            is TTSProviderSetting.Qwen3Local -> qwen3LocalProvider.generateSpeech(context, providerSetting, request)
         }
     }
 
@@ -77,6 +80,7 @@ class TTSManager(private val context: Context) {
             is TTSProviderSetting.Step -> stepProvider.promptGuidance
             is TTSProviderSetting.SiliconFlow -> siliconFlowProvider.promptGuidance
             is TTSProviderSetting.Volcengine -> volcengineProvider.promptGuidance
+            is TTSProviderSetting.Qwen3Local -> qwen3LocalProvider.promptGuidance
         }
     }
 }

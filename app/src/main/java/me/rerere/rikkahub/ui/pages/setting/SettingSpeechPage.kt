@@ -26,8 +26,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -38,8 +40,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,22 +67,31 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dokar.sonner.ToastType
+import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
 import me.rerere.asr.ASRProviderSetting
 import me.rerere.asr.SpeechRecognitionSupport
 import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_ASR_ID
 import me.rerere.rikkahub.data.datastore.DEFAULT_SYSTEM_TTS_ID
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.model.withLanTtsConfig
+import me.rerere.rikkahub.data.tts.LanTtsClient
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
+import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.LocalTTSState
 import me.rerere.rikkahub.ui.pages.setting.components.ASRProviderConfigure
 import me.rerere.rikkahub.ui.pages.setting.components.TTSProviderConfigure
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.plus
+import me.rerere.rikkahub.utils.writeClipboardText
 import me.rerere.tts.provider.TTSProviderSetting
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.koin.androidx.compose.koinViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -311,6 +325,11 @@ private fun TTSProviderList(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
+        TtsLanServiceCard(
+            settings = settings,
+            onUpdateSettings = onUpdateSettings,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -371,6 +390,192 @@ private fun TTSProviderList(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TtsLanServiceCard(
+    settings: Settings,
+    onUpdateSettings: (Settings) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val toaster = LocalToaster.current
+    val tts = LocalTTSState.current
+    var isTesting by remember { mutableStateOf(false) }
+    var isPreviewing by remember { mutableStateOf(false) }
+    var lastDiagnostics by remember { mutableStateOf("") }
+
+    val tutorialUrl = "https://github.com/re-ovo/rikkahub/blob/main/docs/tts/lan-qwen3-tts.md"
+    val baseUrl = settings.ttsLanServiceUrl
+    val isValidBaseUrl = baseUrl.isBlank() || baseUrl.toHttpUrlOrNull() != null
+
+    CardGroup(
+        title = { Text(stringResource(R.string.setting_tts_lan_service)) },
+        modifier = modifier,
+    ) {
+        item(
+            headlineContent = { Text(stringResource(R.string.setting_tts_lan_enable)) },
+            supportingContent = { Text(stringResource(R.string.setting_tts_lan_enable_desc)) },
+            trailingContent = {
+                Switch(
+                    checked = settings.ttsLanEnabled,
+                    onCheckedChange = {
+                        onUpdateSettings(settings.withLanTtsConfig(enabled = it))
+                    }
+                )
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.setting_tts_lan_url)) },
+            supportingContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.setting_tts_lan_url_desc))
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = {
+                            onUpdateSettings(settings.withLanTtsConfig(serviceUrl = it.trim()))
+                        },
+                        singleLine = true,
+                        isError = !isValidBaseUrl,
+                        enabled = settings.ttsLanEnabled,
+                    )
+                }
+            }
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.setting_tts_lan_fallback)) },
+            supportingContent = { Text(stringResource(R.string.setting_tts_lan_fallback_desc)) },
+            trailingContent = {
+                Switch(
+                    checked = settings.ttsLanFallbackToSystem,
+                    onCheckedChange = {
+                        onUpdateSettings(settings.withLanTtsConfig(fallbackToSystem = it))
+                    },
+                    enabled = settings.ttsLanEnabled,
+                )
+            }
+        )
+        item(
+            headlineContent = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            if (!settings.ttsLanEnabled) {
+                                toaster.show(
+                                    message = context.getString(R.string.setting_tts_lan_test_enable_first),
+                                    type = ToastType.Warning
+                                )
+                                return@Button
+                            }
+                            if (baseUrl.isBlank() || !isValidBaseUrl) {
+                                toaster.show(
+                                    message = context.getString(R.string.setting_tts_lan_test_invalid_url),
+                                    type = ToastType.Error
+                                )
+                                return@Button
+                            }
+                            scope.launch {
+                                isTesting = true
+                                val result = LanTtsClient.healthCheck(baseUrl)
+                                isTesting = false
+                                if (result.isSuccess) {
+                                    lastDiagnostics = ""
+                                    val info = result.getOrNull()
+                                    val speakers = info?.speakers?.take(3)?.joinToString().orEmpty()
+                                    toaster.show(
+                                        message = context.getString(R.string.setting_tts_lan_test_success) +
+                                            if (speakers.isNotBlank()) " ($speakers…)" else "",
+                                        type = ToastType.Success
+                                    )
+                                } else {
+                                    val error = result.exceptionOrNull()
+                                    val errorType = LanTtsClient.classifyHealthError(error)
+                                    val hint = LanTtsClient.healthHint(errorType)
+                                    lastDiagnostics = LanTtsClient.buildDiagnostics(baseUrl, error)
+                                    toaster.show(
+                                        message = context.getString(R.string.setting_tts_lan_test_failed, hint),
+                                        type = ToastType.Error
+                                    )
+                                }
+                            }
+                        },
+                        enabled = !isTesting && !isPreviewing
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(stringResource(R.string.setting_tts_lan_test_button))
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            if (!settings.ttsLanEnabled || baseUrl.isBlank() || !isValidBaseUrl) {
+                                toaster.show(
+                                    message = context.getString(R.string.setting_tts_lan_test_invalid_url),
+                                    type = ToastType.Error
+                                )
+                                return@Button
+                            }
+                            scope.launch {
+                                isPreviewing = true
+                                try {
+                                    val provider = TTSProviderSetting.Qwen3Local(
+                                        name = "Qwen3 局域网试听",
+                                        baseUrl = baseUrl,
+                                        speaker = "Vivian",
+                                        fallbackToSystem = false,
+                                    )
+                                    tts.speakWithProvider(
+                                        provider,
+                                        "你好，我是局域网 Qwen3 语音。",
+                                    )
+                                    toaster.show(
+                                        message = context.getString(R.string.setting_tts_lan_preview_success),
+                                        type = ToastType.Success
+                                    )
+                                } catch (e: Exception) {
+                                    lastDiagnostics = LanTtsClient.buildDiagnostics(baseUrl, e)
+                                    toaster.show(
+                                        message = context.getString(
+                                            R.string.setting_tts_lan_preview_failed,
+                                            e.message ?: "unknown"
+                                        ),
+                                        type = ToastType.Error
+                                    )
+                                } finally {
+                                    isPreviewing = false
+                                }
+                            }
+                        },
+                        enabled = !isTesting && !isPreviewing && settings.ttsLanEnabled
+                    ) {
+                        if (isPreviewing) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(stringResource(R.string.setting_tts_lan_preview_button))
+                        }
+                    }
+                    Button(onClick = { context.openUrl(tutorialUrl) }) {
+                        Text(stringResource(R.string.setting_tts_lan_guide_button))
+                    }
+                    Button(
+                        onClick = {
+                            context.writeClipboardText(lastDiagnostics)
+                            toaster.show(
+                                message = context.getString(R.string.setting_tts_lan_copy_diagnostics_done),
+                                type = ToastType.Success
+                            )
+                        },
+                        enabled = lastDiagnostics.isNotBlank() && !isTesting
+                    ) {
+                        Text(stringResource(R.string.setting_tts_lan_copy_diagnostics))
+                    }
+                }
+            },
+            supportingContent = { Text(stringResource(R.string.setting_tts_lan_guide_desc)) },
+        )
     }
 }
 
@@ -729,6 +934,7 @@ private fun TTSProviderItem(
                             is TTSProviderSetting.Mossland -> "Mossland"
                             is TTSProviderSetting.SiliconFlow -> "硅基流动"
                             is TTSProviderSetting.Volcengine -> "火山引擎"
+                            is TTSProviderSetting.Qwen3Local -> "Qwen3 局域网"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

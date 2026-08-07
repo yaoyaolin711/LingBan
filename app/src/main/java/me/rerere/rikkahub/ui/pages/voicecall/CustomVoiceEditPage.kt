@@ -367,7 +367,8 @@ private fun existingApiKey(
     }
     VoiceTtsBackend.Qwen ->
         providers.filterIsInstance<TTSProviderSetting.Qwen>().firstOrNull()?.apiKey.orEmpty()
-    VoiceTtsBackend.System -> ""
+    VoiceTtsBackend.System,
+    VoiceTtsBackend.Qwen3Local -> ""
 }
 
 private fun maskKey(key: String): String {
@@ -382,6 +383,7 @@ internal fun backendLabelFor(backend: VoiceTtsBackend): String = when (backend) 
     VoiceTtsBackend.Mossland -> "Mossland"
     VoiceTtsBackend.Volcengine -> "火山引擎"
     VoiceTtsBackend.Qwen -> "Qwen"
+    VoiceTtsBackend.Qwen3Local -> "Qwen3 局域网"
     VoiceTtsBackend.System -> "系统"
 }
 
@@ -410,5 +412,6 @@ internal fun defaultModelForBackend(backend: VoiceTtsBackend): String = when (ba
     VoiceTtsBackend.Mossland -> "moss-tts"
     VoiceTtsBackend.Volcengine -> "volcano_tts"
     VoiceTtsBackend.Qwen -> "qwen3-tts-flash"
+    VoiceTtsBackend.Qwen3Local,
     VoiceTtsBackend.System -> ""
 }

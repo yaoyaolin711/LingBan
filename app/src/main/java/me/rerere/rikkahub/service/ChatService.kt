@@ -1037,7 +1037,9 @@ class ChatService(
                 rollingSummary = conversationForGeneration.rollingSummary,
                 carryoverOverview = conversationForGeneration.carryoverOverview,
                 workflowBundle = workflowBundle,
-                memories = if (assistant.useGlobalMemory) {
+                memories = if (!assistant.enableMemory) {
+                    emptyList()
+                } else if (assistant.useGlobalMemory) {
                     memoryRepository.getGlobalMemories()
                 } else {
                     memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
@@ -1383,7 +1385,9 @@ class ChatService(
             rollingSummary = conversationForGeneration.rollingSummary,
             carryoverOverview = conversationForGeneration.carryoverOverview,
             workflowBundle = workflowBundle,
-            memories = if (assistant.useGlobalMemory) {
+            memories = if (!assistant.enableMemory) {
+                emptyList()
+            } else if (assistant.useGlobalMemory) {
                 memoryRepository.getGlobalMemories()
             } else {
                 memoryRepository.getMemoriesOfAssistant(assistant.id.toString())

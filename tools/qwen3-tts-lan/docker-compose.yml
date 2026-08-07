@@ -1,0 +1,27 @@
+services:
+  qwen3-tts:
+    build: .
+    container_name: qwen3-tts-lan
+    ports:
+      - "8877:8877"
+    environment:
+      - PORT=8877
+      # 1.7b (better quality) or 0.6b (lower VRAM)
+      - MODEL_SIZE=1.7b
+      # custom_voice | voice_design
+      - MODEL_MODE=custom_voice
+    # Uncomment if using NVIDIA Container Toolkit
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    volumes:
+      # Cache HuggingFace / ModelScope weights across restarts
+      - qwen3-tts-cache:/root/.cache
+
+volumes:
+  qwen3-tts-cache:

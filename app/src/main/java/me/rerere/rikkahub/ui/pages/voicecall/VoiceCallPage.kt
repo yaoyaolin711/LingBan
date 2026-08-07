@@ -279,6 +279,16 @@ fun VoiceCallPage(conversationId: Uuid) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            if (ui.phase == VoiceCallPhase.Listening ||
+                ui.phase == VoiceCallPhase.Thinking ||
+                ui.phase == VoiceCallPhase.Speaking
+            ) {
+                VoiceCallLiveStatus(
+                    ui = ui,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+
             val caption = when {
                 ui.partialTranscript.isNotBlank() -> ui.partialTranscript
                 ui.lastAssistantText.isNotBlank() && ui.phase == VoiceCallPhase.Speaking -> ui.lastAssistantText

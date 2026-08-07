@@ -1,13 +1,17 @@
 package me.rerere.rikkahub.ui.pages.home
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,6 +31,7 @@ import me.rerere.hugeicons.stroke.Brain02
 import me.rerere.hugeicons.stroke.Home01
 import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.Message01
+import me.rerere.hugeicons.stroke.Message02
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
@@ -37,6 +43,7 @@ import me.rerere.rikkahub.ui.components.solace.PremiumBarItem
 import me.rerere.rikkahub.ui.components.solace.PremiumBottomBar
 import me.rerere.rikkahub.ui.components.solace.RelationshipCard
 import me.rerere.rikkahub.ui.components.solace.RelationshipMetric
+import me.rerere.rikkahub.ui.components.solace.RoseGoldCard
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.pages.chat.SolaceAmbientBackground
 import me.rerere.rikkahub.ui.theme.SolaceTheme
@@ -114,6 +121,14 @@ fun HomePage(vm: HomeVM = koinViewModel()) {
                 onClick = { openChat(newChat = false) },
             )
 
+            HomeHistoryEntry(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                recentTitle = uiState.recentConversation?.title?.takeIf { it.isNotBlank() },
+                onClick = { nav.navigate(Screen.History) },
+            )
+
             Text(
                 text = stringResource(R.string.home_page_tap_to_chat),
                 style = typography.bodySmall,
@@ -143,6 +158,48 @@ fun HomePage(vm: HomeVM = koinViewModel()) {
             },
             onProfile = { nav.navigate(Screen.Profile) },
         )
+    }
+}
+
+@Composable
+private fun HomeHistoryEntry(
+    recentTitle: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = SolaceTheme.colorScheme
+    val typography = SolaceTheme.typography
+
+    RoseGoldCard(
+        modifier = modifier,
+        onClick = onClick,
+        contentPadding = 16.dp,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = HugeIcons.Message02,
+                contentDescription = null,
+                tint = colors.secondaryText,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.home_page_history),
+                    style = typography.titleSmall,
+                    color = colors.text,
+                )
+                Text(
+                    text = recentTitle ?: stringResource(R.string.home_page_no_recent),
+                    style = typography.bodySmall,
+                    color = colors.secondaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

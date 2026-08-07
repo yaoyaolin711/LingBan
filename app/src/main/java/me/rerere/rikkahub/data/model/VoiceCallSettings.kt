@@ -35,6 +35,10 @@ enum class VoiceTtsBackend {
     @SerialName("system")
     System,
 
+    /** LAN Qwen3-TTS (PC local). No cloud API key. */
+    @SerialName("qwen3-local")
+    Qwen3Local,
+
     /** Fixed system voices only (Qwen TTS). */
     @SerialName("qwen")
     Qwen,
@@ -147,6 +151,53 @@ object VoicePresets {
             backend = VoiceTtsBackend.System,
             speechRate = 0.9f,
             pitch = 0.9f,
+            requiresApiKey = false,
+        ),
+
+        // —— Local · Qwen3 LAN ——
+        VoicePreset(
+            id = "local_qwen3_vivian",
+            tier = VoiceTier.Local,
+            displayName = "Vivian 温柔",
+            description = "局域网 · Qwen3 本地",
+            backend = VoiceTtsBackend.Qwen3Local,
+            voiceId = "Vivian",
+            requiresApiKey = false,
+        ),
+        VoicePreset(
+            id = "local_qwen3_serena",
+            tier = VoiceTier.Local,
+            displayName = "Serena 知性",
+            description = "局域网 · Qwen3 本地",
+            backend = VoiceTtsBackend.Qwen3Local,
+            voiceId = "Serena",
+            requiresApiKey = false,
+        ),
+        VoicePreset(
+            id = "local_qwen3_uncle_fu",
+            tier = VoiceTier.Local,
+            displayName = "Uncle Fu 沉稳",
+            description = "局域网 · Qwen3 本地",
+            backend = VoiceTtsBackend.Qwen3Local,
+            voiceId = "Uncle_Fu",
+            requiresApiKey = false,
+        ),
+        VoicePreset(
+            id = "local_qwen3_dylan",
+            tier = VoiceTier.Local,
+            displayName = "Dylan 清晰",
+            description = "局域网 · Qwen3 本地",
+            backend = VoiceTtsBackend.Qwen3Local,
+            voiceId = "Dylan",
+            requiresApiKey = false,
+        ),
+        VoicePreset(
+            id = "local_qwen3_ryan",
+            tier = VoiceTier.Local,
+            displayName = "Ryan 明亮",
+            description = "局域网 · Qwen3 本地",
+            backend = VoiceTtsBackend.Qwen3Local,
+            voiceId = "Ryan",
             requiresApiKey = false,
         ),
 
@@ -450,6 +501,42 @@ private fun resolvePresetVoice(
             )
         }
 
+        VoiceTtsBackend.Qwen3Local -> {
+            val url = settings.ttsLanServiceUrl.trim().ifBlank {
+                settings.ttsProviders.filterIsInstance<TTSProviderSetting.Qwen3Local>()
+                    .firstOrNull()?.baseUrl.orEmpty().trim()
+            }
+            val enabled = settings.ttsLanEnabled || url.isNotBlank()
+            if (!enabled || url.isBlank()) {
+                if (settings.ttsLanFallbackToSystem) {
+                    VoiceCallTtsResolveResult.Ready(
+                        TTSProviderSetting.SystemTTS(
+                            id = Uuid.parse("026a01a2-c3a0-4fd5-8075-80e03bdef201"),
+                            name = "${preset.displayName} (系统回退)",
+                            speechRate = preset.speechRate,
+                            pitch = preset.pitch,
+                        )
+                    )
+                } else {
+                    VoiceCallTtsResolveResult.Unavailable(
+                        "请先在「设置 → 语音 → 局域网 Qwen3 TTS」中配置电脑服务地址"
+                    )
+                }
+            } else {
+                val existing = settings.ttsProviders
+                    .filterIsInstance<TTSProviderSetting.Qwen3Local>()
+                    .firstOrNull()
+                VoiceCallTtsResolveResult.Ready(
+                    (existing ?: TTSProviderSetting.Qwen3Local()).copy(
+                        name = "VoiceCall · ${preset.displayName}",
+                        baseUrl = url,
+                        speaker = voiceId.ifBlank { preset.voiceId }.ifBlank { "Vivian" },
+                        fallbackToSystem = settings.ttsLanFallbackToSystem,
+                    )
+                )
+            }
+        }
+
         VoiceTtsBackend.Qwen -> {
             val existing = settings.ttsProviders.filterIsInstance<TTSProviderSetting.Qwen>().firstOrNull()
             val apiKey = existing?.apiKey.orEmpty()
@@ -601,7 +688,8 @@ fun Settings.withVoiceCallApiKey(backend: VoiceTtsBackend, apiKey: String): Sett
 
     val providers = ttsProviders.toMutableList()
     when (backend) {
-        VoiceTtsBackend.System -> return this
+        VoiceTtsBackend.System,
+        VoiceTtsBackend.Qwen3Local -> return this
         VoiceTtsBackend.Qwen -> {
             val idx = providers.indexOfFirst { it is TTSProviderSetting.Qwen }
             if (idx >= 0) {
@@ -679,6 +767,46 @@ fun normalizeMosslandModel(raw: String): String {
         return if (lower.contains("ttsd") || lower.contains("speaker")) "moss-ttsd" else "moss-tts"
     }
     return "moss-tts"
+}
+
+fun Settings.withLanTtsConfig(
+    enabled: Boolean = ttsLanEnabled,
+    serviceUrl: String = ttsLanServiceUrl,
+    fallbackToSystem: Boolean = ttsLanFallbackToSystem,
+): Settings {
+    val url = serviceUrl.trim()
+    val providers = ttsProviders.toMutableList()
+    val idx = providers.indexOfFirst { it is TTSProviderSetting.Qwen3Local }
+    if (enabled && url.isNotBlank()) {
+        if (idx >= 0) {
+            val current = providers[idx] as TTSProviderSetting.Qwen3Local
+            providers[idx] = current.copy(
+                baseUrl = url,
+                fallbackToSystem = fallbackToSystem,
+            )
+        } else {
+            providers.add(
+                0,
+                TTSProviderSetting.Qwen3Local(
+                    name = "Qwen3 局域网",
+                    baseUrl = url,
+                    fallbackToSystem = fallbackToSystem,
+                )
+            )
+        }
+    } else if (idx >= 0) {
+        val current = providers[idx] as TTSProviderSetting.Qwen3Local
+        providers[idx] = current.copy(
+            baseUrl = url.ifBlank { current.baseUrl },
+            fallbackToSystem = fallbackToSystem,
+        )
+    }
+    return copy(
+        ttsLanEnabled = enabled,
+        ttsLanServiceUrl = url,
+        ttsLanFallbackToSystem = fallbackToSystem,
+        ttsProviders = providers,
+    )
 }
 
 fun Settings.withAssistantVoiceCall(

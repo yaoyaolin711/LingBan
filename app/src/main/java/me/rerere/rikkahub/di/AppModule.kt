@@ -263,6 +263,7 @@ val appModule = module {
             personaManager = get(),
             companionStateStore = get(),
             lifeContextResolver = get(),
+            memoryRepository = get(),
         )
     }
 
@@ -364,6 +365,7 @@ val appModule = module {
             promptCache = get(),
             healthConnectRepository = get(),
             lifeContextResolver = get(),
+            memoryRepository = get(),
         )
     }
 

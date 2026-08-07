@@ -49,14 +49,6 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import coil3.ImageLoader
-import coil3.compose.setSingletonImageLoaderFactory
-import coil3.gif.AnimatedImageDecoder
-import coil3.gif.GifDecoder
-import coil3.network.cachecontrol.CacheControlCacheStrategy
-import coil3.network.okhttp.OkHttpNetworkFetcherFactory
-import coil3.request.crossfade
-import coil3.svg.SvgDecoder
 import com.dokar.sonner.Toaster
 import com.dokar.sonner.rememberToasterState
 import kotlinx.coroutines.launch
@@ -73,6 +65,7 @@ import me.rerere.rikkahub.data.repository.ConversationRepository
 import kotlinx.coroutines.flow.first
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
 import me.rerere.rikkahub.ui.components.ui.CivilChatConsentDialog
+import me.rerere.rikkahub.ui.components.onboarding.SolaceOnboardingDialog
 import me.rerere.rikkahub.ui.components.ui.TTSController
 import me.rerere.rikkahub.ui.context.LocalASRState
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -92,6 +85,7 @@ import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantLocalToolPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMcpPage
+import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryGraphPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantPromptPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantRequestPage
@@ -116,6 +110,7 @@ import me.rerere.rikkahub.ui.pages.home.HomePage
 import me.rerere.rikkahub.ui.pages.imggen.ImageGenPage
 import me.rerere.rikkahub.ui.pages.log.LogPage
 import me.rerere.rikkahub.ui.pages.profile.ProfilePage
+import me.rerere.rikkahub.ui.pages.profile.UserProfileMemoryPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.setting.SettingAboutPage
 import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesPage
@@ -151,7 +146,6 @@ import me.rerere.rikkahub.overlay.VoiceCallFloatHost
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.openAccessibilitySettings
 import me.rerere.rikkahub.utils.openUsageAccessSettings
-import okhttp3.OkHttpClient
 import org.koin.android.ext.android.inject
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
@@ -160,7 +154,6 @@ private const val TAG = "RouteActivity"
 
 class RouteActivity : ComponentActivity() {
     private val highlighter by inject<Highlighter>()
-    private val okHttpClient by inject<OkHttpClient>()
     private val settingsStore by inject<SettingsStore>()
     private val conversationRepo by inject<ConversationRepository>()
     private var navStack: MutableList<NavKey>? = null
@@ -204,25 +197,6 @@ class RouteActivity : ComponentActivity() {
         }
         setContent {
             RikkahubTheme {
-                setSingletonImageLoaderFactory { context ->
-                    ImageLoader.Builder(context)
-                        .crossfade(true)
-                        .components {
-                            add(
-                                OkHttpNetworkFetcherFactory(
-                                    callFactory = { okHttpClient },
-                                    cacheStrategy = { CacheControlCacheStrategy() },
-                                )
-                            )
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                add(AnimatedImageDecoder.Factory())
-                            } else {
-                                add(GifDecoder.Factory())
-                            }
-                            add(SvgDecoder.Factory(scaleToDensity = true))
-                        }
-                        .build()
-                }
                 AppRoutes()
             }
         }
@@ -377,6 +351,10 @@ class RouteActivity : ComponentActivity() {
                                 ProfilePage()
                             }
 
+                            entry<Screen.UserProfileMemory> {
+                                UserProfileMemoryPage()
+                            }
+
                             entry<Screen.Chat>(
                                 metadata = NavDisplay.transitionSpec { SolaceAnimationDefault.pageFade() }
                                     + NavDisplay.popTransitionSpec { SolaceAnimationDefault.pageFade() }
@@ -426,6 +404,10 @@ class RouteActivity : ComponentActivity() {
 
                             entry<Screen.AssistantMemory> { key ->
                                 AssistantMemoryPage(key.id)
+                            }
+
+                            entry<Screen.AssistantMemoryGraph> { key ->
+                                AssistantMemoryGraphPage(key.id)
                             }
 
                             entry<Screen.AssistantRequest> { key ->
@@ -670,6 +652,14 @@ class RouteActivity : ComponentActivity() {
                                 }
                             },
                         )
+                    } else if (!settings.init && !settings.onboardingCompleted) {
+                        SolaceOnboardingDialog(
+                            onComplete = {
+                                scope.launch {
+                                    settingsStore.update { it.copy(onboardingCompleted = true) }
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -684,6 +674,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object Profile : Screen
+
+    @Serializable
+    data object UserProfileMemory : Screen
 
     @Serializable
     data class Chat(
@@ -719,6 +712,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data class AssistantMemory(val id: String) : Screen
+
+    @Serializable
+    data class AssistantMemoryGraph(val id: String) : Screen
 
     @Serializable
     data class AssistantRequest(val id: String) : Screen

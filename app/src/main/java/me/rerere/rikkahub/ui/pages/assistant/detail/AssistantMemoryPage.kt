@@ -4,6 +4,8 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Alert02
+import me.rerere.hugeicons.stroke.Database01
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -64,6 +69,7 @@ fun AssistantMemoryPage(id: String) {
     val assistant by vm.assistant.collectAsStateWithLifecycle()
     val memories by vm.memories.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val navController = me.rerere.rikkahub.ui.context.LocalNavController.current
 
     Scaffold(
         topBar = {
@@ -85,6 +91,14 @@ fun AssistantMemoryPage(id: String) {
             innerPadding = innerPadding,
             assistant = assistant,
             memories = memories,
+            onOpenGraph = {
+                val scopeId = if (assistant.useGlobalMemory) {
+                    me.rerere.rikkahub.data.repository.MemoryRepository.GLOBAL_MEMORY_ID
+                } else {
+                    id
+                }
+                navController.navigate(me.rerere.rikkahub.Screen.AssistantMemoryGraph(scopeId))
+            },
             onUpdateAssistant = { vm.update(it) },
             onDeleteMemory = { vm.deleteMemory(it) },
             onAddMemory = { vm.addMemory(it) },
@@ -98,6 +112,7 @@ private fun AssistantMemoryContent(
     innerPadding: PaddingValues,
     assistant: Assistant,
     memories: List<AssistantMemory>,
+    onOpenGraph: () -> Unit,
     onUpdateAssistant: (Assistant) -> Unit,
     onAddMemory: (AssistantMemory) -> Unit,
     onUpdateMemory: (AssistantMemory) -> Unit,
@@ -164,6 +179,9 @@ private fun AssistantMemoryContent(
             .imePadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (assistant.enableMemory) {
+            MemoryScopeBanner(assistant = assistant)
+        }
         CardGroup {
             item(
                 headlineContent = { Text(stringResource(R.string.assistant_page_memory)) },
@@ -244,6 +262,17 @@ private fun AssistantMemoryContent(
                             )
                         }
                     )
+                }
+            )
+            item(
+                headlineContent = { Text("记忆图谱") },
+                supportingContent = {
+                    Text("只读浏览 AI 梳理出的记忆关联")
+                },
+                trailingContent = {
+                    TextButton(onClick = onOpenGraph) {
+                        Text("查看")
+                    }
                 }
             )
         }
@@ -353,6 +382,66 @@ private fun MemoryItem(
                 Icon(
                     HugeIcons.Delete01,
                     stringResource(R.string.assistant_page_delete)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoryScopeBanner(assistant: Assistant) {
+    val isGlobal = assistant.useGlobalMemory
+    val containerColor = if (isGlobal) {
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    }
+    val contentColor = if (isGlobal) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
+    val icon = if (isGlobal) HugeIcons.Alert02 else HugeIcons.Database01
+    val title = if (isGlobal) {
+        stringResource(R.string.assistant_page_memory_scope_global)
+    } else {
+        stringResource(
+            R.string.assistant_page_memory_scope_isolated,
+            assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) },
+        )
+    }
+    val detail = if (isGlobal) {
+        stringResource(R.string.assistant_page_memory_scope_global_warning)
+    } else {
+        stringResource(R.string.assistant_page_memory_scope_isolated_detail)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = containerColor,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = contentColor,
+                )
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.9f),
                 )
             }
         }

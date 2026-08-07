@@ -4,6 +4,7 @@ import android.content.Context
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
+import me.rerere.rikkahub.data.memory.MemorySemanticIndex
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
@@ -28,7 +29,8 @@ val repositoryModule = module {
     }
 
     single {
-        MemoryRepository(get())
+        val semantic = MemorySemanticIndex(indexDAO = get(), client = null)
+        MemoryRepository(memoryDAO = get(), indexDAO = get(), semanticIndex = semantic)
     }
 
     single {

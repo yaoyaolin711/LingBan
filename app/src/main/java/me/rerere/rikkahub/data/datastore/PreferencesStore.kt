@@ -38,6 +38,7 @@ import me.rerere.rikkahub.data.device.CompanionAssistSetting
 import me.rerere.rikkahub.data.health.HealthConnectSetting
 import me.rerere.rikkahub.data.life.LifeContextSetting
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.GlobalUserProfile
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.CustomVoiceProfile
 import me.rerere.rikkahub.data.model.InjectionPosition
@@ -86,6 +87,7 @@ class SettingsStore(
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val CIVIL_CHAT_CONSENT = booleanPreferencesKey("civil_chat_consent_accepted")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
 
         // 模型选择
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")
@@ -105,6 +107,9 @@ class SettingsStore(
         val OCR_USE_LAN_SERVICE = booleanPreferencesKey("ocr_use_lan_service")
         val OCR_LAN_SERVICE_URL = stringPreferencesKey("ocr_lan_service_url")
         val OCR_LAN_FALLBACK_TO_MODEL = booleanPreferencesKey("ocr_lan_fallback_to_model")
+        val TTS_LAN_ENABLED = booleanPreferencesKey("tts_lan_enabled")
+        val TTS_LAN_SERVICE_URL = stringPreferencesKey("tts_lan_service_url")
+        val TTS_LAN_FALLBACK_TO_SYSTEM = booleanPreferencesKey("tts_lan_fallback_to_system")
         val COMPRESS_MODEL = stringPreferencesKey("compress_model")
         val GROUP_SCHEDULER_MODEL = stringPreferencesKey("group_scheduler_model")
         val COMPRESS_PROMPT = stringPreferencesKey("compress_prompt")
@@ -155,6 +160,9 @@ class SettingsStore(
 
         // 作息感知（屏幕使用估计休息窗）
         val LIFE_CONTEXT = stringPreferencesKey("life_context")
+
+        /** User-authored stable profile card shared by all companions. */
+        val GLOBAL_USER_PROFILE = stringPreferencesKey("global_user_profile")
 
         // 用户勾选「始终允许」的工具名（之后不再弹审批）
         val AUTO_APPROVED_TOOLS = stringPreferencesKey("auto_approved_tools")
@@ -208,6 +216,9 @@ class SettingsStore(
                 ocrUseLanService = preferences[OCR_USE_LAN_SERVICE] == true,
                 ocrLanServiceUrl = preferences[OCR_LAN_SERVICE_URL] ?: "",
                 ocrLanFallbackToModel = preferences[OCR_LAN_FALLBACK_TO_MODEL] != false,
+                ttsLanEnabled = preferences[TTS_LAN_ENABLED] == true,
+                ttsLanServiceUrl = preferences[TTS_LAN_SERVICE_URL] ?: "",
+                ttsLanFallbackToSystem = preferences[TTS_LAN_FALLBACK_TO_SYSTEM] != false,
                 compressModelId = preferences[COMPRESS_MODEL]?.let { Uuid.parse(it) } ?: DEFAULT_AUTO_MODEL_ID,
                 compressPrompt = preferences[COMPRESS_PROMPT] ?: DEFAULT_COMPRESS_PROMPT,
                 groupSchedulerModelId = preferences[GROUP_SCHEDULER_MODEL]?.let { Uuid.parse(it) },
@@ -225,6 +236,7 @@ class SettingsStore(
                 } ?: emptyList(),
                 developerMode = preferences[DEVELOPER_MODE] == true,
                 civilChatConsentAccepted = preferences[CIVIL_CHAT_CONSENT] == true,
+                onboardingCompleted = resolveOnboardingCompleted(preferences),
                 displaySetting = JsonInstant.decodeFromString(preferences[DISPLAY_SETTING] ?: "{}"),
                 searchServices = preferences[SEARCH_SERVICES]?.let {
                     JsonInstant.decodeFromString(it)
@@ -280,6 +292,9 @@ class SettingsStore(
                 lifeContext = preferences[LIFE_CONTEXT]?.let {
                     runCatching { JsonInstant.decodeFromString<LifeContextSetting>(it) }.getOrNull()
                 } ?: LifeContextSetting(),
+                globalUserProfile = preferences[GLOBAL_USER_PROFILE]?.let {
+                    runCatching { JsonInstant.decodeFromString<GlobalUserProfile>(it) }.getOrNull()
+                } ?: GlobalUserProfile(),
                 autoApprovedTools = preferences[AUTO_APPROVED_TOOLS]?.let {
                     runCatching { JsonInstant.decodeFromString<List<String>>(it).toSet() }.getOrNull()
                 } ?: emptySet(),
@@ -410,6 +425,7 @@ class SettingsStore(
             preferences[CUSTOM_THEMES] = JsonInstant.encodeToString(settings.customThemes)
             preferences[DEVELOPER_MODE] = settings.developerMode
             preferences[CIVIL_CHAT_CONSENT] = settings.civilChatConsentAccepted
+            preferences[ONBOARDING_COMPLETED] = settings.onboardingCompleted
             preferences[DISPLAY_SETTING] = JsonInstant.encodeToString(settings.displaySetting)
 
             preferences[FAVORITE_MODELS] = JsonInstant.encodeToString(settings.favoriteModels)
@@ -433,6 +449,9 @@ class SettingsStore(
             preferences[OCR_USE_LAN_SERVICE] = settings.ocrUseLanService
             preferences[OCR_LAN_SERVICE_URL] = settings.ocrLanServiceUrl
             preferences[OCR_LAN_FALLBACK_TO_MODEL] = settings.ocrLanFallbackToModel
+            preferences[TTS_LAN_ENABLED] = settings.ttsLanEnabled
+            preferences[TTS_LAN_SERVICE_URL] = settings.ttsLanServiceUrl
+            preferences[TTS_LAN_FALLBACK_TO_SYSTEM] = settings.ttsLanFallbackToSystem
             preferences[COMPRESS_MODEL] = settings.compressModelId.toString()
             preferences[COMPRESS_PROMPT] = settings.compressPrompt
             settings.groupSchedulerModelId?.let {
@@ -473,6 +492,7 @@ class SettingsStore(
             preferences[COMPANION_ASSIST] = JsonInstant.encodeToString(settings.companionAssist)
             preferences[HEALTH_CONNECT] = JsonInstant.encodeToString(settings.healthConnect)
             preferences[LIFE_CONTEXT] = JsonInstant.encodeToString(settings.lifeContext)
+            preferences[GLOBAL_USER_PROFILE] = JsonInstant.encodeToString(settings.globalUserProfile)
             preferences[AUTO_APPROVED_TOOLS] = JsonInstant.encodeToString(settings.autoApprovedTools.toList())
             preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
@@ -580,6 +600,8 @@ data class Settings(
     val developerMode: Boolean = false,
     /** 是否已同意文明上网 / 绿色聊天提示（首次进入强制阅读） */
     val civilChatConsentAccepted: Boolean = false,
+    /** 是否已完成 Solace 首次引导（Provider / 伴侣体验推荐） */
+    val onboardingCompleted: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),
@@ -598,6 +620,10 @@ data class Settings(
     val ocrUseLanService: Boolean = false,
     val ocrLanServiceUrl: String = "",
     val ocrLanFallbackToModel: Boolean = true,
+    /** Prefer LAN Qwen3-TTS for Local-tier voice presets that use [me.rerere.rikkahub.data.model.VoiceTtsBackend.Qwen3Local]. */
+    val ttsLanEnabled: Boolean = false,
+    val ttsLanServiceUrl: String = "",
+    val ttsLanFallbackToSystem: Boolean = true,
     val compressModelId: Uuid = Uuid.random(),
     val compressPrompt: String = DEFAULT_COMPRESS_PROMPT,
     /** Model used by group-chat floor SoftScheduler; null → fastModelId. */
@@ -632,6 +658,8 @@ data class Settings(
     val healthConnect: HealthConnectSetting = HealthConnectSetting(),
     /** 作息感知：根据屏幕使用 / HC 估计过夜休息窗 */
     val lifeContext: LifeContextSetting = LifeContextSetting(),
+    /** 用户填写的稳定身份卡片，所有伴侣可读、不可被 memory_tool 改写 */
+    val globalUserProfile: GlobalUserProfile = GlobalUserProfile(),
     /** Tool names the user permanently auto-approved (skip needsApproval). */
     val autoApprovedTools: Set<String> = emptySet(),
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
@@ -837,6 +865,34 @@ data class BackupReminderConfig(
 )
 
 fun Settings.isNotConfigured() = providers.all { it.models.isEmpty() }
+
+/** 老用户升级：已同意协议且启动次数 ≥2 时视为已完成引导，避免重复弹出。 */
+private fun resolveOnboardingCompleted(preferences: androidx.datastore.preferences.core.Preferences): Boolean {
+    if (preferences.contains(SettingsStore.ONBOARDING_COMPLETED)) {
+        return preferences[SettingsStore.ONBOARDING_COMPLETED] == true
+    }
+    val consented = preferences[SettingsStore.CIVIL_CHAT_CONSENT] == true
+    val launches = preferences[SettingsStore.LAUNCH_COUNT] ?: 0
+    return consented && launches >= 2
+}
+
+fun ProviderSetting.hasCredentials(): Boolean = when (this) {
+    is ProviderSetting.OpenAI -> apiKey.isNotBlank()
+    is ProviderSetting.Claude -> apiKey.isNotBlank()
+    is ProviderSetting.Google -> when {
+        vertexAI && useServiceAccount ->
+            privateKey.isNotBlank() && serviceAccountEmail.isNotBlank() && projectId.isNotBlank()
+        else -> apiKey.isNotBlank()
+    }
+}
+
+/** 当前助手聊天模型是否已绑定可用 Provider（含 API Key）。 */
+fun Settings.hasUsableChatProvider(): Boolean {
+    if (isNotConfigured()) return false
+    val model = getCurrentChatModel() ?: return false
+    val provider = model.findProvider(providers) ?: return false
+    return provider.enabled && provider.hasCredentials()
+}
 
 fun Settings.findModelById(uuid: Uuid?, fallback: Uuid? = null): Model? {
     if (uuid == null && fallback == null) return null

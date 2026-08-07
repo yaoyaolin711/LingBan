@@ -120,7 +120,7 @@ internal fun buildGetAppSessionTool(context: Context, eventBus: AppEventBus): To
 internal fun buildOpenSolaceTool(intervention: CompanionIntervention): Tool = Tool(
     name = "open_solace",
     description = """
-        Bring the Solace app to the foreground and show a care/reminder message in a new chat.
+        Bring the Solace app to the foreground and append a care/reminder message to the recent chat.
         Use this when the user has been using another app for too long and should take a break,
         or when you need to interrupt and talk to the user on-device. Optional 'message' is the
         text shown as an assistant message; if omitted a short default reminder is used.

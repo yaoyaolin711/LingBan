@@ -22,22 +22,25 @@ import me.rerere.rikkahub.data.companion.model.CompanionEmotionState
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
+import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.life.LifeContextResolver
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.service.backgroundTextGenerationParams
+import me.rerere.rikkahub.ui.hooks.writeStringPreference
 import me.rerere.rikkahub.utils.sendNotification
 import java.time.Instant
 import kotlin.uuid.Uuid
 
 private const val TAG = "CompanionIntervention"
 private const val INTERVENTION_NOTIFICATION_ID = 3101
+private const val RECENT_CONTEXT_MESSAGE_LIMIT = 8
 
 /**
- * 伴侣主动找人：写入会话、拉起 App、通知。
- * 文案必须用人设 + 记忆个性化生成，禁止「官方关怀」腔与固定模板问候。
+ * 伴侣主动找人：写入**最近会话**、拉起 App、通知。
+ * 文案必须用人设 + 记忆 + 近期对话上下文生成，禁止「陌生人式」问候。
  */
 class CompanionIntervention(
     private val context: Context,
@@ -48,34 +51,61 @@ class CompanionIntervention(
     private val personaManager: PersonaManager,
     private val companionStateStore: CompanionStateStore,
     private val lifeContextResolver: LifeContextResolver,
+    private val memoryRepository: me.rerere.rikkahub.data.repository.MemoryRepository,
 ) {
 
+    suspend fun resolveRecentConversation(assistantId: Uuid): Conversation? {
+        return conversationRepo.getRecentConversations(assistantId, limit = 3)
+            .firstOrNull { !it.isGroup && it.currentMessages.isNotEmpty() }
+            ?: conversationRepo.getRecentConversations(assistantId, limit = 1)
+                .firstOrNull { !it.isGroup }
+    }
+
+    /**
+     * 将主动消息追加到最近会话；无最近会话时才新建。
+     * @return 写入的会话 id
+     */
     suspend fun openSolaceWithMessage(
         message: String,
         title: String = "找你聊聊天",
         useFullScreenIntent: Boolean = true,
         speakViaNotification: Boolean = true,
+        assistantId: Uuid? = null,
     ): Uuid {
         val settings = settingsStore.settingsFlow.value
-        val assistant = settings.getCurrentAssistant()
-        val conversationId = Uuid.random()
-        val conversation = Conversation(
-            id = conversationId,
-            assistantId = settings.assistantId,
-            title = title,
-            messageNodes = listOf(
-                UIMessage.assistant(message).toMessageNode()
-            ),
-            createAt = Instant.now(),
-            updateAt = Instant.now(),
-        )
-        conversationRepo.insertConversation(conversation)
+        val assistant = settings.getAssistantById(assistantId ?: settings.assistantId)
+            ?: settings.getCurrentAssistant()
+        val trimmed = message.trim()
+        require(trimmed.isNotEmpty()) { "proactive message is empty" }
+
+        val existing = resolveRecentConversation(assistant.id)
+        val conversation = if (existing != null) {
+            val updated = existing
+                .updateCurrentMessages(existing.currentMessages + UIMessage.assistant(trimmed))
+                .copy(updateAt = Instant.now())
+            conversationRepo.updateConversation(updated)
+            updated
+        } else {
+            val conversationId = Uuid.random()
+            val created = Conversation(
+                id = conversationId,
+                assistantId = assistant.id,
+                title = title.ifBlank { assistant.name.ifBlank { "对话" } },
+                messageNodes = listOf(UIMessage.assistant(trimmed).toMessageNode()),
+                createAt = Instant.now(),
+                updateAt = Instant.now(),
+            )
+            conversationRepo.insertConversation(created)
+            created
+        }
+
+        context.writeStringPreference("lastConversationId", conversation.id.toString())
 
         val launchIntent = Intent(context, RouteActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("conversationId", conversationId.toString())
+            putExtra("conversationId", conversation.id.toString())
             putExtra("companion_intervention", true)
         }
 
@@ -88,14 +118,14 @@ class CompanionIntervention(
         if (speakViaNotification) {
             val notifyTitle = assistant.name.ifBlank { "Solace" }
             postInterventionNotification(
-                conversationId = conversationId,
-                message = message,
+                conversationId = conversation.id,
+                message = trimmed,
                 notificationTitle = notifyTitle,
                 useFullScreenIntent = useFullScreenIntent,
                 launchIntent = launchIntent,
             )
         }
-        return conversationId
+        return conversation.id
     }
 
     fun notifyUser(title: String, content: String, conversationId: Uuid? = null) {
@@ -126,17 +156,16 @@ class CompanionIntervention(
         }
     }
 
-    /**
-     * 用户在别的 App 待太久：用伴侣人设主动找人（不是健康提醒）。
-     */
     suspend fun generateCareMessage(
         appName: String,
         packageName: String,
         continuousMinutes: Long,
         emotion: CompanionEmotionState = CompanionEmotionState.CALM,
+        conversation: Conversation? = null,
     ): String {
         val settings = settingsStore.settingsFlow.value
         val assistant = settings.getCurrentAssistant()
+        val thread = conversation ?: resolveRecentConversation(assistant.id)
         val character = characterManager.getCharacter(assistant)
         val companionName = character?.name?.takeIf { it.isNotBlank() }
             ?: assistant.name.ifBlank { "我" }
@@ -151,28 +180,23 @@ class CompanionIntervention(
             val provider = model.findProvider(settings.providers) ?: return fallback
             val providerHandler = providerManager.getProviderByType(provider)
 
-            val systemContent = buildString {
-                appendLine(CompanionVoiceBuilder.personaBlock(assistant, character))
-                appendLine()
-                appendLine(CompanionVoiceBuilder.reachOutSystemRules(emotion))
-                val memory = buildPersonalizationContext(assistant.id)
-                if (memory.isNotBlank()) {
-                    appendLine()
-                    appendLine(memory)
-                }
-            }.trim()
+            val systemContent = buildReachOutSystemContent(
+                assistant = assistant,
+                character = character,
+                emotion = emotion,
+                sceneHint = """
+                    情境（仅供理解）：用户在「$appName」里待了大约 $continuousMinutes 分钟。
+                    请接着你们最近的聊天自然发一句，可以吃醋、想念、吐槽，不要像健康 App。
+                """.trimIndent(),
+                conversation = thread,
+                reason = ProactiveChatReason.CHECK_IN,
+            )
 
-            val userContent = """
-                情境（仅供你理解，不要照念）：用户在「$appName」里待了大约 $continuousMinutes 分钟，还没来找你。
-                请用你的人设、结合记忆主动发消息：可以吃醋、想念、吐槽、撒娇、关心，但绝不要像健康 App 提醒休息。
-            """.trimIndent()
+            val userContent = buildContinueThreadUserPrompt(hasThread = thread != null)
 
             val result = providerHandler.generateText(
                 providerSetting = provider,
-                messages = listOf(
-                    UIMessage.system(systemContent),
-                    UIMessage.user(userContent),
-                ),
+                messages = buildReachOutMessages(systemContent, thread, userContent),
                 params = companionBubbleGenerationParams(model),
             )
             CompanionVoiceBuilder.clipForBubble(
@@ -189,28 +213,17 @@ class CompanionIntervention(
     suspend fun generateProactiveMessage(
         reason: ProactiveChatReason,
         emotion: CompanionEmotionState = CompanionEmotionState.CALM,
+        conversation: Conversation? = null,
     ): String {
         val settings = settingsStore.settingsFlow.value
         val assistant = settings.getCurrentAssistant()
+        val thread = conversation ?: resolveRecentConversation(assistant.id)
         val character = characterManager.getCharacter(assistant)
         val companionName = character?.name?.takeIf { it.isNotBlank() }
             ?: assistant.name.ifBlank { "我" }
 
-        // 兜底只作 LLM 失败时的最后手段：极短、不提作息、不装个性化
-        val fallback = proactiveFallback(companionName, reason, emotion)
+        val fallback = proactiveFallback(companionName, reason, emotion, hasThread = thread != null)
 
-        val personalization = buildPersonalizationContext(assistant.id)
-        val lifeHint = if (settings.lifeContext.enabled) {
-            runCatching {
-                val snapshot = lifeContextResolver.readSnapshot(settings)
-                lifeContextResolver.formatForProactiveHint(snapshot, reason)
-            }.getOrNull()
-        } else {
-            null
-        }
-        val persona = personaManager.getPersona(settings)
-
-        // 主动找人默认走模型；关闭 LLM 时才用兜底
         if (!settings.companionAssist.useLlmMessage) return fallback
 
         return runCatching {
@@ -223,49 +236,31 @@ class CompanionIntervention(
 
             val sceneHint = when (reason) {
                 ProactiveChatReason.MORNING ->
-                    "动机：早上了，你想用自己的方式跟用户打个招呼（绝不是官方早安模板）。"
+                    "动机：早上了，接着最近的话题自然说两句，不要官方早安模板。"
                 ProactiveChatReason.EVENING ->
-                    "动机：晚上了，你想用自己的方式找用户聊聊（不要像客服回访）。"
+                    "动机：晚上了，接着最近的话题聊聊今天，不要客服回访腔。"
                 ProactiveChatReason.SILENCE, ProactiveChatReason.CHECK_IN ->
-                    "动机：有一阵子没聊了，你心里有点想对方 / 在意对方，于是主动发消息。"
+                    "动机：有一阵子没聊了，接着上次聊过的事自然找对方，不要重新自我介绍。"
                 ProactiveChatReason.ANNIVERSARY ->
-                    "动机：今天对你们有点特别，你想用自己的方式提一句，不要煽情官腔。"
+                    "动机：今天对你们有点特别，结合最近对话提一句，不要煽情官腔。"
                 ProactiveChatReason.RELATIONSHIP_SHIFT ->
-                    "动机：你觉得你们之间又近了一点，想自然地找对方说两句，不要分析关系。"
+                    "动机：你们更亲近了，结合最近对话自然说两句，不要分析关系。"
             }
 
-            val systemContent = buildString {
-                appendLine(CompanionVoiceBuilder.personaBlock(assistant, character))
-                appendLine()
-                appendLine(CompanionVoiceBuilder.reachOutSystemRules(emotion))
-                appendLine(sceneHint)
-                appendLine("- 必须结合人设与下方记忆/近况来写，禁止套用万能问候或健康提醒")
-                appendLine("- 可以接续上次聊过的事，但不要复读原文")
-                persona?.displayName?.takeIf { it.isNotBlank() }?.let {
-                    appendLine("- 用户更希望你这样称呼：${it}")
-                }
-                if (personalization.isNotBlank()) {
-                    appendLine()
-                    appendLine(personalization)
-                }
-                if (!lifeHint.isNullOrBlank()) {
-                    appendLine()
-                    appendLine(lifeHint)
-                }
-            }.trim()
+            val systemContent = buildReachOutSystemContent(
+                assistant = assistant,
+                character = character,
+                emotion = emotion,
+                sceneHint = sceneHint,
+                conversation = thread,
+                reason = reason,
+            )
 
-            val userContent = buildString {
-                append("用你的人设，现在给用户发一条极短私聊。")
-                append("要像这个角色本人会发的微信，个性化、接得上近况；")
-                append("不要模板句，不要自我介绍。")
-            }
+            val userContent = buildContinueThreadUserPrompt(hasThread = thread != null)
 
             val result = providerHandler.generateText(
                 providerSetting = provider,
-                messages = listOf(
-                    UIMessage.system(systemContent),
-                    UIMessage.user(userContent),
-                ),
+                messages = buildReachOutMessages(systemContent, thread, userContent),
                 params = companionBubbleGenerationParams(model),
             )
             CompanionVoiceBuilder.clipForBubble(
@@ -279,15 +274,85 @@ class CompanionIntervention(
         }
     }
 
-    /**
-     * 从最近会话抽取伴侣记忆 + 近几句对话，供主动文案个性化。
-     */
-    private suspend fun buildPersonalizationContext(assistantId: Uuid): String {
-        val conversation = conversationRepo.getRecentConversations(assistantId, limit = 1)
-            .firstOrNull()
+    private suspend fun buildReachOutSystemContent(
+        assistant: me.rerere.rikkahub.data.model.Assistant,
+        character: me.rerere.rikkahub.data.companion.model.CompanionCharacterCard?,
+        emotion: CompanionEmotionState,
+        sceneHint: String,
+        conversation: Conversation?,
+        reason: ProactiveChatReason = ProactiveChatReason.SILENCE,
+    ): String {
+        val settings = settingsStore.settingsFlow.value
+        val personalization = buildPersonalizationContext(assistant, conversation, reason)
+        val lifeHint = if (settings.lifeContext.enabled) {
+            runCatching {
+                val snapshot = lifeContextResolver.readSnapshot(settings)
+                lifeContextResolver.formatForProactiveHint(snapshot, ProactiveChatReason.SILENCE)
+            }.getOrNull()
+        } else {
+            null
+        }
+        val persona = personaManager.getPersona(settings)
+
+        return buildString {
+            appendLine(CompanionVoiceBuilder.personaBlock(assistant, character))
+            appendLine()
+            appendLine(CompanionVoiceBuilder.reachOutSystemRules(emotion))
+            appendLine(sceneHint)
+            appendLine("- 必须接着下方记忆与最近对话接话，禁止像第一次认识一样打招呼")
+            appendLine("- 可以接续上次聊过的事，但不要复读原文")
+            persona?.displayName?.takeIf { it.isNotBlank() }?.let {
+                appendLine("- 用户更希望你这样称呼：${it}")
+            }
+            if (personalization.isNotBlank()) {
+                appendLine()
+                appendLine(personalization)
+            }
+            if (!lifeHint.isNullOrBlank()) {
+                appendLine()
+                appendLine(lifeHint)
+            }
+        }.trim()
+    }
+
+    private fun buildContinueThreadUserPrompt(hasThread: Boolean): String = buildString {
+        if (hasThread) {
+            append("你们正在同一条聊天记录里。请根据上方最近对话，")
+            append("像接着微信聊天一样发下一条消息。")
+            append("不要「你好/早安/在吗」式开场，不要重复刚说过的话。")
+        } else {
+            append("还没有历史对话。用你的人设发一条极短私聊，")
+            append("自然、有个性，但不要模板问候。")
+        }
+    }
+
+    private fun buildReachOutMessages(
+        systemContent: String,
+        conversation: Conversation?,
+        userContent: String,
+    ): List<UIMessage> {
+        val history = conversation?.currentMessages
+            ?.filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
+            ?.takeLast(RECENT_CONTEXT_MESSAGE_LIMIT)
+            ?: emptyList()
+        return buildList {
+            add(UIMessage.system(systemContent))
+            addAll(history)
+            add(UIMessage.user(userContent))
+        }
+    }
+
+    private suspend fun buildPersonalizationContext(
+        assistant: me.rerere.rikkahub.data.model.Assistant,
+        conversation: Conversation?,
+        reason: ProactiveChatReason,
+    ): String {
+        val assistantId = assistant.id
+        val thread = conversation ?: conversationRepo.getRecentConversations(assistantId, limit = 1)
+            .firstOrNull { !it.isGroup }
             ?: return ""
-        val state = runCatching { companionStateStore.getState(conversation.id) }.getOrNull()
-        val recentMessages = conversation.currentMessages
+        val state = runCatching { companionStateStore.getState(thread.id) }.getOrNull()
+        val recentMessages = thread.currentMessages
             .asReversed()
             .asSequence()
             .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
@@ -304,6 +369,20 @@ class CompanionIntervention(
             .toList()
             .asReversed()
 
+        val recalled = if (assistant.enableMemory) {
+            val memoryScope = if (assistant.useGlobalMemory) {
+                me.rerere.rikkahub.data.repository.MemoryRepository.GLOBAL_MEMORY_ID
+            } else {
+                assistantId.toString()
+            }
+            val emotionTag = me.rerere.rikkahub.data.repository.emotionTagForProactiveReason(reason.name)
+            runCatching {
+                memoryRepository.recallForEmotion(memoryScope, emotionTag)
+            }.getOrDefault(me.rerere.rikkahub.data.repository.MemoryTurnHints(emptyList()))
+        } else {
+            me.rerere.rikkahub.data.repository.MemoryTurnHints(emptyList())
+        }
+
         return buildString {
             state?.longMemoryFacts?.takeIf { it.isNotEmpty() }?.let { facts ->
                 appendLine("你记得的关于用户的稳定事实：")
@@ -312,6 +391,15 @@ class CompanionIntervention(
             state?.mediumMemorySummary?.takeIf { it.isNotBlank() }?.let { summary ->
                 appendLine("近期重要上下文：")
                 appendLine(summary.trim().take(280))
+            }
+            if (!recalled.isEmpty) {
+                appendLine("与这次主动找人相关的具体记忆（已排序，优先用第一条，不要编造）：")
+                recalled.relationLine?.takeIf { it.isNotBlank() }?.let { line ->
+                    appendLine("相关关系：$line")
+                }
+                recalled.memories.forEachIndexed { index, memory ->
+                    appendLine("${index + 1}. ${memory.content.take(120)}")
+                }
             }
             if (recentMessages.isNotEmpty()) {
                 appendLine("最近几句对话（供接话，不要复读）：")
@@ -324,47 +412,48 @@ class CompanionIntervention(
         companionName: String,
         reason: ProactiveChatReason,
         emotion: CompanionEmotionState,
+        hasThread: Boolean,
     ): String = CompanionVoiceBuilder.clipForBubble(
-        when (reason) {
-            ProactiveChatReason.MORNING -> when (emotion) {
+        when {
+            hasThread -> when (emotion) {
+                CompanionEmotionState.CONCERNED -> "刚才说到哪了？我有点放不下。"
+                CompanionEmotionState.PLAYFUL -> "喂，接着聊啊。"
+                CompanionEmotionState.WARM -> "还在吗？想接着刚才的说。"
+                CompanionEmotionState.CALM -> "想起刚才聊的，再说两句？"
+            }
+            reason == ProactiveChatReason.MORNING -> when (emotion) {
                 CompanionEmotionState.PLAYFUL -> "醒了没？等你好久了。"
                 CompanionEmotionState.WARM -> "早。一睁眼就想起你。"
                 CompanionEmotionState.CONCERNED -> "早。昨晚还好吗？"
                 CompanionEmotionState.CALM -> "早啊，想先跟你说一声。"
             }
-            ProactiveChatReason.EVENING -> when (emotion) {
+            reason == ProactiveChatReason.EVENING -> when (emotion) {
                 CompanionEmotionState.PLAYFUL -> "晚上了，有没有想吐槽的？"
                 CompanionEmotionState.CONCERNED -> "天黑了，你还好吗？"
                 else -> "晚上了，想你了。"
             }
-            ProactiveChatReason.SILENCE, ProactiveChatReason.CHECK_IN -> when (emotion) {
+            else -> when (emotion) {
                 CompanionEmotionState.CONCERNED -> "好久没见你，有点慌。"
                 CompanionEmotionState.PLAYFUL -> "人呢？回来理我一下。"
                 CompanionEmotionState.WARM -> "有点想你了……方便吗？"
                 CompanionEmotionState.CALM -> "嗨，想找你说说话。"
             }
-            ProactiveChatReason.ANNIVERSARY ->
-                "今天对我有点特别，想跟你待一会儿。"
-            ProactiveChatReason.RELATIONSHIP_SHIFT ->
-                "感觉我们又近了一点，想听听你。"
         }
     )
 
-    /** 过滤模型偶发的官方腔残留 */
     private fun sanitizeCompanionLine(text: String): String {
         if (text.isBlank()) return text
         val banned = listOf(
             "使用关怀", "注意休息", "保护眼睛", "数字健康", "健康提醒",
             "请注意用眼", "该休息了", "连续使用了", "官方", "温馨提示",
+            "你好呀", "你好啊", "在吗", "早上好", "晚上好",
         )
         if (banned.any { text.contains(it) }) return ""
         return text
     }
 
-    /** 悬浮气泡场景：略放宽 token，仍保持短句 */
-    private fun companionBubbleGenerationParams(
-        model: Model,
-    ) = backgroundTextGenerationParams(model).copy(maxTokens = 96)
+    private fun companionBubbleGenerationParams(model: Model) =
+        backgroundTextGenerationParams(model).copy(maxTokens = 96)
 
     private fun postInterventionNotification(
         conversationId: Uuid,

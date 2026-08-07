@@ -100,6 +100,12 @@ data class QuickMessage(
 data class AssistantMemory(
     val id: Int,
     val content: String = "",
+    val topicKey: String? = null,
+    val layer: String = "episode",
+    val status: String = "active",
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L,
+    val supersedesId: Int? = null,
 )
 
 @Serializable

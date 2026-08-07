@@ -256,7 +256,10 @@ fun VoicePresetPicker(
 
         val resolve = resolveVoiceCallTts(settings, assistant.voiceCall)
         val keyBackend = keyBackendForResolve(settings, resolve)
-        if (keyBackend != null && keyBackend != VoiceTtsBackend.System) {
+        if (keyBackend != null &&
+            keyBackend != VoiceTtsBackend.System &&
+            keyBackend != VoiceTtsBackend.Qwen3Local
+        ) {
             val existingKey = existingApiKeyFor(settings, keyBackend)
             Text(
                 text = if (existingKey.isBlank()) {
@@ -376,7 +379,8 @@ private fun existingApiKeyFor(settings: Settings, backend: VoiceTtsBackend): Str
         }
         VoiceTtsBackend.Qwen ->
             settings.ttsProviders.filterIsInstance<TTSProviderSetting.Qwen>().firstOrNull()?.apiKey.orEmpty()
-        VoiceTtsBackend.System -> ""
+        VoiceTtsBackend.System,
+        VoiceTtsBackend.Qwen3Local -> ""
     }
 
 private fun maskApiKey(key: String): String {

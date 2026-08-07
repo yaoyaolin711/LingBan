@@ -49,6 +49,8 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.repository.MemoryRepository
+import me.rerere.rikkahub.data.repository.MemoryWriteSource
+import me.rerere.rikkahub.data.repository.MemoryTurnHints
 import me.rerere.rikkahub.data.workflow.WorkflowRuntimeBundle
 import me.rerere.rikkahub.utils.applyPlaceholders
 import java.util.Locale
@@ -111,14 +113,21 @@ class GenerationHandler(
                     buildMemoryTools(
                         json = json,
                         onCreation = { content ->
-                            memoryRepo.addMemory(memoryAssistantId, content)
+                            memoryRepo.addMemory(memoryAssistantId, content, source = MemoryWriteSource.USER)
                         },
                         onUpdate = { id, content ->
-                            memoryRepo.updateContent(id, content)
+                            memoryRepo.updateContent(id, content, source = MemoryWriteSource.USER)
                         },
                         onDelete = { id ->
                             memoryRepo.deleteMemory(id)
-                        }
+                        },
+                        onSearch = { query, includeSuperseded ->
+                            memoryRepo.searchMemories(
+                                assistantId = memoryAssistantId,
+                                query = query,
+                                includeSuperseded = includeSuperseded,
+                            )
+                        },
                     ).let(this::addAll)
                 }
                 addAll(tools)
@@ -421,9 +430,30 @@ class GenerationHandler(
                     append(buildCarryoverOverviewPrompt(carryoverOverview))
                 }
 
+                append(buildGlobalUserProfilePrompt(settings.globalUserProfile))
+
                 // 记忆
                 if (assistant.enableMemory) {
-                    append(buildMemoryPrompt(memories = memories))
+                    val memoryAssistantId = if (assistant.useGlobalMemory) {
+                        MemoryRepository.GLOBAL_MEMORY_ID
+                    } else {
+                        assistant.id.toString()
+                    }
+                    val graphHubs = runCatching {
+                        memoryRepo.graphHubsSummary(memoryAssistantId)
+                    }.getOrNull()
+                    append(buildMemoryPrompt(memories = memories, graphHubsSummary = graphHubs))
+                    val lastUserText = messages
+                        .asReversed()
+                        .firstOrNull { it.role == MessageRole.USER }
+                        ?.toText()
+                        .orEmpty()
+                    if (lastUserText.isNotBlank()) {
+                        val hints = runCatching {
+                            memoryRepo.preretrieveForUserText(memoryAssistantId, lastUserText)
+                        }.getOrDefault(MemoryTurnHints(emptyList()))
+                        append(buildMemoryPreretrievePrompt(hints))
+                    }
                 }
                 // 工具prompt
                 tools.forEach { tool ->

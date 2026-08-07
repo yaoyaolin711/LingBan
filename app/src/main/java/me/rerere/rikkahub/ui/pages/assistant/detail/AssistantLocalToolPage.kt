@@ -61,6 +61,7 @@ import me.rerere.rikkahub.data.model.CompanionPixelPetSkin
 import me.rerere.rikkahub.data.model.resolvedCompanionOverlayStyle
 import me.rerere.rikkahub.data.model.withCompanionOverlayStyle
 import me.rerere.rikkahub.overlay.pet.CompanionPetHost
+import me.rerere.rikkahub.ui.components.companion.CompanionPermissionGuideDialog
 import me.rerere.rikkahub.service.CompanionMonitorService
 import me.rerere.rikkahub.service.SolaceAccessibilityService
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -299,18 +300,16 @@ private fun AssistantLocalToolContent(
     }
 
     val petHost = koinInject<CompanionPetHost>()
+    var showCompanionPermissionGuide by remember { mutableStateOf(false) }
 
     fun updateCompanionMode(enabled: Boolean) {
         if (enabled) {
-            if (!context.canDrawOverlays()) {
-                toaster.show(message = "陪伴悬浮头像需要悬浮窗权限", type = ToastType.Warning)
-                context.openOverlayPermissionSettings()
-            }
             onUpdate(
                 assistant.copy(
                     enableCompanion = true,
                 )
             )
+            showCompanionPermissionGuide = true
             return
         }
         // 关闭陪伴模式 = 关掉悬浮头像 + 本助手主动找人 + 后台监测，并停掉 FGS
@@ -545,6 +544,14 @@ private fun AssistantLocalToolContent(
             )
             if (assistant.enableCompanion) {
                 item(
+                    onClick = { showCompanionPermissionGuide = true },
+                    headlineContent = { Text("伴侣权限一站式引导") },
+                    supportingContent = {
+                        Text("悬浮窗、使用情况访问、电池优化等权限检查与跳转")
+                    },
+                    trailingContent = { Icon(HugeIcons.ArrowRight01, null) },
+                )
+                item(
                     headlineContent = { Text("悬浮样式") },
                     supportingContent = {
                         Text("头像=圆形伴侣头像；像素桌宠=WebView SVG 角色（需悬浮窗权限），可选皮肤")
@@ -771,7 +778,7 @@ private fun AssistantLocalToolContent(
                                         ShizukuBootstrap.Outcome.OpenedManager ->
                                             "已打开 Shizuku，请点「启动」，完成后再回到这里"
                                         ShizukuBootstrap.Outcome.NeedInstall ->
-                                            "请先安装 Shizuku，装好后回来再点这个按钮"
+                                            "已打开 GitHub 下载页，装好 APK 后回来再点"
                                         ShizukuBootstrap.Outcome.RootStartFailed ->
                                             "自动启动失败，已打开 Shizuku，请手动点「启动」"
                                     }
@@ -812,7 +819,8 @@ private fun AssistantLocalToolContent(
                                         ShizukuBootstrap.Outcome.NeedPermission -> "请在弹窗里点「允许」"
                                         ShizukuBootstrap.Outcome.OpenedManager ->
                                             "已打开 Shizuku，请点「启动」后再回来"
-                                        ShizukuBootstrap.Outcome.NeedInstall -> "请先安装 Shizuku"
+                                        ShizukuBootstrap.Outcome.NeedInstall ->
+                                            "已打开 GitHub 下载页，装好 APK 后回来再试"
                                         ShizukuBootstrap.Outcome.RootStartFailed ->
                                             "请到 Shizuku 里手动点「启动」"
                                     }
@@ -835,11 +843,11 @@ private fun AssistantLocalToolContent(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("这个开关用来让助手做普通 App 做不到的事，比如强制关闭抖音、模拟按 Home 键。")
                         Text("它依赖一个叫 Shizuku 的免费工具（不用 Root）。按下面做即可：")
-                        Text("1. 点「去安装 Shizuku」，从应用商店装好。")
-                        Text("2. 再点「去启动 Shizuku」。在 Shizuku 里用「无线调试」启动（Android 11+ 不用电脑）。")
-                        Text("3. 回到这里，若弹出授权，点「允许」。")
-                        Text("4. 打开右侧开关。之后聊天里助手要用强控时，仍会先问你同不同意。")
-                        Text("提示：手机重启后，通常要重新进 Shizuku 点一次「启动」。")
+                        Text("1. 点「去安装 Shizuku」。Google Play / 酷安常显示不适配，会改为打开 GitHub 官方 APK 下载。")
+                        Text("2. 浏览器下载完成后安装；若 GitHub 打不开，用电脑下载 APK 传到手机再装。")
+                        Text("3. 再点「去启动 Shizuku」。在 Shizuku 里用「无线调试」启动（Android 11+ 不用电脑）。")
+                        Text("4. 回到这里，若弹出授权，点「允许」，再打开右侧开关。")
+                        Text("提示：手机重启后，通常要重新进 Shizuku 点一次「启动」。不用强控时可跳过 Shizuku。")
                     }
                 },
                 confirmButton = {
@@ -1086,5 +1094,13 @@ private fun AssistantLocalToolContent(
                 minLines = 4,
             )
         }
+    }
+
+    if (showCompanionPermissionGuide) {
+        CompanionPermissionGuideDialog(
+            assistant = assistant,
+            companionAssist = companionAssist,
+            onDismiss = { showCompanionPermissionGuide = false },
+        )
     }
 }

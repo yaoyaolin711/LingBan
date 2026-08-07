@@ -55,6 +55,7 @@ object CompanionVoiceBuilder {
         appendLine("- 极短：整段不超过 ${COMPANION_BUBBLE_MAX_CHARS} 个汉字，最多两句，不要换行、不要列表")
         appendLine("- 禁止：使用关怀、注意休息、保护眼睛、健康提醒、数字健康、系统播报腔")
         appendLine("- 禁止：自我介绍是 AI、emoji 堆砌、标题党、官方客服腔")
+        appendLine("- 若已有最近对话：禁止「你好/在吗/早安/晚安」式重新开场")
         appendLine("- 不要复述「连续使用了 X 分钟」这种报告句")
         appendLine("- 只输出要对用户说的话，不要内心独白或旁白")
     }.trim()

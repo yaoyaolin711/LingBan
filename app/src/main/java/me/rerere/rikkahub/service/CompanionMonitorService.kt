@@ -199,47 +199,85 @@ class CompanionMonitorService : Service() {
                 val settings = settingsStore.settingsFlow.value
                 val assist = settings.companionAssist
                 if (!settings.needsCompanionForegroundService()) break
-                if (assist.monitorEnabled) {
-                    runCatching { tickUsageCare(assist, settings) }
-                        .onFailure { Log.w(TAG, "usage care tick failed", it) }
-                }
                 val proactiveAssistants = settings.assistants.filter { it.proactiveChatEnabled }
                 val legacyGlobal = assist.proactiveChatEnabled
-                if (proactiveAssistants.isNotEmpty() || legacyGlobal) {
-                    runCatching { tickProactiveChat(assist, settings) }
-                        .onFailure { Log.w(TAG, "proactive tick failed", it) }
-                    runCatching { tickEmotionSuggestion(assist, settings) }
-                        .onFailure { Log.w(TAG, "emotion suggestion tick failed", it) }
+                if (assist.monitorEnabled || proactiveAssistants.isNotEmpty() || legacyGlobal) {
+                    runCatching { dispatchProactiveIfDue(assist, settings) }
+                        .onFailure { Log.w(TAG, "proactive dispatch failed", it) }
                 }
                 delay(assist.effectivePollIntervalSeconds() * 1000L)
             }
         }
     }
 
-    private suspend fun tickUsageCare(assist: CompanionAssistSetting, settings: Settings) {
+    private data class ProactiveDispatchPlan(
+        val action: ProactiveAction,
+        val morningDate: String? = null,
+        val eveningDate: String? = null,
+        val usagePackageKey: String? = null,
+    )
+
+    /**
+     * 每轮轮询最多执行一条主动动作，并统一占用全局冷却 + 每日上限。
+     */
+    private suspend fun dispatchProactiveIfDue(
+        assist: CompanionAssistSetting,
+        settings: Settings,
+    ) {
+        if (!canActToday(assist)) return
+        val now = System.currentTimeMillis()
+        val cooldownMs = assist.effectiveProactiveCooldownMinutes() * 60_000L
+        if (now - assist.lastProactiveAtEpochMs < cooldownMs) return
+
+        val plan = planUsageCareAction(assist, settings)
+            ?: planScheduledProactiveAction(assist, settings)
+            ?: planEmotionSuggestionAction(assist, settings)
+            ?: return
+
+        if (plan.action is ProactiveAction.None) return
+
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone).toString()
+        settingsStore.update { current ->
+            val bumped = bumpDayCount(current.companionAssist, today)
+            current.copy(
+                companionAssist = bumped.copy(
+                    lastProactiveAtEpochMs = now,
+                    lastMorningDate = plan.morningDate ?: bumped.lastMorningDate,
+                    lastEveningDate = plan.eveningDate ?: bumped.lastEveningDate,
+                ),
+            )
+        }
+        plan.usagePackageKey?.let { pkg ->
+            prefs.edit().putLong(PREFS_USAGE_PREFIX + pkg, now).apply()
+        }
+
+        Log.i(TAG, "proactive dispatch: ${plan.action::class.simpleName}")
+        softActions.execute(plan.action)
+    }
+
+    private suspend fun planUsageCareAction(
+        assist: CompanionAssistSetting,
+        settings: Settings,
+    ): ProactiveDispatchPlan? {
+        if (!assist.monitorEnabled) return null
         if (!hasUsageStatsPermission()) {
             Log.d(TAG, "skip usage care: no usage stats permission")
-            return
+            return null
         }
-        if (!canActToday(assist)) {
-            Log.d(TAG, "skip usage care: daily limit")
-            return
-        }
-        val foreground = UsageStatsQuery.getForegroundApp(this) ?: return
+        val foreground = UsageStatsQuery.getForegroundApp(this) ?: return null
         val packages = assist.monitoredPackages.map { it.trim() }.filter { it.isNotEmpty() }
-        if (packages.isNotEmpty() && foreground.packageName !in packages) return
+        if (packages.isNotEmpty() && foreground.packageName !in packages) return null
 
         val thresholdMs = assist.effectiveThresholdMinutes() * 60_000L
-        if (foreground.continuousMs < thresholdMs) return
+        if (foreground.continuousMs < thresholdMs) return null
 
         val now = System.currentTimeMillis()
-        val cooldownMs = assist.effectiveCooldownMinutes() * 60_000L
+        val packageCooldownMs = assist.effectiveCooldownMinutes() * 60_000L
         val last = prefs.getLong(PREFS_USAGE_PREFIX + foreground.packageName, 0L)
-        if (now - last < cooldownMs) return
+        if (now - last < packageCooldownMs) return null
 
-        prefs.edit().putLong(PREFS_USAGE_PREFIX + foreground.packageName, now).apply()
-        Log.i(TAG, "usage care: ${foreground.packageName} ${foreground.continuousMinutes}m")
-
+        Log.i(TAG, "usage care plan: ${foreground.packageName} ${foreground.continuousMinutes}m")
         val assistant = settings.getCurrentAssistant()
         val emotion = emotionResolver.resolveForAssistant(assistant.id)
         val hour = LocalTime.now(ZoneId.systemDefault()).hour
@@ -254,20 +292,24 @@ class CompanionMonitorService : Service() {
             quietHourEnd = assist.quietHourEnd,
             severeContinuousMinutes = assist.effectiveSevereContinuousMinutes(),
         )
-        softActions.execute(action)
-        markProactiveConsumed()
+        return ProactiveDispatchPlan(
+            action = action,
+            usagePackageKey = foreground.packageName,
+        )
     }
 
-    private suspend fun tickProactiveChat(assist: CompanionAssistSetting, settings: Settings) {
-        if (!canActToday(assist)) return
-        val now = System.currentTimeMillis()
-        val cooldownMs = assist.effectiveProactiveCooldownMinutes() * 60_000L
-        if (now - assist.lastProactiveAtEpochMs < cooldownMs) return
+    private suspend fun planScheduledProactiveAction(
+        assist: CompanionAssistSetting,
+        settings: Settings,
+    ): ProactiveDispatchPlan? {
+        val proactiveAssistants = settings.assistants.filter { it.proactiveChatEnabled }
+        val legacyGlobal = assist.proactiveChatEnabled
+        if (proactiveAssistants.isEmpty() && !legacyGlobal) return null
 
         val targetAssistant = settings.getCurrentAssistant()
-            .takeIf { it.proactiveChatEnabled || assist.proactiveChatEnabled }
-            ?: settings.assistants.firstOrNull { it.proactiveChatEnabled }
-            ?: return
+            .takeIf { it.proactiveChatEnabled || legacyGlobal }
+            ?: proactiveAssistants.firstOrNull()
+            ?: return null
 
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone).toString()
@@ -286,15 +328,16 @@ class CompanionMonitorService : Service() {
                 val lastChat = conversationRepo.getRecentConversations(targetAssistant.id, limit = 1)
                     .firstOrNull()
                 val lastAt = lastChat?.updateAt?.toEpochMilli() ?: 0L
+                val now = System.currentTimeMillis()
                 if (lastAt == 0L || now - lastAt >= assist.effectiveSilenceThresholdMs()) {
                     ProactiveChatReason.SILENCE
                 } else {
                     null
                 }
             }
-        } ?: return
+        } ?: return null
 
-        Log.i(TAG, "proactive chat: $resolvedReason assistant=${targetAssistant.name}")
+        Log.i(TAG, "scheduled proactive plan: $resolvedReason assistant=${targetAssistant.name}")
         val emotion = emotionResolver.resolveForAssistant(targetAssistant.id)
         val action = CompanionProactivePolicy.decideProactiveChat(
             reason = resolvedReason,
@@ -304,55 +347,41 @@ class CompanionMonitorService : Service() {
             quietHourStart = assist.quietHourStart,
             quietHourEnd = assist.quietHourEnd,
         )
-        softActions.execute(action)
-
-        settingsStore.update { current ->
-            val ca = bumpDayCount(current.companionAssist, today)
-            current.copy(
-                companionAssist = ca.copy(
-                    lastProactiveAtEpochMs = now,
-                    lastMorningDate = if (resolvedReason == ProactiveChatReason.MORNING) today else ca.lastMorningDate,
-                    lastEveningDate = if (resolvedReason == ProactiveChatReason.EVENING) today else ca.lastEveningDate,
-                )
-            )
-        }
+        return ProactiveDispatchPlan(
+            action = action,
+            morningDate = if (resolvedReason == ProactiveChatReason.MORNING) today else null,
+            eveningDate = if (resolvedReason == ProactiveChatReason.EVENING) today else null,
+        )
     }
 
-    /**
-     * 情绪/关系/纪念日建议（[ProactiveTriggerManager]），与早安晚间沉默共用冷却与每日上限。
-     */
-    private suspend fun tickEmotionSuggestion(assist: CompanionAssistSetting, settings: Settings) {
-        if (!canActToday(assist)) return
-        val now = System.currentTimeMillis()
-        val cooldownMs = assist.effectiveProactiveCooldownMinutes() * 60_000L
-        if (now - assist.lastProactiveAtEpochMs < cooldownMs) return
-
+    private suspend fun planEmotionSuggestionAction(
+        assist: CompanionAssistSetting,
+        settings: Settings,
+    ): ProactiveDispatchPlan? {
+        val legacyGlobal = assist.proactiveChatEnabled
         val targetAssistant = settings.getCurrentAssistant()
-            .takeIf { it.enableCompanion && (it.proactiveChatEnabled || assist.proactiveChatEnabled) }
+            .takeIf { it.enableCompanion && (it.proactiveChatEnabled || legacyGlobal) }
             ?: settings.assistants.firstOrNull {
                 it.enableCompanion && it.proactiveChatEnabled
             }
-            ?: return
+            ?: return null
 
         val ctx = emotionResolver.resolveContext(targetAssistant.id)
-        val conversation = ctx.conversation ?: return
-        val state = ctx.state ?: return
+        val conversation = ctx.conversation ?: return null
+        val state = ctx.state ?: return null
 
         val suggestion = proactiveTriggerManager.evaluateSuggestion(
             settings = settings,
             conversation = conversation,
             state = state,
-        ) ?: return
+        ) ?: return null
 
-        // 与 SILENCE 重复时跳过：普通沉默已由 tickProactiveChat 处理
-        if (suggestion.type == "check_in" &&
-            suggestion.reason == "user_inactive"
-        ) {
-            return
+        if (suggestion.type == "check_in" && suggestion.reason == "user_inactive") {
+            return null
         }
 
         val hour = LocalTime.now(ZoneId.systemDefault()).hour
-        Log.i(TAG, "emotion suggestion: ${suggestion.type} ${suggestion.reason}")
+        Log.i(TAG, "emotion suggestion plan: ${suggestion.type} ${suggestion.reason}")
         val action = CompanionProactivePolicy.decideFromSuggestion(
             suggestion = suggestion,
             emotion = ctx.emotion,
@@ -361,16 +390,8 @@ class CompanionMonitorService : Service() {
             quietHourStart = assist.quietHourStart,
             quietHourEnd = assist.quietHourEnd,
         )
-        if (action is ProactiveAction.None) return
-        softActions.execute(action)
-
-        settingsStore.update { current ->
-            val today = LocalDate.now(ZoneId.systemDefault()).toString()
-            val ca = bumpDayCount(current.companionAssist, today)
-            current.copy(
-                companionAssist = ca.copy(lastProactiveAtEpochMs = now)
-            )
-        }
+        if (action is ProactiveAction.None) return null
+        return ProactiveDispatchPlan(action = action)
     }
 
     private fun canActToday(assist: CompanionAssistSetting): Boolean {
@@ -384,13 +405,6 @@ class CompanionMonitorService : Service() {
         if (currentHour == targetHour) return true
         val end = (targetHour + GREETING_CATCHUP_HOURS).coerceAtMost(23)
         return currentHour in (targetHour + 1)..end
-    }
-
-    private suspend fun markProactiveConsumed() {
-        val today = LocalDate.now(ZoneId.systemDefault()).toString()
-        settingsStore.update { current ->
-            current.copy(companionAssist = bumpDayCount(current.companionAssist, today))
-        }
     }
 
     private fun bumpDayCount(assist: CompanionAssistSetting, today: String): CompanionAssistSetting {

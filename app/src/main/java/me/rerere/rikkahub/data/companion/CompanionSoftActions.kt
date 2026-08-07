@@ -40,16 +40,20 @@ class CompanionSoftActions(
     private suspend fun executeSoftNotify(action: ProactiveAction.SoftNotify) {
         Log.d(TAG, "notify_user: ${action.title}")
         petHost.updateEmotion(action.emotion, statusText = action.title)
+        val assistant = settingsStore.settingsFlow.value.getCurrentAssistant()
+        val thread = intervention.resolveRecentConversation(assistant.id)
         val message = when {
             action.isUsageCare -> intervention.generateCareMessage(
                 appName = action.appName.orEmpty(),
                 packageName = "",
                 continuousMinutes = action.continuousMinutes,
                 emotion = action.emotion,
+                conversation = thread,
             )
             action.reason != null -> intervention.generateProactiveMessage(
                 reason = action.reason,
                 emotion = action.emotion,
+                conversation = thread,
             )
             else -> action.content
         }.ifBlank { action.content }
@@ -57,18 +61,22 @@ class CompanionSoftActions(
         intervention.notifyUser(
             title = action.title,
             content = message,
+            conversationId = thread?.id,
         )
     }
 
     private suspend fun executeOpenSolace(action: ProactiveAction.OpenSolace) {
         Log.d(TAG, "open_solace: ${action.title} usageCare=${action.isUsageCare}")
         petHost.updateEmotion(action.emotion, statusText = action.title)
+        val assistant = settingsStore.settingsFlow.value.getCurrentAssistant()
+        val thread = intervention.resolveRecentConversation(assistant.id)
         val message = if (action.isUsageCare) {
             intervention.generateCareMessage(
                 appName = action.appName.orEmpty(),
                 packageName = action.packageName.orEmpty(),
                 continuousMinutes = action.continuousMinutes,
                 emotion = action.emotion,
+                conversation = thread,
             )
         } else {
             val reason = action.reason ?: run {
@@ -78,12 +86,14 @@ class CompanionSoftActions(
             intervention.generateProactiveMessage(
                 reason = reason,
                 emotion = action.emotion,
+                conversation = thread,
             )
         }
         val conversationId = intervention.openSolaceWithMessage(
             message = message,
             title = action.title,
             useFullScreenIntent = action.useFullScreenIntent,
+            assistantId = assistant.id,
         )
         petHost.showBubble(message, conversationId = conversationId)
     }

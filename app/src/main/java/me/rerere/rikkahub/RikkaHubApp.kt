@@ -11,6 +11,15 @@ import androidx.compose.runtime.tooling.ComposeStackTraceMode
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.gif.AnimatedImageDecoder
+import coil3.gif.GifDecoder
+import coil3.network.cachecontrol.CacheControlCacheStrategy
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
+import coil3.svg.SvgDecoder
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +47,7 @@ import me.rerere.rikkahub.utils.DatabaseUtil
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.workflow.ScheduledWorkflowScheduler
 import me.rerere.workspace.WorkspaceManager
+import okhttp3.OkHttpClient
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -54,7 +64,29 @@ const val COMPANION_INTERVENTION_NOTIFICATION_CHANNEL_ID = "companion_interventi
 const val ACCESSIBILITY_GUARD_NOTIFICATION_CHANNEL_ID = "accessibility_guard"
 const val VOICE_CALL_NOTIFICATION_CHANNEL_ID = "voice_call"
 
-class RikkaHubApp : Application() {
+class RikkaHubApp : Application(), SingletonImageLoader.Factory {
+    override fun newImageLoader(context: PlatformContext): ImageLoader {
+        // Overlays (e.g. CompanionPetHost) may hit Coil before any Activity Compose tree.
+        val okHttpClient = runCatching { get<OkHttpClient>() }.getOrElse { OkHttpClient() }
+        return ImageLoader.Builder(context)
+            .crossfade(true)
+            .components {
+                add(
+                    OkHttpNetworkFetcherFactory(
+                        callFactory = { okHttpClient },
+                        cacheStrategy = { CacheControlCacheStrategy() },
+                    )
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    add(AnimatedImageDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+                add(SvgDecoder.Factory(scaleToDensity = true))
+            }
+            .build()
+    }
+
     override fun onCreate() {
         super.onCreate()
         // Install first so Application/Koin/native crashes still reach SafeMode.

@@ -64,6 +64,8 @@ data class VoiceCallUiState(
     val statusMessage: String = "",
     val errorMessage: String? = null,
     val amplitudes: List<Float> = emptyList(),
+    /** TTS 播放期间麦克风能量监测已启动，用户可直接说话打断。 */
+    val bargeInActive: Boolean = false,
 )
 
 /**
@@ -259,6 +261,7 @@ class VoiceCallSession(
                 awaitingGeneration = false
                 submitting = false
                 bargeInDetector.stop()
+                _ui.update { it.copy(bargeInActive = false) }
                 speakWatchJob?.cancel()
                 tts.stop()
                 scope.launch { chatService.stopGeneration(conversationId) }
@@ -275,6 +278,7 @@ class VoiceCallSession(
         awaitingGeneration = false
         submitting = false
         bargeInDetector.stop()
+        _ui.update { it.copy(bargeInActive = false) }
         generationJob?.cancel()
         speakWatchJob?.cancel()
         asrCollectJob?.cancel()
@@ -526,6 +530,7 @@ class VoiceCallSession(
             }
             // Auto barge-in only while TTS is playing (not during Thinking).
             if (_ui.value.phase == VoiceCallPhase.Speaking) {
+                _ui.update { it.copy(bargeInActive = true) }
                 bargeInDetector.start {
                     if (_ui.value.phase == VoiceCallPhase.Speaking) {
                         VoiceCallDiag.log(TAG, "auto barge-in → interrupt")
@@ -537,6 +542,7 @@ class VoiceCallSession(
                 tts.isSpeaking.first { !it }
             }
             bargeInDetector.stop()
+            _ui.update { it.copy(bargeInActive = false) }
             if (_ui.value.phase == VoiceCallPhase.Speaking) {
                 setPhase(VoiceCallPhase.Listening, "正在聆听…")
                 beginListening(restart = true)

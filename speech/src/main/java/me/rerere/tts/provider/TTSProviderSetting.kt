@@ -346,6 +346,44 @@ sealed class TTSProviderSetting {
     }
 
     /**
+     * 局域网 Qwen3-TTS（用户 PC 本地部署）。
+     *
+     * 协议见 docs/tts/lan-qwen3-tts.md：
+     * - GET  {baseUrl}/health
+     * - POST {baseUrl}/v1/tts/speech
+     */
+    @Serializable
+    @SerialName("qwen3-local")
+    data class Qwen3Local(
+        override var id: Uuid = Uuid.random(),
+        override var name: String = "Qwen3 局域网",
+        /** e.g. http://192.168.1.100:8877 */
+        val baseUrl: String = "",
+        /** custom_voice | voice_design */
+        val mode: String = "custom_voice",
+        val speaker: String = "Vivian",
+        val language: String = "Auto",
+        /** Style instruct for CustomVoice (optional). */
+        val instruct: String = "",
+        /** Natural-language voice description for VoiceDesign mode. */
+        val voiceDescription: String = "",
+        /** wav | pcm */
+        val responseFormat: String = "wav",
+        val speed: Float = 1.0f,
+        val fallbackToSystem: Boolean = true,
+    ) : TTSProviderSetting() {
+        override fun copyProvider(
+            id: Uuid,
+            name: String,
+        ): TTSProviderSetting {
+            return this.copy(
+                id = id,
+                name = name,
+            )
+        }
+    }
+
+    /**
      * 火山引擎 / 豆包语音合成（HTTP v1 一次性合成）。
      *
      * 控制台获取 AppID + Access Token；音色填 voice_type（官方音色或复刻 speaker id）。
@@ -396,6 +434,7 @@ sealed class TTSProviderSetting {
                 Mossland::class,
                 SiliconFlow::class,
                 Volcengine::class,
+                Qwen3Local::class,
             )
         }
     }
